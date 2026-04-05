@@ -37,27 +37,29 @@ Tell your AI assistant (Copilot CLI, Claude Code, etc.):
 
 > "根据 cintia09/multi-agent-framework 仓库里的指引, 将 agents 安装到我本地。"
 
-The assistant will:
-1. 从 GitHub 读取本仓库内容
-2. 将 `skills/` 目录下的 10 个 agent skill 文件复制到 `~/.copilot/skills/`
-3. 将 `agents/` 目录下的 5 个角色模板复制到 `~/.copilot/agents/`
-4. 将 `docs/agent-rules.md` 的内容追加到 `~/.copilot/copilot-instructions.md` (如果尚未包含)
+The assistant will read the AGENTS.md in the repo and automatically:
+1. Clone 仓库到临时目录
+2. 复制 10 个 skill 文件到 `~/.copilot/skills/`
+3. 复制 5 个 `.agent.md` 文件到 `~/.copilot/agents/` (Copilot 原生 custom agent 格式)
+4. 追加协作规则到 `~/.copilot/copilot-instructions.md` (幂等)
+5. 清理临时目录
 
 安装完成后, `~/.copilot/` 将包含:
 ```
 ~/.copilot/
-├── copilot-instructions.md      # 含 Agent 协作规则
+├── copilot-instructions.md       # 含 Agent 协作规则
 ├── skills/
-│   └── agent-*.md               # 10 个 skill 文件
+│   └── agent-*.md                # 10 个 skill 文件
 └── agents/
-    ├── acceptor/instructions.md  # 验收者模板
-    ├── designer/instructions.md  # 设计者模板
-    ├── implementer/instructions.md
-    ├── reviewer/instructions.md
-    └── tester/instructions.md
+    ├── acceptor.agent.md         # 验收者 (原生 agent profile)
+    ├── designer.agent.md         # 设计者
+    ├── implementer.agent.md      # 实现者
+    ├── reviewer.agent.md         # 审查者
+    └── tester.agent.md           # 测试者
 ```
 
-**幂等**: 重复安装只覆盖 skills 和 agents 模板, 不会重复追加 rules。
+**原生集成**: `/agent` 命令可直接列出并切换到这 5 个角色。
+**幂等**: 重复安装只覆盖 skills 和 agents, 不会重复追加 rules。
 
 ## Project Initialization
 
@@ -70,12 +72,11 @@ The assistant will:
 ## Usage
 
 ```
-"切换到验收者"    → 收集需求, 发布任务
-"切换到设计者"    → 架构设计, 输出规格
-"切换到实现者"    → TDD 开发, 按 goals 逐个实现
-"切换到审查者"    → 代码审查
-"切换到测试者"    → 测试, 报告问题
-"查看 Agent 状态" → 状态面板
+/agent                → 浏览并选择角色 (原生命令)
+/agent acceptor       → 切换到验收者
+/agent implementer    → 切换到实现者
+"使用验收者 agent"     → Copilot 自动推断并委派
+"查看 Agent 状态"      → 状态面板
 ```
 
 ## Goals Checklist
@@ -88,20 +89,25 @@ The assistant will:
 ## File Structure
 
 ```
-~/.copilot/                      # 全局层 (安装后)
-├── copilot-instructions.md      # 含 Agent 协作规则
-├── skills/agent-*.md            # 10 个 skill
-└── agents/<role>/instructions.md # 5 个角色模板
+~/.copilot/                            # 全局层 (安装后)
+├── copilot-instructions.md            # 含 Agent 协作规则
+├── skills/agent-*.md                  # 10 个 skill
+└── agents/
+    ├── acceptor.agent.md              # 验收者 (原生 agent profile)
+    ├── designer.agent.md              # 设计者
+    ├── implementer.agent.md           # 实现者
+    ├── reviewer.agent.md              # 审查者
+    └── tester.agent.md               # 测试者
 
-<project>/                       # 项目层 (/init 生成)
-├── AGENTS.md                    # Copilot 自动读取的 Agent 指引
+<project>/                             # 项目层 (/init 生成)
+├── AGENTS.md                          # Copilot 自动读取的 Agent 指引
 └── .copilot/
     ├── task-board.json / .md
     ├── tasks/T-NNN.json
     └── agents/<role>/
         ├── state.json / inbox.json
-        ├── instructions.md      # 定制化版本
-        └── workspace/           # 工作产出物
+        ├── instructions.md            # 定制化版本
+        └── workspace/                 # 工作产出物
 ```
 
 ## Design Inspirations

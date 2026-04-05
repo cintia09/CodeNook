@@ -9,23 +9,45 @@
 git clone --depth 1 git@github.com:cintia09/multi-agent-framework.git /tmp/multi-agent-framework
 ```
 
-### Step 2: 运行安装脚本
+### Step 2: 复制 Skills
 ```bash
-cd /tmp/multi-agent-framework && ./install.sh
+cp /tmp/multi-agent-framework/skills/agent-*.md ~/.copilot/skills/
 ```
-install.sh 会自动:
-- 复制 10 个 skills → `~/.copilot/skills/`
-- 复制 5 个 agent 模板 → `~/.copilot/agents/`
-- 复制 AGENTS.md 指引 → `~/.copilot/AGENTS.md`
-- 追加协作规则 → `~/.copilot/copilot-instructions.md` (幂等, 不重复)
+共 10 个 skill 文件: agent-fsm, agent-task-board, agent-messaging, agent-init, agent-switch, agent-acceptor, agent-designer, agent-implementer, agent-reviewer, agent-tester
 
-### Step 3: 清理临时目录
+### Step 3: 复制 Agent Profiles (原生格式)
+```bash
+cp /tmp/multi-agent-framework/agents/*.agent.md ~/.copilot/agents/
+```
+共 5 个 `.agent.md` 文件 (带 YAML frontmatter), Copilot 原生识别为 custom agents:
+- `acceptor.agent.md` — 验收者
+- `designer.agent.md` — 设计者
+- `implementer.agent.md` — 实现者
+- `reviewer.agent.md` — 审查者
+- `tester.agent.md` — 测试者
+
+### Step 4: 追加协作规则 (幂等)
+检查 `~/.copilot/copilot-instructions.md` 是否已包含 `## Agent Collaboration Rules`。
+如果没有, 将 `docs/agent-rules.md` 的内容追加到末尾。
+
+### Step 5: 清理临时目录
 ```bash
 rm -rf /tmp/multi-agent-framework
 ```
 
-### Step 4: 输出结果
-展示安装结果, 提示用户去项目目录执行 /init。
+### Step 6: 输出结果
+```
+✅ Multi-Agent Framework 安装完成
+━━━━━━━━━━━━━━━━━━━━━━━
+Skills:  10 个已安装到 ~/.copilot/skills/
+Agents:  5 个已安装到 ~/.copilot/agents/ (原生 .agent.md 格式)
+Rules:   已追加到 ~/.copilot/copilot-instructions.md
+━━━━━━━━━━━━━━━━━━━━━━━
+使用方式:
+  /agent           → 选择角色
+  /agent acceptor  → 直接切换到验收者
+  或在对话中说 "使用验收者 agent"
+```
 
 ---
 
@@ -34,11 +56,11 @@ rm -rf /tmp/multi-agent-framework
 ### 5 个 Agent 角色
 | 角色 | 触发方式 | 职责 |
 |------|---------|------|
-| 🎯 验收者 | "切换到验收者" | 需求、任务发布、验收 |
-| 🏗️ 设计者 | "切换到设计者" | 架构设计、测试规格 |
-| 💻 实现者 | "切换到实现者" | TDD 开发、Bug 修复 |
-| 🔍 审查者 | "切换到审查者" | 代码审查、安全审计 |
-| 🧪 测试者 | "切换到测试者" | 测试、问题报告 |
+| 🎯 验收者 | `/agent acceptor` 或 "使用验收者" | 需求、任务发布、验收 |
+| 🏗️ 设计者 | `/agent designer` 或 "使用设计者" | 架构设计、测试规格 |
+| 💻 实现者 | `/agent implementer` 或 "使用实现者" | TDD 开发、Bug 修复 |
+| 🔍 审查者 | `/agent reviewer` 或 "使用审查者" | 代码审查、安全审计 |
+| 🧪 测试者 | `/agent tester` 或 "使用测试者" | 测试、问题报告 |
 
 ### 任务流转
 ```
