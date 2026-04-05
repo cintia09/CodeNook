@@ -49,6 +49,18 @@ cat ~/.copilot/agents/tester.agent.md
 ```
 全局 agent profiles 定义了每个角色的通用行为, 项目级 skill 在此基础上添加项目特定信息。
 
+#### 1d. 读取全局 skills
+```bash
+cat ~/.copilot/skills/agent-acceptor/SKILL.md
+cat ~/.copilot/skills/agent-designer/SKILL.md
+cat ~/.copilot/skills/agent-implementer/SKILL.md
+cat ~/.copilot/skills/agent-reviewer/SKILL.md
+cat ~/.copilot/skills/agent-tester/SKILL.md
+cat ~/.copilot/skills/agent-fsm/SKILL.md
+cat ~/.copilot/skills/agent-task-board/SKILL.md
+```
+全局 skills 定义了每个角色的工作流和通用操作。生成项目级 skill 时, 需要参考全局 skill 了解角色"怎么工作", 以便生成有针对性的项目上下文。例如: 全局 skill 说 "运行测试" → 项目 skill 填入具体命令 `npx playwright test`。
+
 ### 2. 创建目录结构
 
 所有 Agent 系统文件统一放在 `.agents/` 目录下:
@@ -116,8 +128,9 @@ _暂无任务_
 
 ### 5. 生成项目级 Skills (AI 定制化, 非拷贝!)
 
-> ⚠️ 以下 skill 由 AI 基于 **Step 1 收集的上下文** 生成, 不是从全局模板拷贝。
-> 输入源: 全局 agent profile + 项目 instructions + 检测到的技术栈信息。
+> ⚠️ 以下 skill 由 AI 基于 **Step 1 收集的全部上下文** 生成, 不是从全局模板拷贝。
+> 输入源: 全局 agent profiles + 全局 skills (工作流) + 项目 instructions + 检测到的技术栈信息。
+> 生成原则: 全局 skill 定义"怎么做", 项目 skill 补充"用什么做" (具体命令、路径、标准)。
 
 #### 5a. `skills/project-agents-context/SKILL.md` — 项目上下文
 ```yaml
