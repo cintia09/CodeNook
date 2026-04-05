@@ -60,18 +60,54 @@ description: "实现者工作流: TDD 开发、按 goals 实现、Bug 修复。U
 ```
 **规则**: 只有所有 goals 都为 `done` 时, 才能提交审查。如果发现 goal 不明确或需要调整, 通过消息系统联系 designer。
 
-### 流程 B: 修复 Bug
+### 流程 B: 修复 Bug (Issue-driven)
 ```
 1. 更新 state.json (status: busy, current_task: T-NNN, sub_state: fixing)
-2. 读取测试者的 issues-report.md
-3. 逐个修复问题
-4. 更新 implementer/workspace/fix-tracking.md (标记每个问题的修复状态)
-5. 运行所有测试确保修复有效且没有引入新问题
-6. git commit + push
-7. 使用 agent-fsm 将任务状态转为 testing
-8. 消息通知 tester: "T-NNN 修复完成, 请重新验证"
-9. 更新 state.json (status: idle)
+2. 读取 tester 的结构化问题文件:
+   .agents/runtime/tester/workspace/issues/T-NNN-issues.json
+3. 筛选 status == "open" 或 "reopened" 的 issues
+4. 按 severity 排序 (high > medium > low)
+5. 对每个 issue 执行修复循环:
+   a. 读取 issue 的 file, line, description
+   b. 定位代码, 分析根因
+   c. 编写修复代码
+   d. 运行相关测试确认修复有效
+   e. 更新 issue 状态:
+      - status: "fixed"
+      - fix_note: "修复说明"
+      - fix_commit: "commit SHA"
+   f. 更新 fix-tracking.md 对应行
+6. 确保所有 open/reopened issues 都已 fixed
+7. 运行完整测试套件确保没有引入新问题
+8. git commit + push
+9. 写回 T-NNN-issues.json (更新 summary 和各 issue 的 fix_note/fix_commit)
+10. 使用 agent-fsm 将任务状态转为 testing
+11. 消息通知 tester:
+    "🔧 T-NNN 修复完成 ({count} 个问题已修复)
+    修复详情: .agents/runtime/tester/workspace/issues/T-NNN-issues.json
+    请重新验证。"
+12. 更新 state.json (status: idle)
 ```
+
+### Issue 修复示例
+修复后更新 issue JSON:
+```json
+{
+  "id": "ISS-001",
+  "status": "fixed",
+  "fix_note": "添加了密码空值检查，返回 400 而非让异常冒泡到 500",
+  "fix_commit": "abc1234"
+}
+```
+
+### 批处理模式下的监控 (implementer)
+当用户说 "处理任务" / "监控任务" 时:
+1. 扫描 task-board 中 `status == "implementing"` 或 `"fixing"` 且 `assigned_to == "implementer"` 的任务
+2. `fixing` 任务优先处理 (bug 修复优先于新功能)
+3. 对 fixing 任务: 读取 T-NNN-issues.json, 逐个修复
+4. 对 implementing 任务: 按正常 TDD 流程处理
+5. 每处理完一个任务自动检查下一个
+6. 循环直到清空
 
 ### 流程 C: 处理审查退回
 ```
