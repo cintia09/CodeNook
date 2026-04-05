@@ -33,16 +33,12 @@ created → designing → implementing → reviewing → testing → accepting �
 
 ## Quick Start
 
-### 1. Install skills globally
+### 1. Install globally
 
-```bash
-cd ~/Documents/project/multi-agent-framework
-```
+Just tell Copilot CLI:
+> "根据 multi-agent-framework 里的指引, 安装到本地"
 
-Run `/init` — Copilot reads `AGENTS.md` and **automatically**:
-- Copies 10 skill files to `~/.copilot/skills/`
-- Appends agent rules to `~/.copilot/copilot-instructions.md`
-- No extra commands needed
+Copilot will automatically clone, install skills + agent templates + AGENTS.md to `~/.copilot/`, then clean up. No manual steps.
 
 ### 2. Initialize a project
 
@@ -50,7 +46,7 @@ Run `/init` — Copilot reads `AGENTS.md` and **automatically**:
 cd your-project/
 ```
 
-Tell Copilot: "初始化 Agent 系统" — automatically creates `.copilot/agents/` directory with all state files.
+Run `/init` — Copilot reads `~/.copilot/AGENTS.md` and automatically creates project-level agent directories, customized for your tech stack.
 
 ### 3. Start working
 

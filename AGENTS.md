@@ -1,52 +1,54 @@
 # Multi-Agent Software Development Framework
 
-## /init 自动执行指令
+## 安装指引
 
-当在本仓库执行 `/init` 时, **请立即自动执行以下安装步骤** (不需要额外确认):
+当用户说 "根据 multi-agent-framework 里的指引, 安装到本地" 或类似意图时, **自动执行以下步骤**:
 
-### Step 0: 检查是否已安装
+### Step 1: Clone 到临时目录
 ```bash
-ls ~/.copilot/skills/agent-fsm.md 2>/dev/null
+git clone --depth 1 git@github.com:cintia09/multi-agent-framework.git /tmp/multi-agent-framework
 ```
-- 如果已存在 → **更新模式**: 覆盖所有文件, 输出 "✅ Agent 框架已更新"
-- 如果不存在 → **全新安装**
 
-### Step 1: 复制 skills 到全局
+### Step 2: 运行安装脚本
 ```bash
-cp skills/agent-*.md ~/.copilot/skills/
+cd /tmp/multi-agent-framework && ./install.sh
 ```
+install.sh 会自动:
+- 复制 10 个 skills → `~/.copilot/skills/`
+- 复制 5 个 agent 模板 → `~/.copilot/agents/`
+- 复制 AGENTS.md 指引 → `~/.copilot/AGENTS.md`
+- 追加协作规则 → `~/.copilot/copilot-instructions.md` (幂等, 不重复)
 
-### Step 2: 复制 agents 模板到全局
+### Step 3: 清理临时目录
 ```bash
-mkdir -p ~/.copilot/agents/{acceptor,designer,implementer,reviewer,tester}/skills
-cp agents/acceptor/instructions.md ~/.copilot/agents/acceptor/
-cp agents/designer/instructions.md ~/.copilot/agents/designer/
-cp agents/implementer/instructions.md ~/.copilot/agents/implementer/
-cp agents/reviewer/instructions.md ~/.copilot/agents/reviewer/
-cp agents/tester/instructions.md ~/.copilot/agents/tester/
+rm -rf /tmp/multi-agent-framework
 ```
 
-### Step 3: 复制 AGENTS.md 全局指引
-将 `docs/AGENTS-global.md` 复制到 `~/.copilot/AGENTS.md`:
-```bash
-cp docs/AGENTS-global.md ~/.copilot/AGENTS.md
-```
-这个文件是项目级 /init 的指引 — 当用户在其他项目执行 /init 时, Copilot 读取它来自动创建项目级 agent 目录。
+### Step 4: 输出结果
+展示安装结果, 提示用户去项目目录执行 /init。
 
-### Step 4: 追加全局协作规则
-检查 `~/.copilot/copilot-instructions.md` 是否已包含 "Multi-Agent 协作规则":
-- 如果没有 → 追加 `docs/agent-rules.md` 的内容
-- 如果已有 → 跳过 (不重复追加)
+---
 
-### Step 5: 验证并输出
+## 框架概述
+
+### 5 个 Agent 角色
+| 角色 | 触发方式 | 职责 |
+|------|---------|------|
+| 🎯 验收者 | "切换到验收者" | 需求、任务发布、验收 |
+| 🏗️ 设计者 | "切换到设计者" | 架构设计、测试规格 |
+| 💻 实现者 | "切换到实现者" | TDD 开发、Bug 修复 |
+| 🔍 审查者 | "切换到审查者" | 代码审查、安全审计 |
+| 🧪 测试者 | "切换到测试者" | 测试、问题报告 |
+
+### 任务流转
 ```
-✅ Agent 框架已安装
-  Skills: 10 个 → ~/.copilot/skills/
-  Agents: 5 个角色模板 → ~/.copilot/agents/
-  AGENTS.md: 项目初始化指引 → ~/.copilot/AGENTS.md
-  Rules: 协作规则 → copilot-instructions.md
-  下一步: cd <任意项目>, 执行 /init
+created → designing → implementing → reviewing → testing → accepting → accepted ✅
 ```
+
+### 目标清单 (goals)
+每个任务含功能目标清单:
+- 实现者: 所有 goals `done` → 提交审查
+- 验收者: 所有 goals `verified` → 标记验收通过
 ls .copilot/task-board.json 2>/dev/null
 ```
 - 如果已存在 → 输出 "⚠️ Agent 系统已初始化" + 状态摘要, 不覆盖
