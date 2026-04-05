@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 4,
   "tasks": [
     {
       "id": "T-001",
@@ -77,6 +77,146 @@
       },
       "created_at": "2026-04-05T09:18:33Z",
       "updated_at": "2026-04-05T09:20:40Z"
+    },
+    {
+      "id": "T-003",
+      "title": "Implement /unblock command for blocked tasks",
+      "priority": "low",
+      "goals": [
+        {
+          "id": "G1",
+          "description": "Add unblock operation to agent-task-board skill (set status from blocked to previous state)",
+          "status": "pending"
+        },
+        {
+          "id": "G2",
+          "description": "Add blocked state handling to agent-fsm skill (any state can transition to blocked with reason)",
+          "status": "pending"
+        },
+        {
+          "id": "G3",
+          "description": "Update agent-switch status panel to highlight blocked tasks",
+          "status": "pending"
+        }
+      ],
+      "status": "implementing",
+      "assigned_to": "implementer",
+      "artifacts": {},
+      "created_at": "2026-04-05T09:25:23Z",
+      "updated_at": "2026-04-05T05:00:00Z"
+    },
+    {
+      "id": "T-004",
+      "title": "Create automated install verification script",
+      "priority": "medium",
+      "goals": [
+        {
+          "id": "G1",
+          "description": "Create scripts/verify-install.sh: check skill count (10), agent count (5), hook count (3), SKILL.md existence, YAML frontmatter, executable permissions",
+          "status": "pending"
+        },
+        {
+          "id": "G2",
+          "description": "Create scripts/verify-init.sh: check .agents/ directory structure, state.json format, task-board.json schema, events.db tables",
+          "status": "pending"
+        },
+        {
+          "id": "G3",
+          "description": "Add verification scripts to AGENTS.md as optional post-install step",
+          "status": "pending"
+        }
+      ],
+      "status": "implementing",
+      "assigned_to": "implementer",
+      "artifacts": {},
+      "created_at": "2026-04-05T09:25:23Z",
+      "updated_at": "2026-04-05T05:00:00Z"
+    },
+    {
+      "id": "T-005",
+      "title": "Enhance init with broader tech stack detection",
+      "priority": "medium",
+      "goals": [
+        {
+          "id": "G1",
+          "description": "Add detection for: Ruby (Gemfile), PHP (composer.json), .NET (*.csproj), Swift (Package.swift), Flutter (pubspec.yaml)",
+          "status": "pending"
+        },
+        {
+          "id": "G2",
+          "description": "Detect monorepo structures (lerna.json, pnpm-workspace.yaml, nx.json)",
+          "status": "pending"
+        },
+        {
+          "id": "G3",
+          "description": "Read and parse existing README.md for project description if no package.json description",
+          "status": "pending"
+        },
+        {
+          "id": "G4",
+          "description": "Detect deployment targets: Vercel (vercel.json), Netlify (netlify.toml), AWS (serverless.yml, sam template)",
+          "status": "pending"
+        }
+      ],
+      "status": "implementing",
+      "assigned_to": "implementer",
+      "artifacts": {},
+      "created_at": "2026-04-05T09:25:23Z",
+      "updated_at": "2026-04-05T05:00:00Z"
+    },
+    {
+      "id": "T-006",
+      "title": "Generate project-level hooks during init",
+      "priority": "low",
+      "goals": [
+        {
+          "id": "G1",
+          "description": "During init, create .github/hooks/hooks.json with project-specific hook config",
+          "status": "pending"
+        },
+        {
+          "id": "G2",
+          "description": "Copy agent hook scripts to .github/hooks/ (project-level, committed to git)",
+          "status": "pending"
+        },
+        {
+          "id": "G3",
+          "description": "Update agent-init SKILL.md with project hooks generation step",
+          "status": "pending"
+        }
+      ],
+      "status": "implementing",
+      "assigned_to": "implementer",
+      "artifacts": {},
+      "created_at": "2026-04-05T09:25:23Z",
+      "updated_at": "2026-04-05T05:00:00Z"
+    },
+    {
+      "id": "T-007",
+      "title": "Create events.db analysis query skill",
+      "priority": "medium",
+      "goals": [
+        {
+          "id": "G1",
+          "description": "Create agent-events/SKILL.md skill for querying events.db: recent events, events by agent, events by task, tool usage stats",
+          "status": "pending"
+        },
+        {
+          "id": "G2",
+          "description": "Add event summary to agent-switch status panel (recent activity count per agent)",
+          "status": "pending"
+        },
+        {
+          "id": "G3",
+          "description": "Add event cleanup command: purge events older than N days",
+          "status": "pending"
+        }
+      ],
+      "status": "implementing",
+      "assigned_to": "implementer",
+      "artifacts": {},
+      "created_at": "2026-04-05T09:25:23Z",
+      "updated_at": "2026-04-05T05:00:00Z"
     }
   ]
 }
