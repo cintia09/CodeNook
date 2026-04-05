@@ -25,14 +25,14 @@ description: "Agent 状态面板: 查看所有 Agent 的状态、任务分配和
 
 ### 实现步骤:
 ```bash
-PROJECT_COPILOT="$(git rev-parse --show-toplevel 2>/dev/null)/.copilot"
-[ -d "$PROJECT_COPILOT" ] || PROJECT_COPILOT="./.copilot"
+AGENTS_DIR="$(git rev-parse --show-toplevel 2>/dev/null)/.agents"
+[ -d "$AGENTS_DIR" ] || AGENTS_DIR="./.agents"
 
 for agent in acceptor designer implementer reviewer tester; do
-  cat "$PROJECT_COPILOT/agents/$agent/state.json"
+  cat "$AGENTS_DIR/runtime/$agent/state.json"
 done
 
-cat "$PROJECT_COPILOT/task-board.json"
+cat "$AGENTS_DIR/task-board.json"
 ```
 
 ## 切换角色 (/agent <name>)
