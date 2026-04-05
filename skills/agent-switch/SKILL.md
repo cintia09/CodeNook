@@ -39,10 +39,20 @@ cat "$AGENTS_DIR/task-board.json"
 用户说 "/agent <name>" 或 "切换到 <角色名>" 时:
 1. 确认目标角色有效: acceptor | designer | implementer | reviewer | tester
 2. 保存当前 Agent 状态 (如果有)
-3. 清洁上下文 (RESPAWN 模式 — 不携带上一个 Agent 的工作记忆)
-4. 加载目标 Agent 的 skill (agent-<name>.md)
-5. 执行目标 Agent 的启动流程 (定义在对应 skill 中)
-6. 打印: "🔄 已切换到 <角色名> (<emoji>)"
+3. **写入 active-agent 标记** (供 Hooks 读取):
+   ```bash
+   echo "<agent_name>" > <project>/.agents/runtime/active-agent
+   ```
+4. 清洁上下文 (RESPAWN 模式 — 不携带上一个 Agent 的工作记忆)
+5. 加载目标 Agent 的 skill (agent-<name>.md)
+6. 执行目标 Agent 的启动流程 (定义在对应 skill 中)
+7. 打印: "🔄 已切换到 <角色名> (<emoji>)"
+
+### 退出角色
+用户说 "退出角色" 或 "exit agent" 时:
+```bash
+rm -f <project>/.agents/runtime/active-agent
+```
 
 ## 可用角色
 | 命令 | 角色 | Emoji |

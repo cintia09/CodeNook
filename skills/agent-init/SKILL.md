@@ -107,6 +107,27 @@ mkdir -p .agents/runtime/tester/workspace/{test-cases,test-screenshots}
 {"messages": []}
 ```
 
+### 3b. 初始化 events.db (SQLite 审计日志)
+```bash
+sqlite3 .agents/events.db <<'SQL'
+CREATE TABLE IF NOT EXISTS events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  timestamp INTEGER NOT NULL,
+  event_type TEXT NOT NULL,
+  agent TEXT,
+  task_id TEXT,
+  tool_name TEXT,
+  detail TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
+CREATE INDEX IF NOT EXISTS idx_events_agent ON events(agent);
+CREATE INDEX IF NOT EXISTS idx_events_task ON events(task_id);
+SQL
+```
+
+事件类型: `session_start`, `tool_use`, `task_board_write`, `state_change`, `agent_switch`, `message_sent`
+
 ### 4. 创建空任务表
 
 **`.agents/task-board.json`**:

@@ -1,0 +1,10 @@
+# Agent runtime state (不提交到 git)
+runtime/*/state.json
+runtime/*/inbox.json
+runtime/active-agent
+events.db
+events.db-journal
+events.db-wal
+
+# 保留目录结构
+!runtime/*/workspace/.gitkeep

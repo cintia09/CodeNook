@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "~/.copilot/hooks/agent-session-start.sh",
+        "comment": "Multi-Agent Framework: check agent state and pending items on session start",
+        "timeoutSec": 10
+      }
+    ],
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "~/.copilot/hooks/agent-pre-tool-use.sh",
+        "comment": "Multi-Agent Framework: enforce agent boundaries and log tool usage",
+        "timeoutSec": 5
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "bash": "~/.copilot/hooks/agent-post-tool-use.sh",
+        "comment": "Multi-Agent Framework: audit log tool results to events.db",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}
