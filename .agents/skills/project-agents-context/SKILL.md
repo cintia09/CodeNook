@@ -1,45 +1,35 @@
 ---
 name: project-agents-context
-description: "项目上下文信息, 所有 agent 工作时自动获取。包含技术栈、构建命令、部署方式等。"
+description: "Multi-Agent Framework 项目上下文。所有 agent 工作时自动加载。"
 ---
 
-# 项目上下文
+# 项目上下文: Multi-Agent Framework
 
-## 项目信息
-- **名称**: multi-agent-framework
-- **描述**: 零依赖、基于文件的多 Agent 协作框架, 适配 GitHub Copilot CLI 和 Claude Code
+## 基本信息
+- **项目**: multi-agent-framework — AI 辅助软件开发的多 Agent 协作框架
 - **仓库**: cintia09/multi-agent-framework (branch: main)
+- **性质**: 框架/工具库 (不是应用)
 
 ## 技术栈
-- **语言**: Markdown (agent profiles, skills), JSON (state files, task board), Bash (hooks)
-- **框架**: GitHub Copilot CLI native agent/skill/hook system
-- **数据库**: SQLite (events.db audit log)
-- **测试**: Manual testing via Copilot CLI (no automated test suite)
-- **CI**: N/A
-- **部署**: `cp` commands to `~/.copilot/{skills,agents,hooks}/`
-
-## 常用命令
-| 操作 | 命令 |
-|------|------|
-| 安装到本地 | 按 AGENTS.md 步骤: clone → cp skills → cp agents → cp hooks |
-| 验证安装 | `ls -d ~/.copilot/skills/agent-* \| wc -l` (expect 10) |
-| 验证 agents | `ls ~/.copilot/agents/*.agent.md \| wc -l` (expect 5) |
-| 验证 hooks | `ls ~/.copilot/hooks/agent-*.sh \| wc -l` (expect 3) |
-| 查询审计日志 | `sqlite3 .agents/events.db "SELECT * FROM events ORDER BY id DESC LIMIT 20;"` |
-| Git push | `git push origin main` |
+- **语言**: Bash (hooks), Markdown (skills, docs), JSON (state)
+- **依赖**: 零依赖 — 仅需 bash, jq, sqlite3
+- **结构**: skills/ (SKILL.md), agents/ (.agent.md), hooks/ (shell), docs/
 
 ## 目录结构
-- `agents/` — 5 个 `.agent.md` 角色配置文件
-- `skills/` — 10 个 `agent-*/SKILL.md` 技能文件
-- `hooks/` — 3 个 hook 脚本 + hooks.json 配置
-- `docs/` — 协作规则 (`agent-rules.md`)
-- `.agents/` — 项目初始化后的运行时目录
-- `AGENTS.md` — 安装指引
-- `README.md` — 完整文档
+```
+agents/          # 5 个 .agent.md (Copilot 原生 agent profile)
+skills/          # 10 个 skill 目录 (每个含 SKILL.md)
+hooks/           # 4 个 shell 脚本 (session-start, pre/post-tool-use, staleness)
+docs/            # agent-rules.md (协作规则)
+AGENTS.md        # 安装指引
+README.md        # 项目文档
+```
 
-## 分支策略
-- `main` — 唯一分支, 直接 push
-- 提交消息: 英文, 含 `Co-authored-by: Copilot` trailer
+## 构建与测试
+- 无构建步骤 (纯文本文件)
+- 测试: `bash -n hooks/*.sh` (语法检查)
+- 验证: 确保所有 SKILL.md 有正确的 YAML front matter
 
-## 项目特殊性
-这是一个 **元项目** — 修改 `skills/`, `agents/`, `hooks/` 后需同步到 `~/.copilot/` 全局目录。
+## 发布
+- Push to main 即发布
+- 用户通过 AGENTS.md 安装指引自动安装
