@@ -72,33 +72,26 @@ description: "实现者工作流: TDD 开发、按 goals 实现、Bug 修复。U
    b. 定位代码, 分析根因
    c. 编写修复代码
    d. 运行相关测试确认修复有效
-   e. 更新 issue 状态:
+   e. 直接更新 T-NNN-issues.json 中该 issue:
       - status: "fixed"
       - fix_note: "修复说明"
       - fix_commit: "commit SHA"
-   f. 更新 fix-tracking.md 对应行
+   f. 更新 summary 计数
 6. 确保所有 open/reopened issues 都已 fixed
 7. 运行完整测试套件确保没有引入新问题
 8. git commit + push
-9. 写回 T-NNN-issues.json (更新 summary 和各 issue 的 fix_note/fix_commit)
+9. 自动生成更新后的 markdown 视图:
+   - tester/workspace/issues/T-NNN-issues-report.md
+   - implementer/workspace/T-NNN-fix-tracking.md
 10. 使用 agent-fsm 将任务状态转为 testing
 11. 消息通知 tester:
     "🔧 T-NNN 修复完成 ({count} 个问题已修复)
-    修复详情: .agents/runtime/tester/workspace/issues/T-NNN-issues.json
+    详见: .agents/runtime/tester/workspace/issues/T-NNN-issues.json
     请重新验证。"
 12. 更新 state.json (status: idle)
 ```
 
-### Issue 修复示例
-修复后更新 issue JSON:
-```json
-{
-  "id": "ISS-001",
-  "status": "fixed",
-  "fix_note": "添加了密码空值检查，返回 400 而非让异常冒泡到 500",
-  "fix_commit": "abc1234"
-}
-```
+> **重要**: `T-NNN-issues.json` 是唯一真相源。Implementer 直接修改 JSON 中的 fix_note/fix_commit/status 字段，不再单独维护 fix-tracking.md（它从 JSON 自动生成）。
 
 ### 批处理模式下的监控 (implementer)
 当用户说 "处理任务" / "监控任务" 时:
@@ -121,14 +114,15 @@ description: "实现者工作流: TDD 开发、按 goals 实现、Bug 修复。U
 8. 更新 state.json (status: idle)
 ```
 
-## fix-tracking.md 模板
+## fix-tracking.md (自动生成, 不要手动编辑)
+fix-tracking.md 从 `T-NNN-issues.json` 自动生成，格式如下:
 ```markdown
-# 修复跟踪: T-NNN
+# 修复跟踪: T-NNN (Round {round})
 
-| 问题ID | 描述 | 状态 | 修复说明 | Commit |
-|--------|------|------|---------|--------|
-| ISS-001 | xxx | ✅ 已修复 | ... | abc1234 |
-| ISS-002 | xxx | 🔧 修复中 | | |
+| 问题ID | 严重性 | 状态 | 标题 | 修复说明 | Commit |
+|--------|--------|------|------|---------|--------|
+| ISS-001 | high | ✅ fixed | 用户登录返回500 | 添加空值检查 | abc1234 |
+| ISS-002 | medium | 🔧 open | ... | | |
 ```
 
 ## 代码规范
