@@ -40,11 +40,11 @@
 
 | 角色 | Emoji | 职责 |
 |------|-------|------|
-| **验收者** (Acceptor) | 🎯 | 需求收集、任务发布、验收测试 |
-| **设计者** (Designer) | 🏗️ | 架构设计、技术调研、测试规格 |
-| **实现者** (Implementer) | 💻 | TDD 开发、Bug 修复、代码提交 |
-| **审查者** (Reviewer) | 🔍 | 代码审查、安全审计、质量检查 |
-| **测试者** (Tester) | 🧪 | 测试用例生成、E2E 测试、问题报告 |
+| **验收者** (Acceptor) | 🎯 | 需求收集（用户故事格式）、任务发布、验收测试 |
+| **设计者** (Designer) | 🏗️ | 架构设计（ADR 格式）、技术调研、测试规格、Goal 覆盖自查 |
+| **实现者** (Implementer) | 💻 | TDD 开发（红绿重构 + 80% 覆盖率）、构建修复、提交前验证 |
+| **审查者** (Reviewer) | 🔍 | 设计+代码审查、OWASP 安全清单、严重级别评定、置信度过滤 |
+| **测试者** (Tester) | 🧪 | 覆盖率分析、Flaky 检测、E2E Playwright、问题报告 |
 
 ## 核心特性
 
@@ -60,8 +60,14 @@
 - **监控模式** — 测试者↔实现者全自动修复-验证循环
 - **问题追踪** — 结构化 JSON + 乐观锁保证并发安全
 - **SQLite 审计日志** — 每次工具使用都记录到 events.db
-- **任务记忆** — 每个阶段完成后自动保存上下文快照，下个 Agent 接手时自动加载
+- **任务记忆** — 阶段完成自动保存上下文快照，下个 Agent 按角色智能加载精简记忆
 - **超时检测** — 对长时间闲置的任务发出警告
+- **流水线可视化** — ASCII 图展示每个任务在 5 阶段流水线中的位置
+- **项目级活文档** — 6 个 docs/ 文档由各 Agent 持续更新，反映项目全貌
+- **TDD 纪律** — 实现者严格红绿重构 + Git checkpoint + 80% 覆盖率门槛
+- **安全审查** — OWASP Top 10 清单 + 4 级严重度 + 置信度过滤
+- **覆盖率分析** — 自动检测测试框架、解析覆盖率、识别盲区
+- **ADR 格式** — 设计者使用架构决策记录，决策可追溯
 
 ## 任务生命周期
 
@@ -185,14 +191,14 @@ bash /tmp/multi-agent-framework/scripts/verify-init.sh
 | 1 | `agent-fsm` | FSM 引擎 — 10 种状态转移 + Guard 规则 |
 | 2 | `agent-task-board` | 任务 CRUD + 功能目标 + 阻塞/解阻塞 + 乐观锁 |
 | 3 | `agent-messaging` | Agent 间收件箱消息 |
-| 4 | `agent-init` | 项目初始化 + 增强技术栈检测 |
-| 5 | `agent-switch` | 角色切换 + 状态面板 + 批处理模式 |
-| 6 | `agent-memory` | 任务记忆 — 阶段完成后自动保存上下文快照 |
-| 7 | `agent-acceptor` | 验收者工作流 |
-| 8 | `agent-designer` | 设计者工作流 |
-| 9 | `agent-implementer` | 实现者 + TDD + 监控模式 |
-| 10 | `agent-reviewer` | 审查者工作流 |
-| 11 | `agent-tester` | 测试者 + Issue JSON + 监控模式 |
+| 4 | `agent-init` | 项目初始化 + 技术栈检测 + docs/ 文档模板 |
+| 5 | `agent-switch` | 角色切换 + 状态面板 + 流水线可视化 + 事件摘要 + 批处理模式 |
+| 6 | `agent-memory` | 任务记忆 — 自动沉淀 + 按角色智能加载 |
+| 7 | `agent-acceptor` | 验收者工作流 + 用户故事格式 + 活文档维护 |
+| 8 | `agent-designer` | 设计者工作流 + ADR 格式 + Goal 覆盖自查 + 活文档维护 |
+| 9 | `agent-implementer` | TDD 纪律 + 构建修复 + 提交前验证 + 监控模式 + 活文档维护 |
+| 10 | `agent-reviewer` | 设计+代码审查 + OWASP 安全 + 严重级别 + 置信度过滤 + 活文档维护 |
+| 11 | `agent-tester` | 覆盖率分析 + Flaky 检测 + E2E Playwright + Issue JSON + 活文档维护 |
 | 12 | `agent-events` | events.db 查询、分析、清理、导出 |
 
 ## 问题追踪（测试者 ↔ 实现者）
@@ -231,7 +237,7 @@ bash /tmp/multi-agent-framework/scripts/verify-init.sh
 每个任务有独立的记忆文件（`.agents/memory/T-NNN-memory.json`），跨阶段积累上下文：
 
 - **自动保存** — 任务状态转移时，当前 Agent 自动保存工作摘要、关键决策、产出物、修改文件
-- **自动加载** — 下一个 Agent 接手任务时，自动读取并展示上一阶段的记忆和交接备注
+- **智能加载** — 下一个 Agent 按角色只加载需要的字段（Implementer 看 decisions + artifacts，Reviewer 看 files_modified + decisions）
 - **完整可追溯** — 记录每个阶段的 `handoff_notes`（交接备注），确保上下文不丢失
 - **提交到 Git** — 记忆文件是有价值的项目知识，不是临时运行时状态
 
@@ -353,6 +359,14 @@ sqlite3 .agents/events.db "SELECT * FROM events ORDER BY id DESC LIMIT 20;"
         ├── state.json / inbox.json
         └── workspace/                 # 工作产出物
             └── issues/T-NNN-issues.json  # 结构化问题追踪
+
+<项目>/docs/                            # 项目级活文档（各 Agent 持续更新）
+├── requirement.md                     # 🎯 验收者维护：需求汇总
+├── design.md                          # 🏗️ 设计者维护：架构方案 + ADR
+├── test-spec.md                       # 🧪 测试者维护：测试策略 + 用例
+├── implementation.md                  # 💻 实现者维护：实现细节 + 变更
+├── review.md                          # 🔍 审查者维护：审查结论 + 质量
+└── acceptance.md                      # 🎯 验收者维护：验收结果 + 里程碑
 ```
 
 ## 设计灵感
@@ -369,8 +383,11 @@ sqlite3 .agents/events.db "SELECT * FROM events ORDER BY id DESC LIMIT 20;"
 - **Phase 1** ✅ 手动角色切换 + FSM + 任务看板 + 功能目标
 - **Phase 2** ✅ Hooks（边界执行）+ events.db（审计日志）
 - **Phase 3** ✅ 自动调度 + 超时检测 + 批处理模式 + 监控模式
-- **Phase 4** — 外部调度器（基于 cron 的自主 Agent 循环）
-- **Phase 5** — Claude Code Agent Teams 集成（并行多 Agent）
+- **Phase 4** ✅ 记忆系统（自动沉淀 + 智能加载）+ 流水线可视化 + 项目级活文档
+- **Phase 5** ✅ ECC 最佳实践融合（TDD 纪律 + 安全审查 + 覆盖率分析 + ADR）
+- **Phase 6** — 结构化消息 + Cycle Time 度量 + 看板增强
+- **Phase 7** — 外部调度器（基于 cron 的自主 Agent 循环）
+- **Phase 8** — Claude Code Agent Teams 集成（并行多 Agent）
 
 ---
 
