@@ -1,5 +1,5 @@
 {
-  "version": 12,
+  "version": 16,
   "tasks": [
     {
       "id": "T-001",
@@ -225,6 +225,273 @@
       "created_at": "2026-04-05T09:25:23Z",
       "updated_at": "2026-04-06T12:30:43Z",
       "design_doc": ".agents/runtime/designer/workspace/design-docs/T-007-fix-design.md"
+    },
+    {
+      "id": "T-008",
+      "title": "Automatic memory capture on stage transitions",
+      "description": "Agent 完成阶段(FSM 状态转移)时自动保存记忆快照，无需手动调用。从本轮工作中提取：关键决策、修改的文件、遇到的问题、交接要点。",
+      "status": "designing",
+      "priority": "high",
+      "assigned_to": "designer",
+      "created_at": "2026-04-06T14:45:36Z",
+      "updated_at": "2026-04-06T15:19:18Z",
+      "goals": [
+        {
+          "id": "G1",
+          "description": "Post-tool-use hook detects FSM state transition (status change in task-board.json) and triggers memory save",
+          "met": false
+        },
+        {
+          "id": "G2",
+          "description": "Memory snapshot auto-extracts: summary, decisions, files_modified, issues_encountered, handoff_notes from current agent context",
+          "met": false
+        },
+        {
+          "id": "G3",
+          "description": "agent-memory SKILL.md updated with \"auto-capture\" section documenting the trigger mechanism and data extraction format",
+          "met": false
+        },
+        {
+          "id": "G4",
+          "description": "No manual \"save memory\" call required — fully automatic on stage completion",
+          "met": false
+        }
+      ],
+      "artifacts": {
+        "design_doc": ".agents/runtime/designer/workspace/design-docs/T-008-auto-memory-capture.md"
+      }
+    },
+    {
+      "id": "T-009",
+      "title": "Smart memory loading by downstream agent role",
+      "description": "下游 Agent 启动时只加载它需要的记忆字段，按角色差异化。减少 token 消耗，增加有效信息密度。",
+      "status": "designing",
+      "priority": "high",
+      "assigned_to": "designer",
+      "created_at": "2026-04-06T14:45:36Z",
+      "updated_at": "2026-04-06T15:19:18Z",
+      "goals": [
+        {
+          "id": "G1",
+          "description": "agent-switch loads memory automatically when switching to agent with assigned task",
+          "met": false
+        },
+        {
+          "id": "G2",
+          "description": "Role-based field selection: Designer→Implementer loads decisions+artifacts+handoff_notes; Implementer→Reviewer loads files_modified+decisions; Reviewer→Tester loads files_modified+review issues",
+          "met": false
+        },
+        {
+          "id": "G3",
+          "description": "Memory loaded as concise summary (not raw JSON dump) — formatted for human readability in agent context",
+          "met": false
+        },
+        {
+          "id": "G4",
+          "description": "agent-memory SKILL.md and agent-switch SKILL.md updated with smart loading documentation",
+          "met": false
+        }
+      ],
+      "artifacts": {
+        "design_doc": ".agents/runtime/designer/workspace/design-docs/T-009-smart-memory-loading.md"
+      }
+    },
+    {
+      "id": "T-010",
+      "title": "ASCII pipeline visualization in agent status",
+      "description": "/agent status 输出包含 ASCII 流水线图，展示每个任务当前在哪个阶段，哪些已完成。",
+      "status": "designing",
+      "priority": "high",
+      "assigned_to": "designer",
+      "created_at": "2026-04-06T14:45:36Z",
+      "updated_at": "2026-04-06T15:19:18Z",
+      "goals": [
+        {
+          "id": "G1",
+          "description": "agent-switch status panel includes ASCII pipeline diagram showing 5 stages with current position marker",
+          "met": false
+        },
+        {
+          "id": "G2",
+          "description": "Each task shows: stage name, emoji, status (✅ done / ⏳ active / ⏸️ pending)",
+          "met": false
+        },
+        {
+          "id": "G3",
+          "description": "Multiple in-flight tasks each get their own pipeline line",
+          "met": false
+        },
+        {
+          "id": "G4",
+          "description": "agent-switch SKILL.md updated with pipeline visualization spec",
+          "met": false
+        }
+      ],
+      "artifacts": {
+        "design_doc": ".agents/runtime/designer/workspace/design-docs/T-010-ascii-pipeline.md"
+      }
+    },
+    {
+      "id": "T-011",
+      "title": "Enhance implementer with TDD discipline and verification loop",
+      "description": "融合 ECC 最佳实践到 agent-implementer：严格 TDD 红绿重构 + git checkpoint + 80% 覆盖率门槛 + 构建增量修复 + 提交前 verification loop",
+      "status": "designing",
+      "priority": "high",
+      "assigned_to": "designer",
+      "created_at": "2026-04-06T14:59:58Z",
+      "updated_at": "2026-04-06T15:19:18Z",
+      "goals": [
+        {
+          "id": "G1",
+          "description": "agent-implementer SKILL.md TDD section enhanced: mandatory git checkpoint at RED/GREEN/REFACTOR, 80%+ coverage gate before submitting to review",
+          "met": false
+        },
+        {
+          "id": "G2",
+          "description": "New \"Build Fix\" workflow in agent-implementer: fix one error at a time, re-run build after each fix, track progress count",
+          "met": false
+        },
+        {
+          "id": "G3",
+          "description": "New \"Pre-Review Verification\" checklist in agent-implementer: typecheck → build → lint → test → security scan must all pass before FSM transition to reviewing",
+          "met": false
+        }
+      ],
+      "artifacts": {
+        "design_doc": ".agents/runtime/designer/workspace/design-docs/T-011-implementer-tdd.md"
+      }
+    },
+    {
+      "id": "T-012",
+      "title": "Enhance reviewer with structured severity and security checklist",
+      "description": "融合 ECC 审查实践到 agent-reviewer：置信度过滤 + CRITICAL/HIGH/MEDIUM/LOW 严重级别 + OWASP Top 10 安全清单 + 代码质量阈值",
+      "status": "designing",
+      "priority": "high",
+      "assigned_to": "designer",
+      "created_at": "2026-04-06T14:59:58Z",
+      "updated_at": "2026-04-06T15:19:18Z",
+      "goals": [
+        {
+          "id": "G1",
+          "description": "agent-reviewer SKILL.md adds severity levels (CRITICAL/HIGH/MEDIUM/LOW) with approval rules: CRITICAL→BLOCK, HIGH→REQUEST_CHANGES, MEDIUM+LOW→APPROVE with notes",
+          "met": false
+        },
+        {
+          "id": "G2",
+          "description": "Security review checklist added: hardcoded secrets, SQL injection, XSS, CSRF, path traversal, auth bypass, insecure deps, secrets in logs",
+          "met": false
+        },
+        {
+          "id": "G3",
+          "description": "Code quality thresholds added: function >50 lines, file >800 lines, nesting >4 levels, console.log/TODO without ticket — all flagged as warnings",
+          "met": false
+        },
+        {
+          "id": "G4",
+          "description": "Confidence-based filtering: only report issues with >=80% confidence, skip stylistic/formatting noise",
+          "met": false
+        }
+      ],
+      "artifacts": {
+        "design_doc": ".agents/runtime/designer/workspace/design-docs/T-012-reviewer-severity.md"
+      }
+    },
+    {
+      "id": "T-013",
+      "title": "Enhance tester with coverage analysis and flaky detection",
+      "description": "融合 ECC 测试实践到 agent-tester：覆盖率分析 + flaky 检测隔离 + E2E POM 模式 + 失败截图",
+      "status": "designing",
+      "priority": "high",
+      "assigned_to": "designer",
+      "created_at": "2026-04-06T14:59:58Z",
+      "updated_at": "2026-04-06T15:19:18Z",
+      "goals": [
+        {
+          "id": "G1",
+          "description": "agent-tester SKILL.md adds coverage analysis workflow: detect test framework → run coverage → parse report → identify uncovered high-priority areas",
+          "met": false
+        },
+        {
+          "id": "G2",
+          "description": "Flaky test detection: suspect tests re-run 3-5x, flagged as flaky if inconsistent, quarantined with test.fixme()",
+          "met": false
+        },
+        {
+          "id": "G3",
+          "description": "E2E testing section added: Page Object Model pattern, data-testid selectors, screenshot/video on failure, Playwright best practices",
+          "met": false
+        }
+      ],
+      "artifacts": {
+        "design_doc": ".agents/runtime/designer/workspace/design-docs/T-013-tester-coverage.md"
+      }
+    },
+    {
+      "id": "T-014",
+      "title": "Add ADR format to designer and user story format to acceptor",
+      "description": "设计者增加 ADR 格式（决策+替代方案+理由），验收者增加用户旅程格式（As a... I want... so that...）",
+      "status": "designing",
+      "priority": "medium",
+      "assigned_to": "designer",
+      "created_at": "2026-04-06T14:59:58Z",
+      "updated_at": "2026-04-06T15:19:18Z",
+      "goals": [
+        {
+          "id": "G1",
+          "description": "agent-designer SKILL.md design doc template adds ADR section: Decision, Context, Alternatives Considered, Rationale, Consequences",
+          "met": false
+        },
+        {
+          "id": "G2",
+          "description": "agent-designer adds goal coverage self-check: verify every goal has corresponding design section before completing",
+          "met": false
+        },
+        {
+          "id": "G3",
+          "description": "agent-acceptor SKILL.md adds user story format guidance: \"As a [role], I want [action], so that [benefit]\" for goals",
+          "met": false
+        }
+      ],
+      "artifacts": {
+        "design_doc": ".agents/runtime/designer/workspace/design-docs/T-014-adr-userstory.md"
+      }
+    },
+    {
+      "id": "T-015",
+      "title": "Project-level living documents maintained by each agent",
+      "description": "项目级活文档体系：docs/ 下维护 6 个项目级文档（需求/设计/测试/实现/审阅/验收），每个 Agent 在完成任务后更新自己负责的文档，追加本次任务的内容，反映项目整体最新状态。",
+      "status": "created",
+      "priority": "high",
+      "assigned_to": "designer",
+      "created_at": "2026-04-06T15:13:39Z",
+      "updated_at": "2026-04-06T15:17:36Z",
+      "goals": [
+        {
+          "id": "G1",
+          "description": "Define 6 project-level doc templates in docs/: requirement.md (Acceptor), design.md (Designer), test-spec.md (Tester), implementation.md (Implementer), review.md (Reviewer), acceptance.md (Acceptor) — each with standard structure and changelog section",
+          "met": false
+        },
+        {
+          "id": "G2",
+          "description": "All 5 agent SKILL.md files updated: each agent must append to their doc after completing a task stage, documenting what was done for that task",
+          "met": false
+        },
+        {
+          "id": "G3",
+          "description": "Documents are cumulative — each task adds a new section (## T-NNN: title) rather than overwriting, so the doc reflects full project history",
+          "met": false
+        },
+        {
+          "id": "G4",
+          "description": "Tester reads requirement.md + design.md as input when writing test-spec.md entries",
+          "met": false
+        },
+        {
+          "id": "G5",
+          "description": "agent-init creates initial empty doc templates in docs/ during project initialization",
+          "met": false
+        }
+      ]
     }
   ]
 }

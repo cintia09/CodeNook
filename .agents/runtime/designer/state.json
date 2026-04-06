@@ -1,0 +1,10 @@
+{
+  "agent": "designer",
+  "status": "active",
+  "current_task": "T-008~T-014",
+  "sub_state": "designing",
+  "queue": [],
+  "last_activity": "2026-04-06T15:19:18Z",
+  "version": 1,
+  "error": null
+}
