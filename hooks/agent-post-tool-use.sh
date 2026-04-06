@@ -75,11 +75,47 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
       done
     fi
 
-    # === Auto Memory Capture ===
-    # When task status changes detected, trigger memory save
-    # Check: old_status vs new_status in task-board.json
-    # If different: extract summary/decisions/files from current context
-    # Write to .agents/memory/T-NNN-memory.json
+    # === Auto Memory Capture (T-008) ===
+    # When task status changes, detect transition and trigger memory capture
+    if [ -f "$AGENTS_DIR/task-board.json" ]; then
+      # Compare with last known snapshot to detect status changes
+      SNAPSHOT="$AGENTS_DIR/runtime/.task-board-snapshot.json"
+
+      if [ -f "$SNAPSHOT" ]; then
+        # Extract current and previous statuses, detect transitions
+        jq -c '.tasks[]' "$AGENTS_DIR/task-board.json" 2>/dev/null | while read -r TASK; do
+          TASK_ID=$(echo "$TASK" | jq -r '.id')
+          NEW_STATUS=$(echo "$TASK" | jq -r '.status')
+          OLD_STATUS=$(jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .status' "$SNAPSHOT" 2>/dev/null || echo "")
+
+          # Only trigger on actual transitions
+          if [ -n "$OLD_STATUS" ] && [ "$OLD_STATUS" != "$NEW_STATUS" ]; then
+            # Record memory_capture_needed event
+            sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'memory_capture_needed', '$ACTIVE_AGENT', '$TASK_ID', '{\"from_status\":\"$OLD_STATUS\",\"to_status\":\"$NEW_STATUS\"}');" 2>/dev/null || true
+
+            # Create memory directory if needed
+            MEMORY_DIR="$AGENTS_DIR/memory"
+            mkdir -p "$MEMORY_DIR"
+
+            # Initialize memory file if it doesn't exist
+            MEMORY_FILE="$MEMORY_DIR/${TASK_ID}-memory.json"
+            if [ ! -f "$MEMORY_FILE" ]; then
+              TITLE=$(echo "$TASK" | jq -r '.title')
+              NOW_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+              cat > "$MEMORY_FILE" << MEMEOF
+{"task_id":"$TASK_ID","title":"$TITLE","version":1,"created_at":"$NOW_ISO","last_updated":"$NOW_ISO","stages":{}}
+MEMEOF
+            fi
+
+            # Prompt agent via stdout (agent sees this as hook output)
+            echo "🧠 [Auto-Capture] Task $TASK_ID status changed: $OLD_STATUS → $NEW_STATUS. Please save memory snapshot to .agents/memory/${TASK_ID}-memory.json (summary, decisions, files_modified, handoff_notes)."
+          fi
+        done
+      fi
+
+      # Update snapshot for next comparison
+      cp "$AGENTS_DIR/task-board.json" "$SNAPSHOT" 2>/dev/null || true
+    fi
   fi
 fi
 

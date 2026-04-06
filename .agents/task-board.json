@@ -230,7 +230,7 @@
       "id": "T-008",
       "title": "Automatic memory capture on stage transitions",
       "description": "Agent 完成阶段(FSM 状态转移)时自动保存记忆快照，无需手动调用。从本轮工作中提取：关键决策、修改的文件、遇到的问题、交接要点。",
-      "status": "reviewing",
+      "status": "testing",
       "priority": "high",
       "assigned_to": null,
       "created_at": "2026-04-06T14:45:36Z",
