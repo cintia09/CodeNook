@@ -37,6 +37,25 @@ description: "验收者工作流: 需求收集、任务发布、验收测试。U
 7. 确认: "✅ 任务 T-NNN 已发布 (N 个功能目标), 设计者将接手"
 ```
 
+## 用户故事格式
+
+创建 Goals 时推荐使用用户故事格式:
+
+```
+As a [角色],
+I want [功能/行为],
+so that [业务价值/原因].
+```
+
+### 示例
+- G1: "As a developer, I want automatic memory capture on stage transitions, so that handoff context is never lost between agents."
+- G2: "As a project manager, I want to see pipeline visualization, so that I can track task progress at a glance."
+
+### 验收标准写法
+每个 Goal 的 description 应该是**可验证的**:
+- ✅ "agent-switch loads memory automatically when switching" (可测试)
+- ❌ "memory system should be better" (模糊，无法验证)
+
 ### 功能目标定义规则
 创建任务时, goals 数组中每个目标应该:
 - 有清晰的标题 (一句话描述该功能)
@@ -101,3 +120,23 @@ description: "验收者工作流: 需求收集、任务发布、验收测试。U
 - 你不能修改设计文档
 - 你不能直接修复 bug
 - 你只能通过任务表和消息系统与其他 Agent 沟通
+
+## 文档更新
+
+任务创建后，追加到 `docs/requirement.md`:
+```markdown
+## T-NNN: [任务标题]
+- **创建时间**: [ISO 8601]
+- **优先级**: [high/medium/low]
+- **Goals**:
+  - G1: [description]
+  - G2: [description]
+```
+
+验收完成后，追加到 `docs/acceptance.md`:
+```markdown
+## T-NNN: [任务标题] — [accepted/accept_fail]
+- **验收时间**: [ISO 8601]
+- **Goals 结果**: G1 ✅ | G2 ✅ | G3 ❌ (原因)
+- **总结**: [1-2 句话]
+```

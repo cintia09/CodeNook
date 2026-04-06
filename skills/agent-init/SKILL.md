@@ -108,6 +108,18 @@ mkdir -p .agents/runtime/reviewer/workspace/review-reports
 mkdir -p .agents/runtime/tester/workspace/{test-cases,test-screenshots}
 ```
 
+### 创建文档目录
+```bash
+mkdir -p docs
+# Create initial doc templates if not exist
+for doc in requirement design test-spec implementation review acceptance; do
+  if [ ! -f "docs/${doc}.md" ]; then
+    # Copy template from framework installation
+    cp ~/.claude/skills/agent-init/templates/docs/${doc}.md docs/ 2>/dev/null || true
+  fi
+done
+```
+
 ### 3. 初始化状态文件
 为每个 Agent (acceptor, designer, implementer, reviewer, tester) 创建:
 

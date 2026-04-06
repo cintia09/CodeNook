@@ -25,6 +25,40 @@ description: "Agent 状态面板: 查看所有 Agent 的状态、任务分配和
 📊 近 24h 活动 (来自 events.db):
   💻 实现者: 42 次操作 | 🔍 审查者: 15 次 | 🧪 测试者: 8 次
 
+📋 任务流水线:
+
+  T-008: "自动记忆沉淀"
+  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐
+  │Acceptor│─▶│Designer│─▶│Implemen│─▶│Reviewer│─▶│ Tester │
+  │  🎯 ✅ │  │ 🏗️ ✅ │  │ 💻 ⏳  │  │ 🔍 ⏸️ │  │ 🧪 ⏸️ │
+  └────────┘  └────────┘  └────────┘  └────────┘  └────────┘
+                               ▲ 当前
+
+  T-009: "智能记忆加载"
+  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐
+  │Acceptor│─▶│Designer│─▶│Implemen│─▶│Reviewer│─▶│ Tester │
+  │  🎯 ✅ │  │ 🏗️ ⏳ │  │ 💻 ⏸️ │  │ 🔍 ⏸️ │  │ 🧪 ⏸️ │
+  └────────┘  └────────┘  └────────┘  └────────┘  └────────┘
+                    ▲ 当前
+
+### 流水线渲染逻辑
+根据任务 status 确定当前阶段:
+- `created` / `designing` → Designer 位置
+- `implementing` / `fixing` → Implementer 位置
+- `reviewing` → Reviewer 位置
+- `testing` → Tester 位置
+- `accepting` → Acceptor (第二轮)
+- `accepted` → 全部 ✅
+- `blocked` → 当前阶段标记 ⛔
+
+状态图标:
+- ✅ 已完成的阶段
+- ⏳ 当前活动阶段
+- ⏸️ 尚未到达的阶段
+- ⛔ 阻塞的阶段
+
+只显示 status != accepted 的任务（进行中的任务）。
+
 🚨 阻塞任务 (如有):
   ⛔ T-004: blocked — "依赖的 API 尚未就绪" (来自 implementing)
   → 说 "unblock T-004" 解除
@@ -66,7 +100,7 @@ fi
    jq '.messages |= [.[] | .read = true]' "$INBOX" > "${INBOX}.tmp" && mv "${INBOX}.tmp" "$INBOX"
    ```
 7. **显示任务概览**: 检查 task-board 中分配给当前 agent 的任务
-8. **加载任务记忆**: 如果有分配的任务, 自动读取 `.agents/memory/T-NNN-memory.json`, 显示上一阶段的上下文摘要和交接备注 (调用 agent-memory skill 的"加载记忆"操作)
+8. **智能加载任务记忆**: 如果有分配的任务, 自动读取 `.agents/memory/T-NNN-memory.json`, 根据当前角色过滤字段 (参见 agent-memory 的"智能记忆加载"章节), 以可读文本格式展示上一阶段的关键信息
 9. **Staleness 警告**: 如果有长时间 (>24h) 未活动的任务, 提醒用户
 10. 执行目标 Agent 的启动流程 (定义在对应 skill 中)
 11. 打印: "🔄 已切换到 <角色名> (<emoji>)"

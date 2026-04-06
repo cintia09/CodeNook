@@ -298,6 +298,73 @@ ISS-003 [low]    ⏳ open      — 等待实现者修复
 2. ⛔ 某个 issue 被标记为 blocked → 报告并停止
 3. ❌ 乐观锁重试 3 次仍失败 → 报告冲突并停止
 
+## 覆盖率分析
+
+### 工作流
+1. 检测测试框架:
+   - package.json → Jest/Vitest/Mocha
+   - setup.py/pyproject.toml → pytest
+   - Cargo.toml → cargo test
+   - go.mod → go test
+2. 运行覆盖率: `npm test -- --coverage` / `pytest --cov` / 等
+3. 解析报告，识别未覆盖的高优先级区域
+4. 优先级排序: 业务逻辑 > 错误处理 > 边界情况 > 分支覆盖
+
+### 覆盖率目标
+- 整体覆盖率 ≥ 80%
+- 核心业务逻辑 ≥ 90%
+- 新增代码 100% 覆盖（至少 happy path）
+
+### 未覆盖区域处理
+- 高圈复杂度的函数 → 必须补测试
+- 错误处理路径 → 必须补测试
+- 工具函数 → 补测试
+- UI 渲染 → 可接受较低覆盖率
+
+## Flaky 测试检测
+
+### 检测方法
+1. 可疑测试（间歇性失败）重跑 3~5 次
+2. 如果结果不一致 → 标记为 flaky
+3. 隔离: `test.fixme('flaky: [原因]', () => { ... })`
+
+### 常见原因
+| 原因 | 修复方式 |
+|------|---------|
+| 竞态条件 | 添加 await / waitFor |
+| 网络超时 | mock 外部请求 |
+| 时间依赖 | 使用 fake timers |
+| 动画/CSS 过渡 | 等待动画完成或禁用动画 |
+| 共享状态 | 测试间隔离 (beforeEach reset) |
+
+### 处理流程
+- flaky 测试不计入失败统计
+- 记录到 issues.json 中 type: "flaky"
+- 修复后取消 fixme 标记并重跑 5 次验证
+
+## E2E 测试 (Playwright)
+
+### Page Object Model
+```typescript
+// pages/login-page.ts
+export class LoginPage {
+  constructor(private page: Page) {}
+  
+  // 使用 data-testid 选择器，不用 CSS class 或 XPath
+  async login(email: string, password: string) {
+    await this.page.getByTestId('email-input').fill(email);
+    await this.page.getByTestId('password-input').fill(password);
+    await this.page.getByTestId('login-button').click();
+  }
+}
+```
+
+### 最佳实践
+- 选择器: `data-testid` > `role` > `text` > 绝不用 CSS class
+- 等待: `waitForResponse()` / `waitForSelector()` — 不用 `sleep()`
+- 失败处理: 截图 + 视频 + trace 自动保存
+- 浏览器: 至少覆盖 Chromium，理想情况 + Firefox + WebKit
+
 ## 测试原则
 - **独立判断**: 不受实现者影响, 独立评估功能是否符合需求
 - **全面覆盖**: 正常路径 + 异常路径 + 边界条件
@@ -308,3 +375,16 @@ ISS-003 [low]    ⏳ open      — 等待实现者修复
 - 你不能修改代码 (只能报告问题)
 - 你不能修改设计文档
 - 你不能直接通过验收 (那是验收者的职责)
+
+## 文档更新
+
+测试开始时，先读取 `docs/requirement.md` 和 `docs/design.md` 了解任务需求和设计。
+测试完成后，追加到 `docs/test-spec.md`:
+```markdown
+## T-NNN: [任务标题]
+- **测试时间**: [ISO 8601]
+- **输入**: requirement.md T-NNN 章节 + design.md T-NNN 章节
+- **测试用例**: [数量] (通过: N, 失败: N, 跳过: N)
+- **覆盖率**: [百分比]
+- **发现问题**: [列表或"无"]
+```

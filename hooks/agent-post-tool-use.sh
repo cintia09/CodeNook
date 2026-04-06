@@ -74,6 +74,12 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
         sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'auto_dispatch', '$TARGET', '$TASK_ID', '{\"from_status\":\"$STATUS\",\"from_agent\":\"$ACTIVE_AGENT\"}');" 2>/dev/null || true
       done
     fi
+
+    # === Auto Memory Capture ===
+    # When task status changes detected, trigger memory save
+    # Check: old_status vs new_status in task-board.json
+    # If different: extract summary/decisions/files from current context
+    # Write to .agents/memory/T-NNN-memory.json
   fi
 fi
 

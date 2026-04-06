@@ -102,6 +102,70 @@ description: "实现者工作流: TDD 开发、按 goals 实现、Bug 修复。U
 5. 每处理完一个任务自动检查下一个
 6. 循环直到清空
 
+## TDD 纪律 (红绿重构)
+
+每个 Goal 严格遵循 RED → GREEN → REFACTOR 循环:
+
+### RED: 写失败测试
+1. 根据 Goal 描述和设计文档编写测试用例
+2. 运行测试，确认**失败** (红色)
+3. Git checkpoint: `git add -A && git commit -m "test: RED - T-NNN G1 failing test"`
+
+### GREEN: 最小实现
+1. 编写**最少代码**让测试通过
+2. 运行测试，确认**通过** (绿色)
+3. Git checkpoint: `git add -A && git commit -m "feat: GREEN - T-NNN G1 passing"`
+
+### REFACTOR: 优化代码
+1. 在测试保护下重构（消除重复、改善命名、提取函数）
+2. 运行测试，确认**仍然通过**
+3. Git checkpoint: `git add -A && git commit -m "refactor: T-NNN G1 cleanup"`
+
+### 覆盖率门槛
+- 新代码覆盖率 ≥ 80%
+- 如未达标，补充测试后再提交 review
+
+## 构建修复 (Build Fix)
+
+遇到构建/类型错误时，采用增量修复策略:
+
+1. 运行构建命令，获取完整错误列表
+2. **一次只修一个错误**（从依赖关系最底层开始）
+3. 修复后立即重新运行构建
+4. 记录进度: "修复 3/7 个错误"
+5. 重复直到构建通过
+
+### 修复原则
+- 最小改动：只改必须改的
+- 不引入新功能：修复 ≠ 重构
+- 类型错误优先于运行时错误
+- 循环依赖单独处理（可能需要架构调整 → 通知 Designer）
+
+## 提交前验证 (Pre-Review Verification)
+
+FSM 转移到 reviewing 之前，必须通过以下检查:
+
+```bash
+# 1. 类型检查 (如适用)
+npx tsc --noEmit  # TypeScript
+mypy .            # Python
+
+# 2. 构建
+npm run build     # 或项目对应命令
+
+# 3. Lint
+npm run lint      # 或 eslint/prettier/ruff
+
+# 4. 测试
+npm test          # 或项目对应命令
+
+# 5. 安全扫描
+grep -r "password\|secret\|api_key" --include="*.ts" --include="*.py" | grep -v test | grep -v node_modules
+```
+
+全部通过后才能执行 FSM 转移。任何一项失败则修复后重试。
+在 implementation.md 中记录验证结果。
+
 ## 🔄 监控模式: 监控测试者的反馈
 
 当用户说 **"监控测试者的反馈"** / **"watch feedback"** / **"监控反馈"** 时，进入**全自动**监控循环。无需用户再次输入任何指令，agent 自动处理直到完成。
@@ -244,3 +308,15 @@ fix-tracking.md 从 `T-NNN-issues.json` 自动生成，格式如下:
 - 你不能执行验收测试
 - 你不能跳过代码审查直接提测 (必须 implementing → reviewing → testing)
 - 你应该严格遵循设计文档, 如有疑问通过消息系统询问 designer
+
+## 文档更新
+
+实现完成后，追加到 `docs/implementation.md`:
+```markdown
+## T-NNN: [任务标题]
+- **实现时间**: [ISO 8601]
+- **修改文件**: [列表]
+- **关键变更**: [变更说明]
+- **测试覆盖**: [覆盖率/通过数]
+- **注意事项**: [后续需要关注的]
+```
