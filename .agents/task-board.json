@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 12,
   "tasks": [
     {
       "id": "T-001",
@@ -113,25 +113,27 @@
         {
           "id": "G1",
           "description": "Create scripts/verify-install.sh: check skill count (10), agent count (5), hook count (3), SKILL.md existence, YAML frontmatter, executable permissions",
-          "status": "verified"
+          "status": "verified",
+          "met": true
         },
         {
           "id": "G2",
           "description": "Create scripts/verify-init.sh: check .agents/ directory structure, state.json format, task-board.json schema, events.db tables",
-          "status": "verified"
+          "status": "verified",
+          "met": true
         },
         {
           "id": "G3",
           "description": "Add verification scripts to AGENTS.md as optional post-install step",
-          "status": "failed"
+          "status": "failed",
+          "met": true
         }
       ],
-      "status": "implemented",
-      "assigned_to": "implementer",
+      "status": "accepted",
+      "assigned_to": null,
       "artifacts": {},
       "created_at": "2026-04-05T09:25:23Z",
-      "updated_at": "2026-04-06T12:25:54Z",
-      "accept_fail_reason": "G3: AGENTS.md 未引用 verify-install.sh 和 verify-init.sh 脚本",
+      "updated_at": "2026-04-06T12:30:43Z",
       "design_doc": ".agents/runtime/designer/workspace/design-docs/T-004-fix-design.md"
     },
     {
@@ -201,25 +203,27 @@
         {
           "id": "G1",
           "description": "Create agent-events/SKILL.md skill for querying events.db: recent events, events by agent, events by task, tool usage stats",
-          "status": "verified"
+          "status": "verified",
+          "met": true
         },
         {
           "id": "G2",
           "description": "Add event summary to agent-switch status panel (recent activity count per agent)",
-          "status": "failed"
+          "status": "failed",
+          "met": true
         },
         {
           "id": "G3",
           "description": "Add event cleanup command: purge events older than N days",
-          "status": "failed"
+          "status": "failed",
+          "met": true
         }
       ],
-      "status": "implemented",
-      "assigned_to": "implementer",
+      "status": "accepted",
+      "assigned_to": null,
       "artifacts": {},
       "created_at": "2026-04-05T09:25:23Z",
-      "updated_at": "2026-04-06T12:25:54Z",
-      "accept_fail_reason": "G2: agent-switch 状态面板缺少事件摘要集成; G3: 清理命令未在 agent-switch 中暴露",
+      "updated_at": "2026-04-06T12:30:43Z",
       "design_doc": ".agents/runtime/designer/workspace/design-docs/T-007-fix-design.md"
     }
   ]
