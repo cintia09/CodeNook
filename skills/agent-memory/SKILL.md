@@ -812,3 +812,143 @@ jq --arg kw "$KEYWORD" '.lessons_learned[] | select(
 2. 再搜索所有 `T-NNN-memory.json` (详细上下文)
 3. 合并去重, 按权重排序
 4. 输出时分为 "📐 项目级" 和 "📋 任务级" 两个区域
+
+---
+
+## Memory System 2.0 — Three-Layer Architecture
+
+### Overview
+
+Memory System 2.0 replaces the flat task-memory model with a **three-layer architecture** that provides per-role long-term memory, daily diary journals, and shared project knowledge. All layers are indexed via SQLite FTS5 for fast full-text search with citations.
+
+### Layer 1: Long-term Memory (MEMORY.md)
+
+- **Per-role file**: `.agents/memory/{role}/MEMORY.md`
+- **Contains**: core decisions, architectural patterns, project conventions
+- **Lifecycle**: permanent (never expires)
+- **Written**: manually by agent OR auto-promoted from Layer 2
+- **Loaded**: on session start
+
+### Layer 2: Diary Memory (memory/YYYY-MM-DD.md)
+
+- **Per-role daily file**: `.agents/memory/{role}/diary/YYYY-MM-DD.md`
+- **Contains**: daily observations, decisions, signals
+- **Lifecycle**: 30-90 days before archival
+- **Written**: appended throughout session
+- **Loaded**: today + yesterday auto-loaded
+
+### Layer 3: Project Memory (PROJECT_MEMORY.md)
+
+- **Shared file**: `.agents/memory/PROJECT_MEMORY.md`
+- **Contains**: tech_stack, architecture_decisions (ADRs), lessons_learned, hot_files
+- **Lifecycle**: permanent, updated on task acceptance
+- **Loaded**: by all agents on init
+
+### Directory Structure
+
+```
+.agents/memory/
+├── PROJECT_MEMORY.md
+├── index.sqlite              # FTS5 index
+├── acceptor/
+│   ├── MEMORY.md
+│   └── diary/
+│       └── YYYY-MM-DD.md
+├── designer/
+│   ├── MEMORY.md
+│   └── diary/...
+├── implementer/...
+├── reviewer/...
+└── tester/...
+```
+
+### Memory Write Protocol
+
+When writing memory, agents must:
+
+1. **Determine layer**: is this a core decision (L1), daily observation (L2), or project-wide (L3)?
+2. **Append** to appropriate file (never overwrite)
+3. Use **markdown format** with timestamp headers
+4. Trigger `after-memory-write` hook for index update
+
+### Memory Indexing
+
+After writing any memory file:
+
+1. Run `bash scripts/memory-index.sh` to update the FTS5 index
+2. Index supports Chinese text via `unicode61` tokenizer
+3. Auto-rebuild on file change (1.5s debounce — handled by `after-memory-write` hook)
+4. Force full reindex: `bash scripts/memory-index.sh --force`
+
+### Memory Search
+
+To find relevant memories:
+
+```bash
+bash scripts/memory-search.sh "hook execution order"
+bash scripts/memory-search.sh "architecture" --role designer --limit 10
+bash scripts/memory-search.sh "testing strategy" --layer long-term
+```
+
+Output format:
+
+```
+[.agents/memory/reviewer/MEMORY.md:15] **hook** 按 priority 字段排序执行
+[.agents/memory/designer/diary/2026-04-06.md:8] 设计决策：**hook** 支持 block 语义
+```
+
+**Optional: Vector search** (requires `OPENAI_API_KEY`):
+
+- Weight: 70% keyword (FTS5) + 30% semantic (vector)
+- When vector is unavailable, falls back to 100% keyword
+
+### Memory Lifecycle
+
+#### Auto-Flush Before Compaction
+
+When context is about to be compacted (summarized):
+
+1. Extract key decisions from current conversation
+2. Write to today's diary: `.agents/memory/{role}/diary/YYYY-MM-DD.md`
+3. This is triggered by `before-compaction` hook
+
+#### Temporal Decay
+
+Search scoring applies time-based decay:
+
+| Memory Age | Multiplier | Notes |
+|---|---|---|
+| < 7 days | × 1.0 | Fresh |
+| 7-30 days | × 0.7 | Recent |
+| 30-60 days | × 0.5 | Aging |
+| 60-90 days | × 0.3 | Fading |
+| > 90 days | × 0.1 | Stale |
+| MEMORY.md (long-term) | NO decay | Evergreen |
+
+#### Auto-Promotion (Dreaming)
+
+Daily process to promote high-signal diary entries to long-term memory.
+
+**6-Signal Scoring:**
+
+| Signal | Weight | Description |
+|--------|--------|-------------|
+| Frequency | 24% | How many times appeared in searches |
+| Relevance | 30% | Average search rank score |
+| Query Diversity | 15% | Number of unique query contexts |
+| Recency | 15% | Time-decayed freshness |
+| Consolidation | 10% | Multi-day pattern (appears across days) |
+| Conceptual Richness | 6% | Concept density (unique terms / total terms) |
+
+**Promotion Thresholds:**
+
+- `minScore` ≥ 0.8
+- `minRecallCount` ≥ 3 (searched 3+ times)
+- `minUniqueQueries` ≥ 3 (from 3+ different queries)
+
+**Process:**
+
+1. Scan diary entries from last 30 days
+2. Calculate 6-signal score for each entry
+3. Entries above threshold → append to `MEMORY.md` with attribution
+4. Format: `## [Auto-promoted YYYY-MM-DD] <content>`
