@@ -75,6 +75,41 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
       done
     fi
 
+    # === FSM Transition Validation ===
+    # Validate that status changes follow legal FSM transitions
+    if [ -f "$AGENTS_DIR/task-board.json" ] && [ -f "$SNAPSHOT" ]; then
+      jq -c '.tasks[]' "$AGENTS_DIR/task-board.json" 2>/dev/null | while read -r TASK; do
+        TASK_ID=$(echo "$TASK" | jq -r '.id')
+        NEW_STATUS=$(echo "$TASK" | jq -r '.status')
+        OLD_STATUS=$(jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .status' "$SNAPSHOT" 2>/dev/null || echo "")
+
+        [ -z "$OLD_STATUS" ] && continue
+        [ "$OLD_STATUS" = "$NEW_STATUS" ] && continue
+
+        # Define legal transitions (from agent-fsm/SKILL.md)
+        LEGAL=false
+        case "${OLD_STATUS}→${NEW_STATUS}" in
+          "created→designing")       LEGAL=true ;;
+          "designing→implementing")  LEGAL=true ;;
+          "implementing→reviewing")  LEGAL=true ;;
+          "reviewing→implementing")  LEGAL=true ;;  # review rejection
+          "reviewing→testing")       LEGAL=true ;;
+          "testing→fixing")          LEGAL=true ;;
+          "testing→accepting")       LEGAL=true ;;
+          "fixing→testing")          LEGAL=true ;;  # fix retest
+          "accepting→accepted")      LEGAL=true ;;
+          "accept_fail→designing")   LEGAL=true ;;
+          *→blocked)                 LEGAL=true ;;  # anything can be blocked
+          "blocked→"*)               LEGAL=true ;;  # unblock to any
+        esac
+
+        if [ "$LEGAL" = false ]; then
+          echo "⛔ [FSM] ILLEGAL transition detected: $TASK_ID ($OLD_STATUS → $NEW_STATUS). Legal transitions from '$OLD_STATUS' do not include '$NEW_STATUS'. Please use agent-fsm to make valid transitions."
+          sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'fsm_violation', '$ACTIVE_AGENT', '$TASK_ID', '{\"from\":\"$OLD_STATUS\",\"to\":\"$NEW_STATUS\"}');" 2>/dev/null || true
+        fi
+      done
+    fi
+
     # === Auto Memory Capture (T-008) ===
     # When task status changes, detect transition and trigger memory capture
     if [ -f "$AGENTS_DIR/task-board.json" ]; then
