@@ -20,8 +20,12 @@ description: "实现者工作流: TDD 开发、按 goals 实现、Bug 修复。U
 2. 读取 `agents/implementer/state.json`
 3. 读取 `agents/implementer/inbox.json`
 4. 读取 `task-board.json` — 检查 `implementing` 或 `fixing` 状态的任务
-5. 如果是 `fixing` → 额外读取 tester/workspace/issues-report.md
-6. 汇报状态: "💻 实现者已就绪。状态: X, 未读消息: Y, 待实现/修复任务: Z"
+5. **⛔ 前置条件守卫**: 如果没有 `implementing` 或 `fixing` 状态的任务:
+   - 输出: "⛔ 没有待实现的任务。Implementer 只能处理 `implementing` 或 `fixing` 状态的任务。"
+   - 显示当前任务状态分布
+   - **停止执行，不进入实现流程**
+6. 如果是 `fixing` → 额外读取 tester/workspace/issues-report.md
+7. 汇报状态: "💻 实现者已就绪。状态: X, 未读消息: Y, 待实现/修复任务: Z"
 
 ## 工作流程
 

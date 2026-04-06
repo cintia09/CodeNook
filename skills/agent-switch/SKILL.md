@@ -85,25 +85,38 @@ fi
 ## 切换角色 (/agent <name>)
 用户说 "/agent <name>" 或 "切换到 <角色名>" 时:
 1. 确认目标角色有效: acceptor | designer | implementer | reviewer | tester
-2. 保存当前 Agent 状态 (如果有)
-3. **写入 active-agent 标记** (供 Hooks 读取):
+2. **⛔ 前置条件预检**: 读取 task-board.json，检查目标角色是否有匹配状态的任务:
+   | 角色 | 需要的任务状态 | 例外 |
+   |------|---------------|------|
+   | acceptor | `accepting` 或有新需求 | 始终可切换（可接收新需求） |
+   | designer | `created` 或 `accept_fail` | — |
+   | implementer | `implementing` 或 `fixing` | — |
+   | reviewer | `reviewing` | — |
+   | tester | `testing` | — |
+   - 如果无匹配任务 (且无例外):
+     - **⚠️ 警告** (不直接阻断，但明确提示): "⚠️ 当前没有 `<expected_status>` 状态的任务。切换到 <角色> 后将无任务可处理。"
+     - 显示任务状态分布
+     - 询问用户: "是否仍要切换？" (给用户最终决定权)
+     - 如用户确认 → 继续切换; 如用户取消 → 建议正确的角色
+3. 保存当前 Agent 状态 (如果有)
+4. **写入 active-agent 标记** (供 Hooks 读取):
    ```bash
    echo "<agent_name>" > <project>/.agents/runtime/active-agent
    ```
-4. 清洁上下文 (RESPAWN 模式 — 不携带上一个 Agent 的工作记忆)
-5. 加载目标 Agent 的 skill (agent-<name>.md)
-6. **自动处理 inbox**: 读取未读消息, 显示给用户, 标记为已读:
+5. 清洁上下文 (RESPAWN 模式 — 不携带上一个 Agent 的工作记忆)
+6. 加载目标 Agent 的 skill (agent-<name>.md)
+7. **自动处理 inbox**: 读取未读消息, 显示给用户, 标记为已读:
    ```bash
    INBOX="<project>/.agents/runtime/<agent>/inbox.json"
    UNREAD=$(jq '[.messages[] | select(.read == false)]' "$INBOX")
    # 显示每条未读消息, 然后标记已读:
    jq '.messages |= [.[] | .read = true]' "$INBOX" > "${INBOX}.tmp" && mv "${INBOX}.tmp" "$INBOX"
    ```
-7. **显示任务概览**: 检查 task-board 中分配给当前 agent 的任务
-8. **智能加载任务记忆**: 如果有分配的任务, 自动读取 `.agents/memory/T-NNN-memory.json`, 根据当前角色过滤字段 (参见 agent-memory 的"智能记忆加载"章节), 以可读文本格式展示上一阶段的关键信息
-9. **Staleness 警告**: 如果有长时间 (>24h) 未活动的任务, 提醒用户
-10. 执行目标 Agent 的启动流程 (定义在对应 skill 中)
-11. 打印: "🔄 已切换到 <角色名> (<emoji>)"
+8. **显示任务概览**: 检查 task-board 中分配给当前 agent 的任务
+9. **智能加载任务记忆**: 如果有分配的任务, 自动读取 `.agents/memory/T-NNN-memory.json`, 根据当前角色过滤字段 (参见 agent-memory 的"智能记忆加载"章节), 以可读文本格式展示上一阶段的关键信息
+10. **Staleness 警告**: 如果有长时间 (>24h) 未活动的任务, 提醒用户
+11. 执行目标 Agent 的启动流程 (定义在对应 skill 中)
+12. 打印: "🔄 已切换到 <角色名> (<emoji>)"
 
 ### 退出角色
 用户说 "退出角色" 或 "exit agent" 时:

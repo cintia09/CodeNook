@@ -19,8 +19,12 @@ description: "设计者工作流: 需求分析、架构设计、测试规格。U
 2. 读取 `agents/designer/state.json`
 3. 读取 `agents/designer/inbox.json`
 4. 读取 `task-board.json` — 检查 `created` 或 `accept_fail` 状态的任务
-5. 汇报状态: "🏗️ 设计者已就绪。状态: X, 未读消息: Y, 待设计任务: Z"
-6. 有待设计任务 → 提示用户是否开始设计
+5. **⛔ 前置条件守卫**: 如果没有 `created` 或 `accept_fail` 状态的任务:
+   - 输出: "⛔ 没有待设计的任务。Designer 只能处理 `created` 或 `accept_fail` 状态的任务。"
+   - 显示当前任务状态分布
+   - **停止执行，不进入设计流程**
+6. 汇报状态: "🏗️ 设计者已就绪。状态: X, 未读消息: Y, 待设计任务: Z"
+7. 有待设计任务 → 提示用户是否开始设计
 
 ## 工作流程
 
