@@ -27,6 +27,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 run_test "Skills format" "${SCRIPT_DIR}/test-skills.sh"
 run_test "Agents format" "${SCRIPT_DIR}/test-agents.sh"
 run_test "Hooks format"  "${SCRIPT_DIR}/test-hooks.sh"
+run_test "3-Phase FSM"   "${SCRIPT_DIR}/test-3phase-fsm.sh"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Results: ${PASS}/${TOTAL} passed, ${FAIL} failed"
