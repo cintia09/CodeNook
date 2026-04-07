@@ -394,8 +394,11 @@ sqlite3 .agents/events.db "SELECT * FROM events ORDER BY id DESC LIMIT 20;"
 - **Phase 5** ✅ ECC 最佳实践融合（TDD 纪律 + 安全审查 + 覆盖率分析 + ADR）
 - **Phase 6** ✅ 结构化消息 + Cycle Time 度量 + 看板增强 + 项目级记忆
 - **Phase 7** ✅ 基础设施（一键安装 + 版本管理 + 社区模板 + 测试套件）
-- **Phase 8** — 外部调度器（基于 cron 的自主 Agent 循环）
-- **Phase 9** — Claude Code Agent Teams 集成（并行多 Agent）
+- **Phase 8** ✅ 记忆系统 2.0（三层架构 + FTS5 索引 + 混合检索 + 自动晋升）
+- **Phase 9** ✅ Hook 精细化（15+ hook 点 + 终止/审批语义 + 工具 Profile）
+- **Phase 10** ✅ 调度自动化（Cron + Webhook + FSM 自动推进）
+- **Phase 11** ✅ Context Engine（预算管理 + 角色注入 + 智能压缩）
+- **Phase 12** ✅ Agent Teams 集成（Subagent 派生 + 并行实现/审查）
 
 ---
 
