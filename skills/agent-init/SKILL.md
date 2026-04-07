@@ -509,6 +509,28 @@ done
 
 > ⚠️ 此步骤仅在用户选择 3-Phase 模式时执行。Simple 模式跳过此步骤。
 
+#### 检测 AI CLI 命令
+
+检测当前环境中可用的 AI CLI 工具, 用于 orchestrator 调用 agent:
+
+```bash
+# Detect available AI CLI tool
+CLI_COMMAND=""
+if command -v claude >/dev/null 2>&1; then
+  CLI_COMMAND="claude"
+elif command -v copilot >/dev/null 2>&1; then
+  CLI_COMMAND="copilot"
+elif command -v github-copilot-cli >/dev/null 2>&1; then
+  CLI_COMMAND="github-copilot-cli"
+else
+  echo "⚠️ No AI CLI tool detected. Set {CLI_COMMAND} manually in .agents/orchestrator/run.sh"
+  CLI_COMMAND="claude"  # default fallback
+fi
+echo "🔍 Detected AI CLI: $CLI_COMMAND"
+```
+
+将 `{CLI_COMMAND}` 加入占位符替换列表, 与其他占位符一起在生成 orchestrator daemon 和 prompt 模板时替换。
+
 #### 创建 3-Phase 目录结构
 ```bash
 # Orchestrator daemon workspace
@@ -549,6 +571,7 @@ mkdir -p .agents/prompts
 每个 prompt 模板使用 `{PLACEHOLDER}` 格式, 在生成时替换为项目实际信息:
 - `{PROJECT_DIR}` → 项目根目录绝对路径
 - `{TASK_ID}` → 运行时由 orchestrator 替换
+- `{CLI_COMMAND}` → 检测到的 AI CLI 工具 (e.g., `claude`, `copilot`, `github-copilot-cli`)
 - `{BUILD_CMD}` → 检测到的构建命令
 - `{TEST_CMD}` → 检测到的测试命令
 - `{LINT_CMD}` → 检测到的 lint 命令

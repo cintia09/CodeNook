@@ -46,6 +46,11 @@ The orchestrator uses `{PLACEHOLDER}` tokens that are replaced during project in
 | `{REVIEW_CMD}` | Command to create/check review | `gh pr create` |
 | `{REVIEW_STATUS_CMD}` | Command to check review status | `gh pr checks` |
 
+### AI CLI Command
+| Placeholder | Description | Example |
+|-------------|-------------|---------|
+| `{CLI_COMMAND}` | AI assistant CLI command (e.g., claude, copilot, github-copilot-cli) | `claude` |
+
 ### Device / Test Environment (Pluggable)
 | Placeholder | Description | Example |
 |-------------|-------------|---------|
@@ -131,8 +136,8 @@ invoke_agent() {
     -e "s|{PROJECT_DIR}|{PROJECT_DIR}|g" \
     < "$prompt_file")
 
-  # Invoke via Copilot CLI with the agent profile
-  copilot-cli \
+  # Invoke via AI CLI — {CLI_COMMAND} is replaced during agent-init
+  {CLI_COMMAND} \
     --agent "$agent" \
     --prompt "$prompt" \
     --project-dir "{PROJECT_DIR}" \
@@ -143,7 +148,46 @@ invoke_agent() {
 }
 ```
 
-> **Note**: The actual CLI command (`copilot-cli`) is a placeholder. Replace with the actual invocation for your AI coding assistant (e.g., `claude --agent`, `github-copilot-cli`, etc.).
+> **Note**: `{CLI_COMMAND}` is replaced during `agent-init` with the detected AI CLI tool (e.g., `claude`, `copilot`, `github-copilot-cli`).
+
+## Result Delivery Protocol
+
+The orchestrator reads result fields from `task-board.json` to make branching decisions (e.g., `design_review_result`, `regression_result`). **Each prompt template must instruct the agent to write its result back to task-board.json before completing.**
+
+### Result Fields
+
+| Field | Values | Set By | At End Of Step |
+|-------|--------|--------|----------------|
+| `design_review_result` | `"pass"` \| `"fail"` | reviewer | `design_review` |
+| `regression_result` | `"pass"` \| `"fail"` | tester | `regression_testing` |
+| `feature_result` | `"pass"` \| `"fail"` | tester | `feature_testing` |
+| `log_analysis_result` | `"clean"` \| `"anomaly"` | tester | `log_analysis` |
+| `device_baseline_result` | `"pass"` \| `"fail"` | implementer | `device_baseline` |
+
+### `write_result()` Helper
+
+Include this in the orchestrator daemon or instruct agents to use equivalent `jq` commands:
+
+```bash
+write_result() {
+  local task_id="$1" field="$2" value="$3"
+  jq --arg tid "$task_id" --arg f "$field" --arg v "$value" \
+    '(.tasks[] | select(.id == $tid))[$f] = $v' \
+    "$AGENTS_DIR/task-board.json" > tmp.json && mv tmp.json "$AGENTS_DIR/task-board.json"
+}
+```
+
+### Prompt Template Requirement
+
+Every prompt template that produces a result **must** include this instruction:
+
+> **Before completing, update task-board.json with your result field:**
+> ```bash
+> jq --arg tid "{TASK_ID}" '(.tasks[] | select(.id == $tid)).FIELD = "VALUE"' \
+>   .agents/task-board.json > .agents/task-board.json.tmp \
+>   && mv .agents/task-board.json.tmp .agents/task-board.json
+> ```
+> Replace `FIELD` with the appropriate result field name and `VALUE` with the result.
 
 ## Phase 2 Parallel Execution Strategy
 
@@ -371,8 +415,8 @@ invoke_agent() {
 
   info "Invoking $agent for $task_id with $(basename "$prompt_file")"
 
-  # Replace with actual CLI invocation for your AI coding assistant
-  copilot-cli \
+  # {CLI_COMMAND} is replaced during agent-init with the detected AI CLI tool
+  {CLI_COMMAND} \
     --agent "$agent" \
     --prompt "$prompt" \
     --project-dir "$PROJECT_DIR" \
@@ -766,4 +810,585 @@ Run the full regression test suite and report results.
 ## Output
 - Regression report: .agents/runtime/tester/workspace/test-cases/{TASK_ID}-regression.md
 - Update task-board.json: regression_result field
+```
+
+### `phase1-architecture.txt`
+
+```
+You are the DESIGNER agent working on task {TASK_ID} in a 3-Phase Engineering workflow.
+
+PROJECT: {PROJECT_DIR}
+PHASE: 1 — Design
+STEP: Architecture
+
+## Your Mission
+Read the approved requirements and produce a comprehensive architecture document.
+
+## Context
+- Requirements doc: .agents/runtime/acceptor/workspace/requirements/{TASK_ID}-requirements.md
+- Task board: .agents/task-board.json (task ID: {TASK_ID})
+
+## Instructions
+1. Read the requirements document thoroughly
+2. Design the system architecture:
+   a. Component diagram (describe in text/Mermaid)
+   b. Data model (entities, relationships, schemas)
+   c. API design (endpoints, request/response formats)
+   d. Technology choices with justification
+3. Identify integration points and dependencies
+4. Document error handling and edge cases
+5. Output to: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-design.md
+
+## Output Format
+- Title: Architecture for {TASK_ID}
+- Sections: Overview, Component Design, Data Model, API Design, Error Handling, Open Questions
+- Each component must have: name, responsibility, interfaces, dependencies
+
+## Quality Gate
+- All requirements are addressed by at least one component
+- Data model covers all entities from requirements
+- API design includes error responses
+- No circular dependencies
+```
+
+### `phase1-tdd-design.txt`
+
+```
+You are the DESIGNER agent (with TESTER input) working on task {TASK_ID} in a 3-Phase Engineering workflow.
+
+PROJECT: {PROJECT_DIR}
+PHASE: 1 — Design
+STEP: TDD Design
+
+## Your Mission
+Create a comprehensive TDD plan based on the architecture document.
+
+## Context
+- Architecture doc: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-design.md
+- Requirements doc: .agents/runtime/acceptor/workspace/requirements/{TASK_ID}-requirements.md
+
+## Instructions
+1. Read the architecture document and requirements
+2. For each component, define:
+   a. Unit tests (RED phase — what to test, expected behavior)
+   b. Implementation strategy (GREEN phase — minimal code to pass)
+   c. Refactor opportunities (REFACTOR phase — code quality improvements)
+3. Define integration test scenarios
+4. Define E2E test scenarios matching acceptance criteria
+5. Specify test data and fixtures needed
+6. Output to: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-tdd-plan.md
+
+## Output Format
+- Title: TDD Plan for {TASK_ID}
+- Sections: Unit Tests, Integration Tests, E2E Tests, Test Data, Execution Order
+- Each test: ID, description, input, expected output, component under test
+
+## Quality Gate
+- Every requirement has at least one test
+- Tests follow Red → Green → Refactor sequence
+- Test data is realistic and covers edge cases
+```
+
+### `phase1-dfmea.txt`
+
+```
+You are the DESIGNER agent working on task {TASK_ID} in a 3-Phase Engineering workflow.
+
+PROJECT: {PROJECT_DIR}
+PHASE: 1 — Design
+STEP: Design FMEA (Failure Mode and Effects Analysis)
+
+## Your Mission
+Analyze potential failure modes in the design and create a risk matrix with mitigation actions.
+
+## Context
+- Architecture doc: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-design.md
+- TDD plan: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-tdd-plan.md
+- Requirements doc: .agents/runtime/acceptor/workspace/requirements/{TASK_ID}-requirements.md
+
+## Instructions
+1. For each component in the architecture:
+   a. Identify potential failure modes (what can go wrong)
+   b. Assess severity (1-10), occurrence probability (1-10), detectability (1-10)
+   c. Calculate Risk Priority Number (RPN = S × O × D)
+   d. Define mitigation actions for high-RPN items (RPN > 100)
+2. Consider: data loss, security breaches, performance degradation, API failures, concurrency issues
+3. Cross-reference with TDD plan — ensure high-risk items have tests
+4. Output to: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-dfmea.md
+
+## Output Format
+- Title: DFMEA for {TASK_ID}
+- Risk Matrix table: Component, Failure Mode, Effect, Severity, Occurrence, Detection, RPN, Mitigation
+- Summary: Top 5 risks, recommended actions, test coverage gaps
+
+## Quality Gate
+- All architecture components analyzed
+- RPN > 100 items have mitigation plans
+- High-severity items (S ≥ 8) have corresponding test cases
+```
+
+### `phase1-design-review.txt`
+
+```
+You are the REVIEWER agent working on task {TASK_ID} in a 3-Phase Engineering workflow.
+
+PROJECT: {PROJECT_DIR}
+PHASE: 1 — Design
+STEP: Design Review
+
+## Your Mission
+Review all Phase 1 outputs for completeness, consistency, and quality. Set design_review_result.
+
+## Context
+- Requirements: .agents/runtime/acceptor/workspace/requirements/{TASK_ID}-requirements.md
+- Architecture: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-design.md
+- TDD Plan: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-tdd-plan.md
+- DFMEA: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-dfmea.md
+
+## Instructions
+1. Review requirements: complete, unambiguous, testable?
+2. Review architecture: addresses all requirements? No gaps?
+3. Review TDD plan: covers all requirements and architecture components?
+4. Review DFMEA: realistic risk assessment? Mitigations adequate?
+5. Check cross-document consistency (no contradictions)
+6. Output review report to: .agents/runtime/reviewer/workspace/review-reports/review-{TASK_ID}-design.md
+
+## Decision
+- If all documents are complete and consistent: set design_review_result = "pass"
+- If issues found: set design_review_result = "fail" with detailed reasons
+
+## Update task-board.json
+Before completing, update task-board.json with your result:
+```bash
+jq --arg tid "{TASK_ID}" '(.tasks[] | select(.id == $tid)).design_review_result = "pass"' \
+  .agents/task-board.json > .agents/task-board.json.tmp \
+  && mv .agents/task-board.json.tmp .agents/task-board.json
+```
+
+## Quality Gate
+- Every requirement traced to architecture component
+- Every component traced to test case
+- No unmitigated high-severity risks
+```
+
+### `phase2-implementing.txt`
+
+```
+You are the IMPLEMENTER agent working on task {TASK_ID} in a 3-Phase Engineering workflow.
+
+PROJECT: {PROJECT_DIR}
+PHASE: 2 — Implementation
+STEP: TDD Development (Track A)
+
+## Your Mission
+Implement the feature using strict TDD discipline.
+
+## Context
+- Design doc: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-design.md
+- Test spec: .agents/runtime/designer/workspace/test-specs/{TASK_ID}-test-spec.md
+- TDD plan: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-tdd-plan.md
+
+## Instructions
+1. Read the design document and TDD plan
+2. For each component in the TDD plan:
+   a. Write the test FIRST (RED phase)
+   b. Run tests, confirm failure: {TEST_CMD}
+   c. Write minimal implementation (GREEN phase)
+   d. Run tests, confirm pass: {TEST_CMD}
+   e. Refactor if needed (REFACTOR phase)
+   f. Git commit with descriptive message
+3. Run full build: {BUILD_CMD}
+4. Run lint: {LINT_CMD}
+5. Update goal status in task-board.json as goals are completed
+
+## CI Integration
+- CI System: {CI_SYSTEM}
+- After implementation, push and monitor: {CI_URL}
+
+## Quality Gate
+- All tests passing: {TEST_CMD}
+- Build succeeds: {BUILD_CMD}
+- Lint clean: {LINT_CMD}
+- All task goals marked as "done"
+```
+
+### `phase2-test-scripting.txt`
+
+```
+You are the TESTER agent working on task {TASK_ID} in a 3-Phase Engineering workflow.
+
+PROJECT: {PROJECT_DIR}
+PHASE: 2 — Implementation
+STEP: Test Scripting (Track B)
+
+## Your Mission
+Write automated test scripts based on the TDD plan, including fixtures and test data setup.
+
+## Context
+- TDD plan: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-tdd-plan.md
+- Test spec: .agents/runtime/designer/workspace/test-specs/{TASK_ID}-test-spec.md
+- Architecture: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-design.md
+
+## Instructions
+1. Read the TDD plan and test specifications
+2. Create test infrastructure:
+   a. Set up test fixtures and factories
+   b. Create mock data and test utilities
+   c. Configure test environment variables
+3. Write test scripts for each test case in the TDD plan:
+   a. Unit tests with descriptive names
+   b. Integration tests with proper setup/teardown
+   c. E2E tests matching acceptance criteria
+4. Verify all tests are runnable: {TEST_CMD}
+5. Output test cases to: .agents/runtime/tester/workspace/test-cases/{TASK_ID}-tests.md
+
+## Quality Gate
+- All TDD plan test cases have corresponding test scripts
+- Tests are isolated and repeatable
+- Test fixtures cover edge cases from DFMEA
+- All tests runnable with: {TEST_CMD}
+```
+
+### `phase2-code-reviewing.txt`
+
+```
+You are the REVIEWER agent working on task {TASK_ID} in a 3-Phase Engineering workflow.
+
+PROJECT: {PROJECT_DIR}
+PHASE: 2 — Implementation
+STEP: Code Review (Track C)
+
+## Your Mission
+Review the implementer's code for quality, security, and adherence to design.
+
+## Context
+- Design doc: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-design.md
+- Architecture: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-design.md
+- DFMEA: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-dfmea.md
+
+## Instructions
+1. Review all changed files (use `git diff` to identify changes)
+2. Check against design document — implementation matches architecture?
+3. Security review:
+   a. No hardcoded secrets or credentials
+   b. Input validation on all external inputs
+   c. SQL injection / XSS / CSRF prevention
+   d. Proper error handling (no swallowed exceptions)
+4. Code quality:
+   a. Consistent style: {LINT_CMD}
+   b. No dead code or commented-out blocks
+   c. Clear naming and documentation
+   d. Proper separation of concerns
+5. Output to: .agents/runtime/reviewer/workspace/review-reports/review-{TASK_ID}-code.md
+
+## Output Format
+- Critical issues (must fix before merge)
+- Warnings (should fix)
+- Suggestions (nice to have)
+- Overall verdict: APPROVE / REQUEST_CHANGES
+
+## Quality Gate
+- Build passes: {BUILD_CMD}
+- Lint clean: {LINT_CMD}
+- No critical security issues
+- Implementation matches design
+```
+
+### `phase2-ci-monitoring.txt`
+
+```
+You are the IMPLEMENTER agent working on task {TASK_ID} in a 3-Phase Engineering workflow.
+
+PROJECT: {PROJECT_DIR}
+PHASE: 2 — Implementation
+STEP: CI Monitoring
+
+## Your Mission
+Run the CI pipeline (build + test + lint) and report results.
+
+## Context
+- CI System: {CI_SYSTEM}
+- CI URL: {CI_URL}
+- Task board: .agents/task-board.json
+
+## Instructions
+1. Trigger CI pipeline: {CI_TRIGGER_CMD}
+2. Monitor CI status: {CI_STATUS_CMD}
+3. Run local validation:
+   a. Build: {BUILD_CMD}
+   b. Tests: {TEST_CMD}
+   c. Lint: {LINT_CMD}
+4. Compare local and CI results
+5. If CI passes: update parallel_tracks.ci_monitoring = "green"
+6. If CI fails: collect failure logs and report
+
+## CI Status Check
+```bash
+{CI_STATUS_CMD}
+```
+
+## Output
+- CI report to orchestrator log
+- Update task-board.json parallel_tracks if applicable
+
+## Quality Gate
+- CI pipeline completes without errors
+- All tests pass in CI environment
+- Build artifacts generated successfully
+```
+
+### `phase2-ci-fixing.txt`
+
+```
+You are the IMPLEMENTER agent working on task {TASK_ID} in a 3-Phase Engineering workflow.
+
+PROJECT: {PROJECT_DIR}
+PHASE: 2 — Implementation
+STEP: CI Fixing
+
+## Your Mission
+Read CI failure logs, diagnose issues, apply fixes, and re-trigger CI.
+
+## Context
+- CI System: {CI_SYSTEM}
+- CI URL: {CI_URL}
+- CI Logs: Check {CI_URL} or run {LOG_CMD}
+- Task board: .agents/task-board.json
+
+## Instructions
+1. Read CI failure logs from the latest run
+2. Categorize failures:
+   a. Build failures (compilation errors, missing deps)
+   b. Test failures (assertion failures, timeouts)
+   c. Lint failures (style violations)
+   d. Environment issues (missing config, permissions)
+3. For each failure:
+   a. Identify root cause
+   b. Apply minimal fix
+   c. Run local verification: {BUILD_CMD} && {TEST_CMD} && {LINT_CMD}
+4. Commit fixes with message: "fix(ci): [description]"
+5. Re-trigger CI: {CI_TRIGGER_CMD}
+
+## Quality Gate
+- All previously failing CI checks now pass locally
+- Fixes are minimal and don't introduce regressions
+- CI re-triggered after fixes applied
+```
+
+### `phase2-device-baseline.txt`
+
+```
+You are the IMPLEMENTER agent working on task {TASK_ID} in a 3-Phase Engineering workflow.
+
+PROJECT: {PROJECT_DIR}
+PHASE: 2 — Implementation
+STEP: Device Baseline
+
+## Your Mission
+Deploy to the test environment and run baseline verification checks. Set device_baseline_result.
+
+## Context
+- Device type: {DEVICE_TYPE}
+- Deploy command: {DEPLOY_CMD}
+- Baseline check: {BASELINE_CMD}
+- Log command: {LOG_CMD}
+
+## Instructions
+1. Deploy to test environment: {DEPLOY_CMD}
+2. Wait for deployment to stabilize (health checks)
+3. Run baseline verification: {BASELINE_CMD}
+4. Check application logs for errors: {LOG_CMD}
+5. Verify core functionality is operational
+6. If baseline passes: set device_baseline_result = "pass"
+7. If baseline fails: set device_baseline_result = "fail" with diagnosis
+
+## Update task-board.json
+Before completing, update task-board.json with your result:
+```bash
+jq --arg tid "{TASK_ID}" '(.tasks[] | select(.id == $tid)).device_baseline_result = "pass"' \
+  .agents/task-board.json > .agents/task-board.json.tmp \
+  && mv .agents/task-board.json.tmp .agents/task-board.json
+```
+
+## Quality Gate
+- Deployment succeeds without errors
+- Health check passes: {BASELINE_CMD}
+- No error-level entries in logs
+- Core API endpoints respond correctly
+```
+
+### `phase3-deploying.txt`
+
+```
+You are the IMPLEMENTER agent working on task {TASK_ID} in a 3-Phase Engineering workflow.
+
+PROJECT: {PROJECT_DIR}
+PHASE: 3 — Testing & Verification
+STEP: Deploying
+
+## Your Mission
+Deploy the verified build to the test environment for Phase 3 testing.
+
+## Context
+- Device type: {DEVICE_TYPE}
+- Deploy command: {DEPLOY_CMD}
+- Baseline check: {BASELINE_CMD}
+- Log command: {LOG_CMD}
+
+## Instructions
+1. Verify the build artifact is ready (from Phase 2 CI)
+2. Deploy to test environment: {DEPLOY_CMD}
+3. Wait for deployment to complete and stabilize
+4. Run health check: {BASELINE_CMD}
+5. Verify logs are clean: {LOG_CMD}
+6. Confirm environment is ready for regression and feature testing
+
+## Output
+- Deployment log to: .agents/orchestrator/logs/{TASK_ID}-deploy.log
+- Confirm deployment URL/endpoint is accessible
+
+## Quality Gate
+- Deployment completes without errors
+- Health check passes
+- Application responds to basic requests
+- No error-level log entries post-deployment
+```
+
+### `phase3-feature-testing.txt`
+
+```
+You are the TESTER agent working on task {TASK_ID} in a 3-Phase Engineering workflow.
+
+PROJECT: {PROJECT_DIR}
+PHASE: 3 — Testing & Verification
+STEP: Feature Testing
+
+## Your Mission
+Run tests specific to the new feature and report results. Set feature_result.
+
+## Context
+- Deployment: {DEVICE_TYPE}
+- Test command: {TEST_CMD}
+- TDD plan: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-tdd-plan.md
+- Requirements: .agents/runtime/acceptor/workspace/requirements/{TASK_ID}-requirements.md
+
+## Instructions
+1. Identify all test cases specific to the new feature from the TDD plan
+2. Run feature-specific tests: {TEST_CMD}
+3. Verify each acceptance criterion from requirements is met
+4. For each failure:
+   a. Capture error details and screenshots if applicable
+   b. Determine if it's a test gap or implementation bug
+   c. Document in .agents/runtime/tester/workspace/test-cases/{TASK_ID}-feature-test.md
+5. Set feature_result based on results
+
+## Update task-board.json
+Before completing, update task-board.json with your result:
+```bash
+jq --arg tid "{TASK_ID}" '(.tasks[] | select(.id == $tid)).feature_result = "pass"' \
+  .agents/task-board.json > .agents/task-board.json.tmp \
+  && mv .agents/task-board.json.tmp .agents/task-board.json
+```
+
+## Decision
+- If ALL new feature tests pass: set feature_result = "pass"
+- If ANY feature test fails: set feature_result = "fail"
+  - The orchestrator will trigger a feedback loop back to tdd_design
+
+## Quality Gate
+- All acceptance criteria verified
+- No new feature test failures
+- Feature behavior matches requirements
+```
+
+### `phase3-log-analysis.txt`
+
+```
+You are the TESTER agent (with DESIGNER input) working on task {TASK_ID} in a 3-Phase Engineering workflow.
+
+PROJECT: {PROJECT_DIR}
+PHASE: 3 — Testing & Verification
+STEP: Log Analysis
+
+## Your Mission
+Analyze application and system logs for anomalies. Set log_analysis_result.
+
+## Context
+- Log command: {LOG_CMD}
+- Deployment: {DEVICE_TYPE}
+- DFMEA: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-dfmea.md
+
+## Instructions
+1. Collect logs from the test environment: {LOG_CMD}
+2. Analyze for:
+   a. Error-level messages (stack traces, exceptions)
+   b. Warning patterns (resource exhaustion, timeouts)
+   c. Performance anomalies (slow queries, high latency)
+   d. Security concerns (auth failures, suspicious access patterns)
+   e. Resource usage (memory leaks, file handle leaks)
+3. Cross-reference with DFMEA — are predicted risks manifesting?
+4. Output analysis to: .agents/runtime/tester/workspace/test-cases/{TASK_ID}-log-analysis.md
+5. Set log_analysis_result based on findings
+
+## Update task-board.json
+Before completing, update task-board.json with your result:
+```bash
+jq --arg tid "{TASK_ID}" '(.tasks[] | select(.id == $tid)).log_analysis_result = "clean"' \
+  .agents/task-board.json > .agents/task-board.json.tmp \
+  && mv .agents/task-board.json.tmp .agents/task-board.json
+```
+
+## Decision
+- If no anomalies found: set log_analysis_result = "clean"
+- If anomalies detected: set log_analysis_result = "anomaly"
+  - The orchestrator will trigger a feedback loop to ci_fixing
+
+## Quality Gate
+- All log sources analyzed
+- No unaccounted error-level messages
+- Performance metrics within acceptable thresholds
+- DFMEA risks cross-checked
+```
+
+### `phase3-documentation.txt`
+
+```
+You are the DESIGNER agent working on task {TASK_ID} in a 3-Phase Engineering workflow.
+
+PROJECT: {PROJECT_DIR}
+PHASE: 3 — Testing & Verification
+STEP: Documentation
+
+## Your Mission
+Write release notes and update project documentation for the completed task.
+
+## Context
+- Requirements: .agents/runtime/acceptor/workspace/requirements/{TASK_ID}-requirements.md
+- Architecture: .agents/runtime/designer/workspace/design-docs/{TASK_ID}-design.md
+- Task board: .agents/task-board.json (task ID: {TASK_ID})
+- Test results: .agents/runtime/tester/workspace/test-cases/
+
+## Instructions
+1. Summarize what was implemented (from requirements and design docs)
+2. Write release notes:
+   a. New features added
+   b. Bug fixes (if any)
+   c. Breaking changes (if any)
+   d. Migration steps (if needed)
+3. Update project documentation:
+   a. README.md — add/update feature documentation
+   b. API docs — document new endpoints or changed interfaces
+   c. Configuration docs — document new settings
+4. Output to: docs/{TASK_ID}-release-notes.md
+5. Commit documentation changes
+
+## Output Format
+- Release Notes: version, date, summary, details, migration guide
+- Updated docs with clear change markers
+
+## Quality Gate
+- All new features documented
+- No undocumented breaking changes
+- Release notes are user-friendly and clear
+- Links and references are valid
 ```

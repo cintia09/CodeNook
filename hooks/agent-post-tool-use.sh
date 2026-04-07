@@ -13,6 +13,7 @@ TIMESTAMP=$(echo "$INPUT" | jq -r '.timestamp')
 
 AGENTS_DIR="$CWD/.agents"
 EVENTS_DB="$AGENTS_DIR/events.db"
+SNAPSHOT="$AGENTS_DIR/runtime/.task-board-snapshot.json"
 
 # Only log if agent framework is initialized and events.db exists
 [ -f "$EVENTS_DB" ] || exit 0
@@ -191,7 +192,6 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
     # When task status changes, detect transition and trigger memory capture
     if [ -f "$AGENTS_DIR/task-board.json" ]; then
       # Compare with last known snapshot to detect status changes
-      SNAPSHOT="$AGENTS_DIR/runtime/.task-board-snapshot.json"
 
       if [ -f "$SNAPSHOT" ]; then
         # Extract current and previous statuses, detect transitions
