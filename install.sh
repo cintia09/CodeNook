@@ -70,7 +70,22 @@ install() {
     if [ "$dry_run" = true ]; then
         echo "  [DRY RUN] Would clone ${REPO} to ${TMP_DIR}"
     else
-        git clone --depth 1 "$REPO" "$TMP_DIR" 2>/dev/null || error "Failed to clone repository"
+        # Increase buffer for large repos; retry up to 3 times
+        git config --global http.postBuffer 524288000 2>/dev/null || true
+        local attempt=0
+        while [ $attempt -lt 3 ]; do
+            attempt=$((attempt + 1))
+            if git clone --depth 1 "$REPO" "$TMP_DIR" 2>/dev/null; then
+                break
+            fi
+            rm -rf "$TMP_DIR"
+            if [ $attempt -lt 3 ]; then
+                warn "Clone attempt $attempt failed, retrying..."
+                sleep 2
+            else
+                error "Failed to clone repository after 3 attempts. Check your network connection."
+            fi
+        done
     fi
     
     # Step 2: Backup existing config
