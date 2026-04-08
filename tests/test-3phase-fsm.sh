@@ -22,15 +22,16 @@ set_task_status() {
   local workflow_mode="${4:-3phase}"
   local feedback_loops="${5:-0}"
   local impl="${6:-pending}" test_s="${7:-pending}" review="${8:-pending}" ci="${9:-pending}"
+  local blocked_from="${10:-}" goals="${11:-[]}"
 
   # Snapshot = old state
   cat > "$AGENTS_DIR/runtime/.task-board-snapshot.json" << EOF
-{"version":1,"tasks":[{"id":"$task_id","status":"$old_status","workflow_mode":"$workflow_mode","feedback_loops":$feedback_loops,"parallel_tracks":{"implementing":"$impl","test_scripting":"$test_s","code_reviewing":"$review","ci_monitoring":"$ci"}}]}
+{"version":1,"tasks":[{"id":"$task_id","status":"$old_status","workflow_mode":"$workflow_mode","feedback_loops":$feedback_loops,"blocked_from":"$blocked_from","goals":$goals,"parallel_tracks":{"implementing":"$impl","test_scripting":"$test_s","code_reviewing":"$review","ci_monitoring":"$ci"}}]}
 EOF
 
   # Current board = new state
   cat > "$AGENTS_DIR/task-board.json" << EOF
-{"version":2,"tasks":[{"id":"$task_id","status":"$new_status","workflow_mode":"$workflow_mode","feedback_loops":$feedback_loops,"parallel_tracks":{"implementing":"$impl","test_scripting":"$test_s","code_reviewing":"$review","ci_monitoring":"$ci"}}]}
+{"version":2,"tasks":[{"id":"$task_id","status":"$new_status","workflow_mode":"$workflow_mode","feedback_loops":$feedback_loops,"blocked_from":"$blocked_from","goals":$goals,"parallel_tracks":{"implementing":"$impl","test_scripting":"$test_s","code_reviewing":"$review","ci_monitoring":"$ci"}}]}
 EOF
 }
 
@@ -74,7 +75,16 @@ run_fsm_check() {
         "documentation→accepted")
           LEGAL=true ;;
         *→blocked) LEGAL=true ;;
-        blocked→*) LEGAL=true ;;
+        "blocked→"*)
+          # Validate unblock: only allow return to blocked_from state
+          local bf
+          bf=$(jq -r --arg tid "$task_id" '.tasks[] | select(.id == $tid) | .blocked_from // ""' "$AGENTS_DIR/task-board.json" 2>/dev/null || echo "")
+          if [ -n "$bf" ] && [ "$bf" != "null" ]; then
+            [ "$new_status" = "$bf" ] && LEGAL=true
+          else
+            LEGAL=true
+          fi
+          ;;
       esac
 
       # Feedback loop safety
@@ -110,11 +120,31 @@ run_fsm_check() {
         "created→designing"|"designing→implementing"|"implementing→reviewing"|\
         "reviewing→implementing"|"reviewing→testing"|"testing→fixing"|\
         "testing→accepting"|"fixing→testing"|"accepting→accepted"|\
-        "accept_fail→designing")
+        "accepting→accept_fail"|"accept_fail→designing")
           LEGAL=true ;;
         *→blocked) LEGAL=true ;;
-        blocked→*) LEGAL=true ;;
+        "blocked→"*)
+          local bf
+          bf=$(jq -r --arg tid "$task_id" '.tasks[] | select(.id == $tid) | .blocked_from // ""' "$AGENTS_DIR/task-board.json" 2>/dev/null || echo "")
+          if [ -n "$bf" ] && [ "$bf" != "null" ]; then
+            [ "$new_status" = "$bf" ] && LEGAL=true
+          else
+            LEGAL=true
+          fi
+          ;;
       esac
+    fi
+
+    # Goal guard: block acceptance if goals not all verified
+    if [ "$LEGAL" = true ] && [ "$new_status" = "accepted" ]; then
+      local unverified
+      unverified=$(jq -r --arg tid "$task_id" \
+        '.tasks[] | select(.id == $tid) | .goals // [] | map(select(.status != "verified")) | length' \
+        "$AGENTS_DIR/task-board.json" 2>/dev/null || echo "0")
+      if [ "$unverified" -gt 0 ]; then
+        output="⛔ GOAL_GUARD"
+        LEGAL=false
+      fi
     fi
 
     if [ "$LEGAL" = false ] && [ -z "$output" ]; then
@@ -292,6 +322,70 @@ check "Simple: implementing→reviewing" "LEGAL" "$result"
 set_task_status "T-TEST" "created" "implementing" "simple"
 result=$(run_fsm_check)
 check "Simple: created→implementing BLOCKED" "ILLEGAL" "$result"
+
+# --- Goal 6: Unblock Validation ---
+echo ""
+echo "📋 G-037-6: Unblock Validation (blocked_from)"
+
+# Unblock to correct blocked_from state → allowed
+set_task_status "T-TEST" "blocked" "implementing" "3phase" "0" "pending" "pending" "pending" "pending" "implementing"
+result=$(run_fsm_check)
+check "blocked→implementing (blocked_from=implementing) LEGAL" "LEGAL" "$result"
+
+# Unblock to wrong state → blocked
+set_task_status "T-TEST" "blocked" "testing" "3phase" "0" "pending" "pending" "pending" "pending" "implementing"
+result=$(run_fsm_check)
+check "blocked→testing (blocked_from=implementing) BLOCKED" "ILLEGAL" "$result"
+
+# Unblock with no blocked_from → allowed (fallback)
+set_task_status "T-TEST" "blocked" "designing" "simple" "0" "pending" "pending" "pending" "pending" ""
+result=$(run_fsm_check)
+check "blocked→designing (no blocked_from) LEGAL" "LEGAL" "$result"
+
+# Simple mode unblock validation
+set_task_status "T-TEST" "blocked" "reviewing" "simple" "0" "pending" "pending" "pending" "pending" "reviewing"
+result=$(run_fsm_check)
+check "Simple: blocked→reviewing (blocked_from=reviewing) LEGAL" "LEGAL" "$result"
+
+set_task_status "T-TEST" "blocked" "accepted" "simple" "0" "pending" "pending" "pending" "pending" "reviewing"
+result=$(run_fsm_check)
+check "Simple: blocked→accepted (blocked_from=reviewing) BLOCKED" "ILLEGAL" "$result"
+
+# --- Goal 7: Goal Guards ---
+echo ""
+echo "📋 G-037-7: Goal Guards (acceptance requires verified goals)"
+
+# All goals verified → acceptance allowed
+VERIFIED_GOALS='[{"id":"G1","status":"verified"},{"id":"G2","status":"verified"}]'
+set_task_status "T-TEST" "accepting" "accepted" "simple" "0" "pending" "pending" "pending" "pending" "" "$VERIFIED_GOALS"
+result=$(run_fsm_check)
+check "accepting→accepted (all goals verified) LEGAL" "LEGAL" "$result"
+
+# Unverified goals → acceptance blocked
+PENDING_GOALS='[{"id":"G1","status":"verified"},{"id":"G2","status":"pending"}]'
+set_task_status "T-TEST" "accepting" "accepted" "simple" "0" "pending" "pending" "pending" "pending" "" "$PENDING_GOALS"
+result=$(run_fsm_check)
+check "accepting→accepted (1 goal pending) BLOCKED" "GOAL_GUARD" "$result"
+
+# Failed goals → acceptance blocked
+FAILED_GOALS='[{"id":"G1","status":"verified"},{"id":"G2","status":"failed"}]'
+set_task_status "T-TEST" "accepting" "accepted" "simple" "0" "pending" "pending" "pending" "pending" "" "$FAILED_GOALS"
+result=$(run_fsm_check)
+check "accepting→accepted (1 goal failed) BLOCKED" "GOAL_GUARD" "$result"
+
+# No goals → acceptance allowed (backward compat)
+set_task_status "T-TEST" "accepting" "accepted" "simple" "0" "pending" "pending" "pending" "pending" "" "[]"
+result=$(run_fsm_check)
+check "accepting→accepted (no goals) LEGAL" "LEGAL" "$result"
+
+# 3-Phase goal guard: documentation→accepted
+set_task_status "T-TEST" "documentation" "accepted" "3phase" "0" "pending" "pending" "pending" "pending" "" "$PENDING_GOALS"
+result=$(run_fsm_check)
+check "3-Phase: documentation→accepted (goals pending) BLOCKED" "GOAL_GUARD" "$result"
+
+set_task_status "T-TEST" "documentation" "accepted" "3phase" "0" "pending" "pending" "pending" "pending" "" "$VERIFIED_GOALS"
+result=$(run_fsm_check)
+check "3-Phase: documentation→accepted (goals verified) LEGAL" "LEGAL" "$result"
 
 # Cleanup
 rm -rf "$TEST_DIR"

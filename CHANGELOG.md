@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.4] - 2026-04-08
+
+### 📦 New Features
+- **FSM unblock validation**: `blocked→X` now restricted to `blocked→blocked_from` state only (prevents state-skipping)
+- **Goal guards**: Acceptance (`→accepted`) blocked unless ALL goals have `status=verified`
+- **11 new behavioral tests**: Unblock validation (5 tests) + goal guard (6 tests) — total 31 FSM tests
+
+### ⚡ Performance
+- **SKILL.md context reduction**: agent-orchestrator 1394→500 lines (−64%), agent-memory 992→302 lines (−70%)
+
+### 🔧 Improvements
+- **Consolidated hooks**: Merged memory-index trigger from agent-after-task-status.sh into agent-post-tool-use.sh (single source of truth)
+- **SQLite error handling**: agent-after-task-status.sh now logs warnings on failure
+
 ## [3.0.3] - 2026-04-08
 
 ### ⚡ Performance

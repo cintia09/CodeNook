@@ -151,7 +151,15 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
 
             # Universal
             *→blocked)                            LEGAL=true ;;
-            "blocked→"*)                          LEGAL=true ;;
+            "blocked→"*)
+              # Validate unblock: only allow return to blocked_from state
+              BLOCKED_FROM=$(jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .blocked_from // ""' "$AGENTS_DIR/task-board.json" 2>/dev/null || echo "")
+              if [ -n "$BLOCKED_FROM" ] && [ "$BLOCKED_FROM" != "null" ]; then
+                [ "$NEW_STATUS" = "$BLOCKED_FROM" ] && LEGAL=true
+              else
+                LEGAL=true  # no blocked_from recorded, allow any unblock
+              fi
+              ;;
           esac
 
           # Feedback loop safety check for 3-Phase
@@ -196,8 +204,28 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
             "accepting→accept_fail")   LEGAL=true ;;  # acceptance failure
             "accept_fail→designing")   LEGAL=true ;;
             *→blocked)                 LEGAL=true ;;  # anything can be blocked
-            "blocked→"*)               LEGAL=true ;;  # unblock to any
+            "blocked→"*)
+              # Validate unblock: only allow return to blocked_from state
+              BLOCKED_FROM=$(jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .blocked_from // ""' "$AGENTS_DIR/task-board.json" 2>/dev/null || echo "")
+              if [ -n "$BLOCKED_FROM" ] && [ "$BLOCKED_FROM" != "null" ]; then
+                [ "$NEW_STATUS" = "$BLOCKED_FROM" ] && LEGAL=true
+              else
+                LEGAL=true  # no blocked_from recorded, allow any unblock
+              fi
+              ;;
           esac
+        fi
+
+        # === Goal Guard: block acceptance if goals not all verified ===
+        if [ "$LEGAL" = true ] && [ "$NEW_STATUS" = "accepted" ]; then
+          UNVERIFIED=$(jq -r --arg tid "$TASK_ID" \
+            '.tasks[] | select(.id == $tid) | .goals // [] | map(select(.status != "verified")) | length' \
+            "$AGENTS_DIR/task-board.json" 2>/dev/null || echo "0")
+          if [ "$UNVERIFIED" -gt 0 ]; then
+            echo "⛔ [GOAL GUARD] Task $TASK_ID cannot be accepted: $UNVERIFIED goal(s) not yet verified. All goals must have status=verified before acceptance."
+            sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'goal_guard_block', '$ACTIVE_AGENT', '$TASK_ID', '{\"unverified_goals\":$UNVERIFIED}');" 2>/dev/null || true
+            LEGAL=false
+          fi
         fi
 
         if [ "$LEGAL" = false ]; then
@@ -240,6 +268,14 @@ MEMEOF
 
             # Prompt agent via stdout (agent sees this as hook output)
             echo "🧠 [Auto-Capture] Task $TASK_ID status changed: $OLD_STATUS → $NEW_STATUS. Please save memory snapshot to .agents/memory/${TASK_ID}-memory.json (summary, decisions, files_modified, handoff_notes)."
+
+            # Trigger memory index rebuild on acceptance
+            if [ "$NEW_STATUS" = "accepted" ]; then
+              SCRIPT_PATH=""
+              [ -f "$AGENTS_DIR/scripts/memory-index.sh" ] && SCRIPT_PATH="$AGENTS_DIR/scripts/memory-index.sh"
+              [ -z "$SCRIPT_PATH" ] && [ -f "$CWD/scripts/memory-index.sh" ] && SCRIPT_PATH="$CWD/scripts/memory-index.sh"
+              [ -n "$SCRIPT_PATH" ] && bash "$SCRIPT_PATH" 2>/dev/null || true
+            fi
           fi
         done
       fi
