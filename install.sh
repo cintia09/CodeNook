@@ -4,7 +4,7 @@ set -euo pipefail
 # Multi-Agent Framework Installer
 # Usage: curl -sL https://raw.githubusercontent.com/cintia09/multi-agent-framework/main/install.sh | bash
 
-VERSION="3.0.6"
+VERSION="3.0.7"
 REPO="https://github.com/cintia09/multi-agent-framework.git"
 TMP_DIR="/tmp/multi-agent-framework"
 CLAUDE_DIR="${HOME}/.claude"
@@ -36,12 +36,12 @@ check_install() {
     echo "🔍 Checking installation status..."
     local skills=$(ls -d "${CLAUDE_DIR}/skills/agent-"* 2>/dev/null | wc -l | tr -d ' ')
     local agents=$(ls "${CLAUDE_DIR}/agents/"*.agent.md 2>/dev/null | wc -l | tr -d ' ')
-    local hooks=$(ls "${CLAUDE_DIR}/hooks/agent-"*.sh 2>/dev/null | wc -l | tr -d ' ')
+    local hooks=$(ls "${CLAUDE_DIR}/hooks/"*.sh 2>/dev/null | wc -l | tr -d ' ')
     echo "  Skills: ${skills}/15"
     echo "  Agents: ${agents}/5"
     echo "  Hooks:  ${hooks}/13"
     echo "  hooks.json: $([ -f "${CLAUDE_DIR}/hooks/hooks.json" ] && echo '✅' || echo '❌')"
-    if [ "$skills" -ge 15 ] && [ "$agents" -ge 5 ] && [ "$hooks" -ge 12 ]; then
+    if [ "$skills" -ge 15 ] && [ "$agents" -ge 5 ] && [ "$hooks" -ge 13 ]; then
         info "Installation complete ✅"
     else
         warn "Installation incomplete"
@@ -139,10 +139,10 @@ install() {
         chmod +x "${CLAUDE_DIR}/hooks/agent-"*.sh
         chmod +x "${CLAUDE_DIR}/hooks/security-scan.sh" 2>/dev/null || true
         if [ -f "${CLAUDE_DIR}/hooks/hooks.json" ]; then
-            warn "hooks.json already exists — merge manually if needed"
-        else
-            cp "${TMP_DIR}/hooks/hooks.json" "${CLAUDE_DIR}/hooks/"
+            cp "${CLAUDE_DIR}/hooks/hooks.json" "${CLAUDE_DIR}/hooks/hooks.json.bak"
+            info "Backed up existing hooks.json → hooks.json.bak"
         fi
+        cp "${TMP_DIR}/hooks/hooks.json" "${CLAUDE_DIR}/hooks/"
         info "Hooks installed"
     fi
     
@@ -186,10 +186,10 @@ install() {
             cp "${TMP_DIR}/hooks/"*.sh "${COPILOT_DIR}/hooks/"
             chmod +x "${COPILOT_DIR}/hooks/"*.sh
             if [ -f "${COPILOT_DIR}/hooks/hooks.json" ]; then
-                warn "Copilot hooks.json already exists — merge manually if needed"
-            else
-                cp "${TMP_DIR}/hooks/hooks-copilot.json" "${COPILOT_DIR}/hooks/hooks.json"
+                cp "${COPILOT_DIR}/hooks/hooks.json" "${COPILOT_DIR}/hooks/hooks.json.bak"
+                info "Backed up existing Copilot hooks.json → hooks.json.bak"
             fi
+            cp "${TMP_DIR}/hooks/hooks-copilot.json" "${COPILOT_DIR}/hooks/hooks.json"
             # Rules → copilot-instructions.md
             if ! grep -q "## Agent Collaboration Rules" "${COPILOT_DIR}/copilot-instructions.md" 2>/dev/null; then
                 echo "" >> "${COPILOT_DIR}/copilot-instructions.md"
