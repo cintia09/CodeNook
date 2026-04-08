@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.14] - 2026-04-09
+
+### 🤝 Copilot Parity
+- **Full Copilot CLI support** — installer now detects `~/.copilot` and auto-installs agents + skills + hooks + rules (same as Claude Code)
+- **Agent profiles for Copilot** — 5 `.agent.md` files installed to `~/.copilot/agents/` (Copilot CLI natively supports custom agents via `/agent`)
+- **Dual-platform check_install** — `--check` reports status for both Claude Code and Copilot CLI
+- **Dual-platform uninstall** — `--uninstall` cleans both `~/.claude` and `~/.copilot` agent files
+
+### 📝 Documentation
+- **Updated platform compatibility table** — README now shows full parity between Claude Code and Copilot CLI
+- **English usage instructions** — installer Done message now in English
+
+## [3.0.13] - 2026-04-09
+
+### ✨ Features
+- **Per-agent model config** — added `model` and `model_hint` fields to all 5 agent profiles
+- **Project-type-aware init** — agent-init Step 1c classifies projects (ios/frontend/backend/systems/ai-ml/devops) and adapts skill generation per type
+- **Model resolution in agent-switch** — priority: task override → agent model → project config → system default
+
+## [3.0.12] - 2026-04-09
+
+### ⚡ Performance
+- **Task-board cache** — cached task-board.json content in variable (15→1 disk reads per hook invocation)
+
+### 🛡️ Resilience
+- **events.db auto-repair** — session-start validates schema with `.tables` check, auto-recreates corrupted DB
+
+### 🔧 CI/CD
+- **GitHub Actions CI** — added `.github/workflows/test.yml`, runs all tests on push/PR to main
+
 ## [3.0.11] - 2026-04-09
 
 ### 📝 Documentation

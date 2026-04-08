@@ -4,7 +4,7 @@ set -euo pipefail
 # Multi-Agent Framework Installer
 # Usage: curl -sL https://raw.githubusercontent.com/cintia09/multi-agent-framework/main/install.sh | bash
 
-VERSION="3.0.13"
+VERSION="3.0.14"
 REPO="https://github.com/cintia09/multi-agent-framework.git"
 TMP_DIR="/tmp/multi-agent-framework"
 CLAUDE_DIR="${HOME}/.claude"
@@ -32,38 +32,60 @@ usage() {
     echo "  -h, --help    Show this help"
 }
 
+check_platform() {
+    local dir="$1" name="$2"
+    local skills=$(ls -d "${dir}/skills/agent-"* 2>/dev/null | wc -l | tr -d ' ')
+    local agents=$(ls "${dir}/agents/"*.agent.md 2>/dev/null | wc -l | tr -d ' ')
+    local hooks=$(ls "${dir}/hooks/"*.sh 2>/dev/null | wc -l | tr -d ' ')
+    local has_json=$([ -f "${dir}/hooks/hooks.json" ] && echo '✅' || echo '❌')
+    echo "  ${name}:"
+    echo "    Skills: ${skills}/15 | Agents: ${agents}/5 | Hooks: ${hooks}/13 | hooks.json: ${has_json}"
+    [ "$skills" -ge 15 ] && [ "$agents" -ge 5 ] && [ "$hooks" -ge 13 ] && [ -f "${dir}/hooks/hooks.json" ]
+}
+
 check_install() {
     echo "🔍 Checking installation status..."
-    local skills=$(ls -d "${CLAUDE_DIR}/skills/agent-"* 2>/dev/null | wc -l | tr -d ' ')
-    local agents=$(ls "${CLAUDE_DIR}/agents/"*.agent.md 2>/dev/null | wc -l | tr -d ' ')
-    local hooks=$(ls "${CLAUDE_DIR}/hooks/"*.sh 2>/dev/null | wc -l | tr -d ' ')
-    echo "  Skills: ${skills}/15"
-    echo "  Agents: ${agents}/5"
-    echo "  Hooks:  ${hooks}/13"
-    echo "  hooks.json: $([ -f "${CLAUDE_DIR}/hooks/hooks.json" ] && echo '✅' || echo '❌')"
-    if [ "$skills" -ge 15 ] && [ "$agents" -ge 5 ] && [ "$hooks" -ge 13 ]; then
-        info "Installation complete ✅"
+    local all_ok=true
+    if [ -d "${CLAUDE_DIR}" ]; then
+        check_platform "${CLAUDE_DIR}" "Claude Code" || all_ok=false
     else
-        warn "Installation incomplete"
+        echo "  Claude Code: not detected (${CLAUDE_DIR} missing)"
+        all_ok=false
+    fi
+    local COPILOT_DIR="${HOME}/.copilot"
+    if [ -d "${COPILOT_DIR}" ]; then
+        check_platform "${COPILOT_DIR}" "Copilot CLI" || all_ok=false
+    else
+        echo "  Copilot CLI: not detected (${COPILOT_DIR} missing)"
+    fi
+    if [ "$all_ok" = true ]; then
+        info "All detected platforms fully installed ✅"
+    else
+        warn "Installation incomplete on one or more platforms"
     fi
 }
 
 uninstall() {
     echo "🗑️ Uninstalling Multi-Agent Framework..."
-    rm -rf "${CLAUDE_DIR}/skills/agent-"*
-    rm -f "${CLAUDE_DIR}/agents/"*.agent.md
-    rm -f "${CLAUDE_DIR}/hooks/agent-"*.sh
-    rm -f "${CLAUDE_DIR}/hooks/security-scan.sh"
-    rm -f "${CLAUDE_DIR}/rules/agent-workflow.md" "${CLAUDE_DIR}/rules/security.md" "${CLAUDE_DIR}/rules/commit-standards.md"
-    # Restore hooks.json backup if available
-    if [ -f "${CLAUDE_DIR}/hooks/hooks.json.bak" ]; then
-        mv "${CLAUDE_DIR}/hooks/hooks.json.bak" "${CLAUDE_DIR}/hooks/hooks.json"
-        info "Restored hooks.json from backup"
+    # Claude Code cleanup
+    if [ -d "${CLAUDE_DIR}" ]; then
+        echo "  Cleaning Claude Code (~/.claude)..."
+        rm -rf "${CLAUDE_DIR}/skills/agent-"*
+        rm -f "${CLAUDE_DIR}/agents/"*.agent.md
+        rm -f "${CLAUDE_DIR}/hooks/agent-"*.sh
+        rm -f "${CLAUDE_DIR}/hooks/security-scan.sh"
+        rm -f "${CLAUDE_DIR}/rules/agent-workflow.md" "${CLAUDE_DIR}/rules/security.md" "${CLAUDE_DIR}/rules/commit-standards.md"
+        if [ -f "${CLAUDE_DIR}/hooks/hooks.json.bak" ]; then
+            mv "${CLAUDE_DIR}/hooks/hooks.json.bak" "${CLAUDE_DIR}/hooks/hooks.json"
+            info "Restored Claude hooks.json from backup"
+        fi
     fi
-    # Copilot cleanup
+    # Copilot CLI cleanup
     local COPILOT_DIR="${HOME}/.copilot"
     if [ -d "$COPILOT_DIR" ]; then
+        echo "  Cleaning Copilot CLI (~/.copilot)..."
         rm -rf "${COPILOT_DIR}/skills/agent-"*
+        rm -f "${COPILOT_DIR}/agents/"*.agent.md
         rm -f "${COPILOT_DIR}/hooks/agent-"*.sh
         rm -f "${COPILOT_DIR}/hooks/security-scan.sh"
         if [ -f "${COPILOT_DIR}/hooks/hooks.json.bak" ]; then
@@ -73,7 +95,7 @@ uninstall() {
     fi
     echo ""
     echo "  ⚠️  Project-level .agents/ directories must be removed manually."
-    info "Uninstall complete. hooks.json and CLAUDE.md preserved (may contain other config)."
+    info "Uninstall complete. hooks.json and instruction files preserved (may contain other config)."
 }
 
 install() {
@@ -200,6 +222,10 @@ install() {
                 mkdir -p "${COPILOT_DIR}/skills/${skill_name}"
                 cp "${skill_dir}/SKILL.md" "${COPILOT_DIR}/skills/${skill_name}/" 2>/dev/null || true
             done
+            # Agent Profiles (same .agent.md format works in Copilot CLI)
+            mkdir -p "${COPILOT_DIR}/agents"
+            cp "${TMP_DIR}/agents/"*.agent.md "${COPILOT_DIR}/agents/"
+            info "5 Agent Profiles installed to ~/.copilot/agents/"
             # Hooks
             mkdir -p "${COPILOT_DIR}/hooks"
             cp "${TMP_DIR}/hooks/"*.sh "${COPILOT_DIR}/hooks/"
@@ -211,10 +237,11 @@ install() {
             cp "${TMP_DIR}/hooks/hooks-copilot.json" "${COPILOT_DIR}/hooks/hooks.json"
             # Rules → copilot-instructions.md
             if ! grep -q "## Agent Collaboration Rules" "${COPILOT_DIR}/copilot-instructions.md" 2>/dev/null; then
+                mkdir -p "${COPILOT_DIR}"
                 echo "" >> "${COPILOT_DIR}/copilot-instructions.md"
                 cat "${TMP_DIR}/docs/agent-rules.md" >> "${COPILOT_DIR}/copilot-instructions.md"
             fi
-            info "Copilot installation complete (skills + hooks + rules)"
+            info "Copilot installation complete (agents + skills + hooks + rules)"
         fi
     fi
 
@@ -236,10 +263,12 @@ install() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     info "Multi-Agent Framework v${VERSION} installed!"
     echo ""
-    echo "  使用方式:"
-    echo "    /agent           → 选择角色"
-    echo "    /agent acceptor  → 切换到验收者"
-    echo "    \"初始化 Agent 系统\" → 在项目中初始化"
+    echo "  Platforms: Claude Code$([ -d "${HOME}/.copilot" ] && echo ' + Copilot CLI')"
+    echo ""
+    echo "  Usage:"
+    echo "    /agent           → Select agent role"
+    echo "    /agent acceptor  → Switch to Acceptor"
+    echo "    \"Initialize Agent system\" → Init in project"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 }
 

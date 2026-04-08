@@ -229,16 +229,21 @@ bash /tmp/multi-agent-framework/scripts/verify-install.sh
 
 ### 平台兼容性
 
-| 功能 | Claude Code | GitHub Copilot |
-|------|------------|----------------|
-| Skills | `~/.claude/skills/` ✅ | `~/.copilot/skills/` (手动复制) |
-| Agents | `~/.claude/agents/` ✅ | 内置 agent 系统 |
-| Hooks | `~/.claude/hooks/` ✅ | `~/.copilot/hooks/` (格式兼容) |
-| 模块化规则 | `~/.claude/rules/` ✅ | N/A（使用 copilot-instructions.md）|
-| 全局指令 | `CLAUDE.md` ✅ | `copilot-instructions.md` |
-| MCP | `.mcp.json` ✅ | `.mcp.json` ✅ |
+安装脚本自动检测已安装的平台，**同时安装到所有检测到的平台**。
 
-> 框架主要针对 Claude Code 优化。GitHub Copilot 用户可手动复制 skills 和 hooks 到 `~/.copilot/` 目录使用。
+| 功能 | Claude Code | GitHub Copilot CLI |
+|------|------------|-------------------|
+| Skills | `~/.claude/skills/` ✅ | `~/.copilot/skills/` ✅ |
+| Agents | `~/.claude/agents/` ✅ | `~/.copilot/agents/` ✅ |
+| Hooks | `~/.claude/hooks/` ✅ | `~/.copilot/hooks/` ✅ |
+| hooks.json | PascalCase / `command` / ms | camelCase / `bash` / sec |
+| 模块化规则 | `~/.claude/rules/` ✅ | `copilot-instructions.md` ✅ |
+| 全局指令 | `CLAUDE.md` | `copilot-instructions.md` |
+| MCP | `.mcp.json` ✅ | `mcp-config.json` ✅ |
+| Agent 选择 | `/agent` | `/agent` |
+| Skills 管理 | 自动加载 | `/skills` |
+
+> 两个平台的 hooks.json 格式不同（事件命名、字段名、超时单位），安装脚本会自动使用对应平台的格式。
 
 ## 项目初始化
 
