@@ -16,8 +16,9 @@ AGENTS_DIR="$CWD/.agents"
 
 EVENTS_DB="$AGENTS_DIR/events.db"
 
-# Initialize events.db if it doesn't exist
-if [ ! -f "$EVENTS_DB" ]; then
+# Initialize or repair events.db
+if [ ! -f "$EVENTS_DB" ] || ! sqlite3 "$EVENTS_DB" ".tables" &>/dev/null; then
+  [ -f "$EVENTS_DB" ] && rm -f "$EVENTS_DB"
   sqlite3 "$EVENTS_DB" <<'SQL'
 CREATE TABLE IF NOT EXISTS events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

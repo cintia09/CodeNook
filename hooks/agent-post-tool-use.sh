@@ -42,8 +42,14 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
 
     # --- AUTO-DISPATCH (G2) ---
     # When task-board.json changes, send messages to the next agent in FSM
+    # Cache file content to avoid repeated disk reads (~15 jq calls use this)
+    TASK_BOARD_CACHE=""
     if [ -f "$AGENTS_DIR/task-board.json" ]; then
-      jq -r '.tasks[] | "\(.id)|\(.status)|\(.title // "")"' "$AGENTS_DIR/task-board.json" 2>/dev/null | while IFS='|' read -r TASK_ID STATUS TITLE; do
+      TASK_BOARD_CACHE=$(cat "$AGENTS_DIR/task-board.json" 2>/dev/null || echo '{"tasks":[]}')
+    fi
+
+    if [ -n "$TASK_BOARD_CACHE" ]; then
+      echo "$TASK_BOARD_CACHE" | jq -r '.tasks[] | "\(.id)|\(.status)|\(.title // "")"' 2>/dev/null | while IFS='|' read -r TASK_ID STATUS TITLE; do
 
         # Map status to target agent (dispatch on all FSM "arrival" statuses)
         case "$STATUS" in
@@ -108,8 +114,8 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
 
     # === FSM Transition Validation ===
     # Validate that status changes follow legal FSM transitions
-    if [ -f "$AGENTS_DIR/task-board.json" ] && [ -f "$SNAPSHOT" ]; then
-      jq -c '.tasks[]' "$AGENTS_DIR/task-board.json" 2>/dev/null | while read -r TASK; do
+    if [ -n "$TASK_BOARD_CACHE" ] && [ -f "$SNAPSHOT" ]; then
+      echo "$TASK_BOARD_CACHE" | jq -c '.tasks[]' 2>/dev/null | while read -r TASK; do
         TASK_ID=$(echo "$TASK" | jq -r '.id')
         NEW_STATUS=$(echo "$TASK" | jq -r '.status')
         OLD_STATUS=$(jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .status' "$SNAPSHOT" 2>/dev/null || echo "")
@@ -126,7 +132,7 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
         LEGAL=false
 
         # Read workflow mode for this task
-        WORKFLOW_MODE=$(jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .workflow_mode // "simple"' "$AGENTS_DIR/task-board.json" 2>/dev/null || echo "simple")
+        WORKFLOW_MODE=$(echo "$TASK_BOARD_CACHE" | jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .workflow_mode // "simple"' 2>/dev/null || echo "simple")
 
         if [ "$WORKFLOW_MODE" = "3phase" ]; then
           # 3-Phase Engineering Closed Loop transitions
@@ -166,7 +172,7 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
             *→blocked)                            LEGAL=true ;;
             "blocked→"*)
               # Validate unblock: only allow return to blocked_from state
-              BLOCKED_FROM=$(jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .blocked_from // ""' "$AGENTS_DIR/task-board.json" 2>/dev/null || echo "")
+              BLOCKED_FROM=$(echo "$TASK_BOARD_CACHE" | jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .blocked_from // ""' 2>/dev/null || echo "")
               if [ -n "$BLOCKED_FROM" ] && [ "$BLOCKED_FROM" != "null" ]; then
                 [ "$NEW_STATUS_SQL" = "$BLOCKED_FROM" ] && LEGAL=true
               else
@@ -181,7 +187,7 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
               "regression_testing→implementing"|"feature_testing→tdd_design"|\
               "log_analysis→ci_fixing"|"device_baseline→implementing"|\
               "design_review→architecture"|"code_reviewing→implementing")
-                FEEDBACK_COUNT=$(jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .feedback_loops // 0' "$AGENTS_DIR/task-board.json" 2>/dev/null || echo 0)
+                FEEDBACK_COUNT=$(echo "$TASK_BOARD_CACHE" | jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .feedback_loops // 0' 2>/dev/null || echo 0)
                 if [ "$FEEDBACK_COUNT" -ge 10 ]; then
                   echo "⛔ [FSM] FEEDBACK SAFETY LIMIT: Task $TASK_ID has reached 10 feedback loops. Transition $OLD_STATUS → $NEW_STATUS blocked. Manual intervention required."
                   sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'fsm_feedback_limit', '$ACTIVE_AGENT', '$TASK_ID_SQL', '{\"from\":\"$OLD_STATUS_SQL\",\"to\":\"$NEW_STATUS_SQL\",\"loops\":$FEEDBACK_COUNT}');" 2>/dev/null || true
@@ -193,10 +199,10 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
 
           # Convergence gate check for device_baseline
           if [ "$LEGAL" = true ] && [ "$NEW_STATUS_SQL" = "device_baseline" ]; then
-            IMPL_STATUS=$(jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .parallel_tracks.implementing // "pending"' "$AGENTS_DIR/task-board.json" 2>/dev/null || echo "pending")
-            TEST_STATUS=$(jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .parallel_tracks.test_scripting // "pending"' "$AGENTS_DIR/task-board.json" 2>/dev/null || echo "pending")
-            REVIEW_STATUS=$(jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .parallel_tracks.code_reviewing // "pending"' "$AGENTS_DIR/task-board.json" 2>/dev/null || echo "pending")
-            CI_STATUS=$(jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .parallel_tracks.ci_monitoring // "pending"' "$AGENTS_DIR/task-board.json" 2>/dev/null || echo "pending")
+            IMPL_STATUS=$(echo "$TASK_BOARD_CACHE" | jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .parallel_tracks.implementing // "pending"' 2>/dev/null || echo "pending")
+            TEST_STATUS=$(echo "$TASK_BOARD_CACHE" | jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .parallel_tracks.test_scripting // "pending"' 2>/dev/null || echo "pending")
+            REVIEW_STATUS=$(echo "$TASK_BOARD_CACHE" | jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .parallel_tracks.code_reviewing // "pending"' 2>/dev/null || echo "pending")
+            CI_STATUS=$(echo "$TASK_BOARD_CACHE" | jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .parallel_tracks.ci_monitoring // "pending"' 2>/dev/null || echo "pending")
             if [ "$IMPL_STATUS" != "complete" ] || [ "$TEST_STATUS" != "complete" ] || [ "$REVIEW_STATUS" != "complete" ] || [ "$CI_STATUS" != "green" ]; then
               echo "⛔ [FSM] CONVERGENCE GATE: Task $TASK_ID cannot enter device_baseline. Parallel tracks not converged (impl=$IMPL_STATUS, test=$TEST_STATUS, review=$REVIEW_STATUS, ci=$CI_STATUS)."
               LEGAL=false
@@ -219,7 +225,7 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
             *→blocked)                 LEGAL=true ;;  # anything can be blocked
             "blocked→"*)
               # Validate unblock: only allow return to blocked_from state
-              BLOCKED_FROM=$(jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .blocked_from // ""' "$AGENTS_DIR/task-board.json" 2>/dev/null || echo "")
+              BLOCKED_FROM=$(echo "$TASK_BOARD_CACHE" | jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .blocked_from // ""' 2>/dev/null || echo "")
               if [ -n "$BLOCKED_FROM" ] && [ "$BLOCKED_FROM" != "null" ]; then
                 [ "$NEW_STATUS_SQL" = "$BLOCKED_FROM" ] && LEGAL=true
               else
@@ -231,9 +237,9 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
 
         # === Goal Guard: block acceptance if goals not all verified ===
         if [ "$LEGAL" = true ] && [ "$NEW_STATUS_SQL" = "accepted" ]; then
-          UNVERIFIED=$(jq -r --arg tid "$TASK_ID" \
+          UNVERIFIED=$(echo "$TASK_BOARD_CACHE" | jq -r --arg tid "$TASK_ID" \
             '.tasks[] | select(.id == $tid) | .goals // [] | map(select(.status != "verified")) | length' \
-            "$AGENTS_DIR/task-board.json" 2>/dev/null || echo "0")
+            2>/dev/null || echo "0")
           if [ "$UNVERIFIED" -gt 0 ]; then
             echo "⛔ [GOAL GUARD] Task $TASK_ID cannot be accepted: $UNVERIFIED goal(s) not yet verified. All goals must have status=verified before acceptance."
             sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'goal_guard_block', '$ACTIVE_AGENT', '$TASK_ID_SQL', '{\"unverified_goals\":$UNVERIFIED}');" 2>/dev/null || true
@@ -250,12 +256,12 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
 
     # === Auto Memory Capture (T-008) ===
     # When task status changes, detect transition and trigger memory capture
-    if [ -f "$AGENTS_DIR/task-board.json" ]; then
+    if [ -n "$TASK_BOARD_CACHE" ]; then
       # Compare with last known snapshot to detect status changes
 
       if [ -f "$SNAPSHOT" ]; then
         # Extract current and previous statuses, detect transitions
-        jq -c '.tasks[]' "$AGENTS_DIR/task-board.json" 2>/dev/null | while read -r TASK; do
+        echo "$TASK_BOARD_CACHE" | jq -c '.tasks[]' 2>/dev/null | while read -r TASK; do
           TASK_ID=$(echo "$TASK" | jq -r '.id')
           NEW_STATUS=$(echo "$TASK" | jq -r '.status')
           OLD_STATUS=$(jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .status' "$SNAPSHOT" 2>/dev/null || echo "")
