@@ -22,8 +22,22 @@ Thank you for your interest in contributing! This guide explains how to add new 
 1. Create a shell script under `hooks/` (e.g., `hooks/my-hook.sh`)
 2. Add shebang: `#!/usr/bin/env bash`
 3. Make it executable: `chmod +x hooks/my-hook.sh`
-4. Register in `hooks/hooks.json`
-5. Document the trigger conditions and behavior
+4. Register in `hooks/hooks.json` (Claude Code format)
+5. Also add to `hooks/hooks-copilot.json` (Copilot format) if applicable
+6. Document the trigger conditions and behavior
+
+### Adding a Rule
+
+1. Create a markdown file under `rules/` (e.g., `rules/my-rule.md`)
+2. Optionally add YAML frontmatter with `paths:` to scope the rule:
+   ```yaml
+   ---
+   paths:
+     - "src/**/*.ts"
+   ---
+   ```
+3. Rules without `paths:` apply globally; rules with `paths:` only load when matching files are accessed
+4. Keep rules concise — they consume context tokens
 
 ### Modifying an Agent Profile
 
@@ -31,13 +45,27 @@ Thank you for your interest in contributing! This guide explains how to add new 
 2. Each profile defines: core responsibilities, startup procedure, skill dependencies, behavior limits
 3. Keep the profile focused on WHAT the agent does, not HOW (that's in skills)
 
+## Project Structure
+
+```
+skills/             # 15 Skill definitions (YAML frontmatter + Markdown)
+agents/             # 5 Agent profiles (.agent.md)
+hooks/              # 13 shell scripts + hooks.json (Claude) + hooks-copilot.json (Copilot)
+rules/              # Modular rules (path-scoped, Claude Code native .claude/rules/)
+scripts/            # Utility scripts (verify, memory, cron, webhook)
+tests/              # Test suite (4 tests)
+docs/               # Project documentation templates + agent-rules.md
+```
+
 ## Guidelines
 
 - **English commit messages** with descriptive titles
 - **Preserve zero-dependency principle** — no npm/pip/cargo dependencies
 - **File-driven** — all state in JSON/Markdown files, no databases (except events.db)
+- **macOS compatible** — no GNU-only flags (`grep -P`, etc.), use POSIX/BSD alternatives
 - **Test your changes** — run `tests/run-all.sh` before submitting
-- **Update docs** — if you change a skill, update the skill's documentation
+- **Update docs** — if you change a skill/hook/rule, update the corresponding documentation
+- **Dual-platform** — consider both Claude Code and GitHub Copilot compatibility
 
 ## Pull Request Process
 

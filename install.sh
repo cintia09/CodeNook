@@ -167,7 +167,39 @@ install() {
         fi
     fi
     
-    # Step 7: Verify
+    # Step 7: Install to GitHub Copilot (if ~/.copilot exists)
+    if [ -d "${HOME}/.copilot" ]; then
+        echo "🤖 Detected GitHub Copilot — installing for dual-platform..."
+        if [ "$dry_run" = true ]; then
+            echo "  [DRY RUN] Would install to ~/.copilot/"
+        else
+            local COPILOT_DIR="${HOME}/.copilot"
+            # Skills
+            mkdir -p "${COPILOT_DIR}/skills"
+            for skill_dir in "${TMP_DIR}/skills/agent-"*; do
+                local skill_name=$(basename "$skill_dir")
+                mkdir -p "${COPILOT_DIR}/skills/${skill_name}"
+                cp "${skill_dir}/SKILL.md" "${COPILOT_DIR}/skills/${skill_name}/" 2>/dev/null || true
+            done
+            # Hooks
+            mkdir -p "${COPILOT_DIR}/hooks"
+            cp "${TMP_DIR}/hooks/"*.sh "${COPILOT_DIR}/hooks/"
+            chmod +x "${COPILOT_DIR}/hooks/"*.sh
+            if [ -f "${COPILOT_DIR}/hooks/hooks.json" ]; then
+                warn "Copilot hooks.json already exists — merge manually if needed"
+            else
+                cp "${TMP_DIR}/hooks/hooks-copilot.json" "${COPILOT_DIR}/hooks/hooks.json"
+            fi
+            # Rules → copilot-instructions.md
+            if ! grep -q "## Agent Collaboration Rules" "${COPILOT_DIR}/copilot-instructions.md" 2>/dev/null; then
+                echo "" >> "${COPILOT_DIR}/copilot-instructions.md"
+                cat "${TMP_DIR}/docs/agent-rules.md" >> "${COPILOT_DIR}/copilot-instructions.md"
+            fi
+            info "Copilot installation complete (skills + hooks + rules)"
+        fi
+    fi
+
+    # Step 8: Verify
     if [ "$dry_run" = false ]; then
         echo ""
         echo "🔍 Verifying installation..."
@@ -175,12 +207,12 @@ install() {
         check_install
     fi
     
-    # Step 8: Cleanup
+    # Step 9: Cleanup
     if [ "$dry_run" = false ]; then
         rm -rf "$TMP_DIR"
     fi
     
-    # Step 9: Done
+    # Step 10: Done
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     info "Multi-Agent Framework v${VERSION} installed!"
