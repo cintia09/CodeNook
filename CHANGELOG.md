@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.15] - 2026-04-09
+
+### ✨ New Skill: agent-config
+- **CLI model configuration** — `config.sh model set <agent> <model>` to configure agent models
+- **CLI tools management** — `config.sh tools set/add/rm/reset` to control per-agent tool access
+- **Dynamic agent discovery** — auto-scans all `*.agent.md` files, no hardcoded list
+- **Dynamic model discovery** — `config.sh models` queries platform CLIs for available models
+- **Dual-platform sync** — all changes applied to `~/.claude/agents/` and `~/.copilot/agents/` simultaneously
+- **Backward compatible** — old `config.sh set/reset` commands still work
+
+### 🔔 Model Switch Hints
+- **agent-after-switch hook** — reads agent's `model` field on switch, suggests `/model <id>` command
+- If `model` configured → "📌 Use /model xxx to switch"
+- If only `model_hint` → "💡 hint information"
+- If neither → silent (no noise)
+
+### 🔧 Fixes
+- **verify-install.sh** — updated skill count 15→16 (added agent-config)
+- **SKILL.md interactive workflow** — AI now mandated to run discovery commands first, not assume agent/model lists
+
 ## [3.0.14] - 2026-04-09
 
 ### 🤝 Copilot Parity
