@@ -137,9 +137,9 @@ When `workflow_mode` is `"3phase"`, the hook system extends its dispatch and val
 | `implementing` | implementer | — | 2 |
 | `test_scripting` | tester | — | 2 |
 | `code_reviewing` | reviewer | — | 2 |
-| `ci_monitoring` | implementer | — | 2 |
+| `ci_monitoring` | tester | — | 2 |
 | `ci_fixing` | implementer | — | 2 |
-| `device_baseline` | implementer | — | 2 |
+| `device_baseline` | tester | — | 2 |
 | `deploying` | implementer | — | 3 |
 | `regression_testing` | tester | — | 3 |
 | `feature_testing` | tester | — | 3 |
@@ -204,6 +204,7 @@ validate_3phase_transition() {
     "tdd_design→dfmea")              LEGAL=true ;;
     "dfmea→design_review")           LEGAL=true ;;
     "design_review→implementing")    LEGAL=true ;;
+    "design_review→test_scripting")  LEGAL=true ;;
     "design_review→architecture")    LEGAL=true ;;  # feedback
 
     # Phase 2: Implementation
@@ -217,6 +218,12 @@ validate_3phase_transition() {
     "ci_fixing→ci_monitoring")       LEGAL=true ;;
     "device_baseline→deploying")     LEGAL=true ;;
     "device_baseline→implementing")  LEGAL=true ;;  # feedback
+
+    # Hypothesis exploration (from designing or implementing)
+    "designing→hypothesizing")       LEGAL=true ;;
+    "implementing→hypothesizing")    LEGAL=true ;;
+    "hypothesizing→designing")       LEGAL=true ;;
+    "hypothesizing→implementing")    LEGAL=true ;;
 
     # Phase 3: Testing & Verification
     "deploying→regression_testing")      LEGAL=true ;;

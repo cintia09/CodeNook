@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.1.5] - 2026-04-10
+
+### 📝 Audit Round 10 — Convergence (2 doc fixes)
+
+**Executable code: ZERO issues** — codebase converged ✅
+
+**MEDIUM:**
+- `agent-hooks/SKILL.md`: Fix Step→Agent table: `ci_monitoring` and `device_baseline` mapped to `tester` (was `implementer`)
+
+**LOW:**
+- `agent-hooks/SKILL.md`: Add 5 missing transitions to 3-Phase pseudocode (`design_review→test_scripting`, 4 hypothesis transitions)
+
 ## [3.1.4] - 2026-04-10
 
 ### 🔒 Security Audit Round 9 (16 issues fixed)
