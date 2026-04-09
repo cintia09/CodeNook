@@ -5,11 +5,14 @@
 run_memory_capture() {
   [ -z "$TASK_BOARD_CACHE" ] || [ ! -f "$SNAPSHOT" ] && return 0
 
-  while read -r TASK; do
-    TASK_ID=$(echo "$TASK" | jq -r '.id // empty')
-    NEW_STATUS=$(echo "$TASK" | jq -r '.status // empty')
+  # Pre-load old statuses from snapshot (1 jq call)
+  local SNAPSHOT_STATUSES
+  SNAPSHOT_STATUSES=$(jq -r '.tasks[] | "\(.id)\t\(.status)"' "$SNAPSHOT" 2>/dev/null || true)
+
+  # Extract id, status, title in ONE jq call
+  while IFS=$'\t' read -r TASK_ID NEW_STATUS TITLE; do
     [ -z "$TASK_ID" ] || [ -z "$NEW_STATUS" ] && continue
-    OLD_STATUS=$(jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .status' "$SNAPSHOT" 2>/dev/null || echo "")
+    OLD_STATUS=$(echo "$SNAPSHOT_STATUSES" | awk -F'\t' -v tid="$TASK_ID" '$1==tid{print $2; exit}')
 
     # Only trigger on actual transitions
     if [ -n "$OLD_STATUS" ] && [ "$OLD_STATUS" != "$NEW_STATUS" ]; then
@@ -28,7 +31,6 @@ run_memory_capture() {
       # Initialize memory file
       MEMORY_FILE="$MEMORY_DIR/${TASK_ID}-memory.json"
       if [ ! -f "$MEMORY_FILE" ]; then
-        TITLE=$(echo "$TASK" | jq -r '.title')
         NOW_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
         cat > "$MEMORY_FILE" << MEMEOF
 {"task_id":"$TASK_ID","title":"$TITLE","version":1,"created_at":"$NOW_ISO","last_updated":"$NOW_ISO","stages":{}}
@@ -45,5 +47,5 @@ MEMEOF
         [ -n "$SCRIPT_PATH" ] && bash "$SCRIPT_PATH" 2>/dev/null || true
       fi
     fi
-  done < <(echo "$TASK_BOARD_CACHE" | jq -c '.tasks[]' 2>/dev/null)
+  done < <(echo "$TASK_BOARD_CACHE" | jq -r '.tasks[] | [.id // "", .status // "", .title // ""] | @tsv' 2>/dev/null)
 }

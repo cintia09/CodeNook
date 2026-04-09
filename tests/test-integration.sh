@@ -99,6 +99,56 @@ check "Events DB: has logged events ($DB_EVENTS total)" "$([ "$DB_EVENTS" -ge 3 
 DOC_EVENTS=$(sqlite3 "$TEST_DIR/.agents/events.db" "SELECT count(*) FROM events WHERE event_type='doc_gate_warning';")
 check "Events DB: doc_gate_warning recorded" "$([ "$DOC_EVENTS" -ge 1 ] && echo pass || echo fail)"
 
+# === Test 13: Pre-tool-use blocks acceptor from editing source code ===
+echo "acceptor" > "$TEST_DIR/.agents/runtime/active-agent"
+OUTPUT=$(echo '{"toolName":"edit","toolArgs":"{\"path\":\"'"$TEST_DIR"'/src/main.js\"}","cwd":"'"$TEST_DIR"'"}' \
+  | bash "$HOOK_DIR/agent-pre-tool-use.sh" 2>&1)
+check "Pre-tool-use: acceptor blocked from source edit" "$(echo "$OUTPUT" | grep -q 'deny' && echo pass || echo fail)"
+
+# === Test 14: Pre-tool-use allows implementer to edit source ===
+echo "implementer" > "$TEST_DIR/.agents/runtime/active-agent"
+OUTPUT=$(echo '{"toolName":"edit","toolArgs":"{\"path\":\"'"$TEST_DIR"'/src/main.js\"}","cwd":"'"$TEST_DIR"'"}' \
+  | bash "$HOOK_DIR/agent-pre-tool-use.sh" 2>&1)
+check "Pre-tool-use: implementer allowed source edit" "$(echo "$OUTPUT" | grep -q 'deny' && echo fail || echo pass)"
+
+# === Test 15: Pre-tool-use blocks reviewer from destructive bash ===
+echo "reviewer" > "$TEST_DIR/.agents/runtime/active-agent"
+OUTPUT=$(echo '{"toolName":"bash","toolArgs":"{\"command\":\"rm -rf /tmp/test\"}","cwd":"'"$TEST_DIR"'"}' \
+  | bash "$HOOK_DIR/agent-pre-tool-use.sh" 2>&1)
+check "Pre-tool-use: reviewer blocked from rm command" "$(echo "$OUTPUT" | grep -q 'deny' && echo pass || echo fail)"
+
+# === Test 16: Before-memory-write blocks empty content ===
+OUTPUT=$(echo '{"file_path":".agents/memory/test.json","content":"","cwd":"'"$TEST_DIR"'"}' \
+  | bash "$HOOK_DIR/agent-before-memory-write.sh" 2>&1)
+check "Before-memory-write: blocks empty content" "$(echo "$OUTPUT" | grep -q 'block.*true' && echo pass || echo fail)"
+
+# === Test 17: Before-memory-write blocks wrong path ===
+OUTPUT=$(echo '{"file_path":"src/hack.js","content":"data","cwd":"'"$TEST_DIR"'"}' \
+  | bash "$HOOK_DIR/agent-before-memory-write.sh" 2>&1)
+check "Before-memory-write: blocks wrong path" "$(echo "$OUTPUT" | grep -q 'block.*true' && echo pass || echo fail)"
+
+# === Test 18: Before-memory-write allows valid write ===
+OUTPUT=$(echo '{"file_path":".agents/memory/T-001.json","content":"test data","cwd":"'"$TEST_DIR"'"}' \
+  | bash "$HOOK_DIR/agent-before-memory-write.sh" 2>&1)
+check "Before-memory-write: allows valid write" "$(echo "$OUTPUT" | grep -q 'allow.*true' && echo pass || echo fail)"
+
+# === Test 19: On-goal-verified logs event ===
+OUTPUT=$(echo '{"task_id":"T-INT-001","cwd":"'"$TEST_DIR"'"}' \
+  | bash "$HOOK_DIR/agent-on-goal-verified.sh" 2>&1)
+GOAL_EVENTS=$(sqlite3 "$TEST_DIR/.agents/events.db" "SELECT count(*) FROM events WHERE event_type='goal_verified';")
+check "On-goal-verified: logs event to DB" "$([ "$GOAL_EVENTS" -ge 1 ] && echo pass || echo fail)"
+
+# === Test 20: Session-start logs session_start event ===
+echo "designer" > "$TEST_DIR/.agents/runtime/active-agent"
+echo '{"cwd":"'"$TEST_DIR"'","source":"test","timestamp":"1744200500"}' \
+  | bash "$HOOK_DIR/agent-session-start.sh" 2>/dev/null
+SESSION_EVENTS=$(sqlite3 "$TEST_DIR/.agents/events.db" "SELECT count(*) FROM events WHERE event_type='session_start';")
+check "Session-start: logs session_start event" "$([ "$SESSION_EVENTS" -ge 1 ] && echo pass || echo fail)"
+
+# === Test 21: Staleness-check runs without error ===
+OUTPUT=$(bash "$HOOK_DIR/agent-staleness-check.sh" "$TEST_DIR/.agents" 24 2>&1)
+check "Staleness-check: runs without error (exit 0)" "$([ $? -eq 0 ] && echo pass || echo fail)"
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Results: $PASS/$TOTAL passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] && echo "✅ All integration tests passed!" || echo "❌ Some tests failed"

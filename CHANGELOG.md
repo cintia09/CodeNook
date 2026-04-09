@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.20] - 2026-04-09
+
+### ⚡ Performance Optimization
+
+**`fsm-validate.sh`**: Reduced jq calls from O(10×N) to O(2) total per hook invocation:
+- Pre-extract ALL task fields (id, status, workflow_mode, feedback_loops, blocked_from, goals, parallel_tracks) in ONE jq call using `@tsv`
+- Pre-load snapshot statuses with single jq call + awk lookup
+- Eliminated 4 consecutive parallel_tracks queries (→ pre-extracted)
+- Deduplicated `blocked_from` extraction across simple/3phase validators
+
+**`memory-capture.sh`**: Same pattern — single jq call for all task data.
+
+**`agent-staleness-check.sh`**:
+- Cache date tool detection at startup (try once, reuse) instead of 3-tool fallback per call
+- Consolidate 3→1 jq calls per state.json file
+
+### 🧪 Integration Tests Expanded (12 → 21)
+
+New tests: pre-tool-use agent boundaries (acceptor/implementer/reviewer), before-memory-write (empty/wrong-path/valid), on-goal-verified event logging, session-start event, staleness-check execution.
+
+### 📖 README
+
+- Added "已知限制 & 常见问题" (Known Limitations & Troubleshooting) section
+
 ## [3.0.19] - 2026-04-09
 
 ### 🔧 Hook Modularization

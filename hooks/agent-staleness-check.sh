@@ -9,36 +9,43 @@ THRESHOLD_HOURS="${2:-24}"
 
 [ -d "$AGENTS_DIR/runtime" ] || exit 0
 
-# Portable ISO-to-epoch converter (macOS → Linux → perl → python3)
+# Detect which date conversion tool works (once, not per-call)
+_DATE_TOOL=""
+if date -j -f "%Y-%m-%dT%H:%M:%SZ" "2024-01-01T00:00:00Z" +%s &>/dev/null; then
+  _DATE_TOOL="bsd"
+elif date -d "2024-01-01T00:00:00Z" +%s &>/dev/null; then
+  _DATE_TOOL="gnu"
+elif perl -e "use Time::Piece" &>/dev/null; then
+  _DATE_TOOL="perl"
+fi
+
 iso_to_epoch() {
   local ts="$1"
-  date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts" +%s 2>/dev/null || \
-  date -d "$ts" +%s 2>/dev/null || \
-  perl -e "use Time::Piece; print Time::Piece->strptime('$ts','%Y-%m-%dT%H:%M:%SZ')->epoch" 2>/dev/null || \
-  echo 0
+  case "$_DATE_TOOL" in
+    bsd)  date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts" +%s 2>/dev/null || echo 0 ;;
+    gnu)  date -d "$ts" +%s 2>/dev/null || echo 0 ;;
+    perl) perl -e "use Time::Piece; print Time::Piece->strptime('$ts','%Y-%m-%dT%H:%M:%SZ')->epoch" 2>/dev/null || echo 0 ;;
+    *)    echo 0 ;;
+  esac
 }
 
 THRESHOLD_SEC=$((THRESHOLD_HOURS * 3600))
 NOW_SEC=$(date +%s)
 FOUND_STALE=0
 
-# Check agent staleness
+# Check agent staleness (consolidate 3 jq calls → 1 per state file)
 for state_file in "$AGENTS_DIR"/runtime/*/state.json; do
   [ -f "$state_file" ] || continue
-  AGENT=$(jq -r '.agent' "$state_file" 2>/dev/null)
-  STATUS=$(jq -r '.status' "$state_file" 2>/dev/null)
-  LAST=$(jq -r '.last_activity' "$state_file" 2>/dev/null)
+  IFS=$'\t' read -r AGENT STATUS LAST TASK < <(jq -r '[.agent, .status, .last_activity, (.current_task // "—")] | @tsv' "$state_file" 2>/dev/null) || continue
 
   [ "$STATUS" = "idle" ] && continue
   [ -z "$LAST" ] || [ "$LAST" = "null" ] && continue
 
-  # Convert ISO to epoch (macOS + Linux + python3 fallback)
   LAST_SEC=$(iso_to_epoch "$LAST")
   DIFF=$((NOW_SEC - LAST_SEC))
 
   if [ "$DIFF" -gt "$THRESHOLD_SEC" ]; then
     HOURS=$((DIFF / 3600))
-    TASK=$(jq -r '.current_task // "—"' "$state_file" 2>/dev/null)
     echo "⚠️  Agent $AGENT: busy for ${HOURS}h (task: $TASK)"
     FOUND_STALE=1
   fi

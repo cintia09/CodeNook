@@ -637,6 +637,35 @@ Agent: (又一通操作)
 
 > 这可能就是 Vibe Coding 的最终形态 —— 不是一个人和一个 Agent 反复拉扯，而是一个 **Agent 团队**各司其职，像真正的软件开发团队一样协作。而有意思的是，连这个框架本身，也是由 Agent 写的。
 
+## 已知限制 & 常见问题
+
+### 已知限制
+
+| 限制 | 说明 | 解决方案 |
+|------|------|----------|
+| **仅 CLI** | 框架通过 Shell Hook 运行，需要 Claude Code 或 Copilot CLI | 不支持 Web UI / API 模式 |
+| **macOS/Linux** | 依赖 bash 4+、jq、sqlite3 | Windows 需使用 WSL |
+| **单项目** | `.agents/` 目录绑定单个项目 | 多项目需分别初始化 |
+| **文档门禁** | 目前仅输出 ⚠️ 警告，不会阻止状态转换 | 计划未来支持 strict 模式 |
+| **内存索引** | 需要项目自行提供 `memory-index.sh` | 可选功能，不影响核心流程 |
+
+### 常见问题
+
+**Q: hooks 报错 `jq: command not found`**
+→ 安装 jq：`brew install jq`（macOS）或 `apt install jq`（Linux）
+
+**Q: `events.db` 报 "database is locked"**
+→ 框架使用 `mkdir` 原子锁替代 `flock`，正常情况不会锁死。若出现，删除 `.agents/runtime/.lock` 目录。
+
+**Q: Agent 切换后没有收到前一阶段的文档提示**
+→ 确保 `.agents/docs/T-XXX/` 下有对应文档，`after-switch` hook 会自动列出。
+
+**Q: FSM 报 ILLEGAL transition 但我确定是对的**
+→ 检查 `task-board.json` 中的 `workflow_mode`。`simple` 和 `3phase` 有不同的合法路径，参考 `agent-fsm` skill。
+
+**Q: `install.sh` 安装后 hook 不生效**
+→ 确认 `~/.claude/hooks.json` 或 `~/.copilot/hooks.json` 存在且指向正确路径。运行 `bash install.sh` 会自动修复。
+
 ## 许可证
 
 MIT
