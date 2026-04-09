@@ -64,7 +64,7 @@ block-beta
 
         block:msg3["消息 3: tool_use (工具调用)"]
             columns 1
-            M3["tool: 'edit'<br/>file: '.agents/task-board.json'<br/>old_str: '\"status\": \"implementing\"'<br/>new_str: '\"status\": \"testing\"'"]
+            M3["tool: edit<br/>file: .agents/task-board.json<br/>old_str: status: implementing<br/>new_str: status: testing"]
         end
 
         block:msg4["消息 4: tool_result (工具+Hook结果)"]
