@@ -57,7 +57,6 @@ OUTPUT=$(echo '{"toolName":"edit","toolArgs":"{\"path\":\"'"$TEST_DIR"'/.agents/
 check "FSM validation: illegal transition detected" "$(echo "$OUTPUT" | grep -q 'ILLEGAL' && echo pass || echo fail)"
 
 # === Test 4: Document gate warning ===
-cp "$TEST_DIR/.agents/task-board.json" "$TEST_DIR/.agents/runtime/.task-board-snapshot.json"
 cat > "$TEST_DIR/.agents/runtime/.task-board-snapshot.json" << 'EOF'
 {"version":1,"tasks":[{"id":"T-INT-002","title":"Doc Test","status":"designing","workflow_mode":"simple","goals":[]}]}
 EOF
@@ -147,8 +146,9 @@ SESSION_EVENTS=$(sqlite3 "$TEST_DIR/.agents/events.db" "SELECT count(*) FROM eve
 check "Session-start: logs session_start event" "$([ "$SESSION_EVENTS" -ge 1 ] && echo pass || echo fail)"
 
 # === Test 21: Staleness-check runs without error ===
-OUTPUT=$(bash "$HOOK_DIR/agent-staleness-check.sh" "$TEST_DIR/.agents" 24 2>&1)
-check "Staleness-check: runs without error (exit 0)" "$([ $? -eq 0 ] && echo pass || echo fail)"
+STALE_RC=0
+OUTPUT=$(bash "$HOOK_DIR/agent-staleness-check.sh" "$TEST_DIR/.agents" 24 2>&1) || STALE_RC=$?
+check "Staleness-check: runs without error (exit 0)" "$([ $STALE_RC -eq 0 ] && echo pass || echo fail)"
 
 # === Test 22: Hypothesis transition (designing→hypothesizing) is legal ===
 jq '.tasks[0].status = "hypothesizing"' "$TEST_DIR/.agents/task-board.json" > "$TEST_DIR/.agents/task-board-hyp.json" && mv "$TEST_DIR/.agents/task-board-hyp.json" "$TEST_DIR/.agents/task-board.json"

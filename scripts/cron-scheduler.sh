@@ -54,7 +54,8 @@ for j in jobs['jobs']:
 "
     ;;
   --run)
-    # Execute due jobs (simplified - checks action type)
+    # Execute all enabled jobs (schedule field is for display only;
+    # actual scheduling is controlled by the caller's crontab entry)
     JOBS_FILE="$JOBS_FILE" PROJECT_DIR="$PROJECT_DIR" python3 -c "
 import json, subprocess, sys, os
 jobs_file = os.environ['JOBS_FILE']
@@ -73,7 +74,8 @@ for j in jobs['jobs']:
         import pathlib
         tb_path = pathlib.Path(project_dir) / '.agents' / 'task-board.json'
         if tb_path.exists():
-            board = json.load(open(tb_path))
+            with open(tb_path) as f:
+                board = json.load(f)
             total = len(board['tasks'])
             accepted = sum(1 for t in board['tasks'] if t['status'] == 'accepted')
             implementing = sum(1 for t in board['tasks'] if t['status'] == 'implementing')

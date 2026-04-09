@@ -18,7 +18,7 @@ AGENTS_DIR="$CWD/.agents"
 EVENTS_DB="$AGENTS_DIR/events.db"
 
 # Initialize or repair events.db
-if [ ! -f "$EVENTS_DB" ] || ! sqlite3 "$EVENTS_DB" ".tables" &>/dev/null; then
+if [ ! -f "$EVENTS_DB" ] || ! sqlite3 "$EVENTS_DB" "PRAGMA busy_timeout=3000; SELECT count(*) FROM events LIMIT 1;" &>/dev/null; then
   [ -f "$EVENTS_DB" ] && rm -f "$EVENTS_DB"
   sqlite3 "$EVENTS_DB" <<'SQL'
 CREATE TABLE IF NOT EXISTS events (

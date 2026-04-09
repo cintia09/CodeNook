@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.1.4] - 2026-04-10
+
+### 🔒 Security Audit Round 9 (16 issues fixed)
+
+**HIGH:**
+- `test-3phase-fsm.sh`: Fix `grep -q "LEGAL"` matching "ILLEGAL" — FSM test suite was non-functional
+- `test-3phase-fsm.sh`: Add missing `design_review→test_scripting` in test FSM case statement
+- `team-session.sh`: Escape agent names in tmux commands to prevent shell injection
+
+**MEDIUM:**
+- `install.sh`: Recreate TMP_DIR after cleanup — tarball install was falling through to git clone
+- `agent-session-start.sh`: Use `PRAGMA busy_timeout=3000` instead of `.tables` for DB health check
+- `auto-dispatch.sh`: Clear stale lock directories (>60s) to prevent permanent dispatch lockout
+- `test-integration.sh`: Capture exit code before `set -e` masks staleness-check failures
+- `install.sh`: Only backup hooks.json if `.bak` doesn't already exist (prevents overwriting user's original)
+- `cron-scheduler.sh`: Document that `schedule` field is display-only, caller's crontab controls timing
+- `agent-messaging/SKILL.md`: Clarify two `type` enum systems (auto-dispatch vs bidirectional)
+
+**LOW:**
+- `test-3phase-fsm.sh`: Fix label "26" → "27" legal transitions
+- `test-integration.sh`: Remove dead `cp` immediately overwritten by `cat`
+- `team-session.sh`: Validate `--agents/--task/--layout` have values (prevent `set -u` crash)
+- `team-session.sh`: Portable `watch` fallback with `while sleep` loop for macOS
+- `cron-scheduler.sh`: Fix file handle leak in Python `json.load(open(...))` → `with open()`
+- `install.sh`: Add `trap 'rm -rf "$TMP_DIR"' EXIT` for cleanup on interrupt
+
 ## [3.1.3] - 2026-04-09
 
 ### 🚀 Strict Document Gate Mode

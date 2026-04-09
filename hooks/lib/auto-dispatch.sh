@@ -52,6 +52,8 @@ run_auto_dispatch() {
 
     # Atomic write with portable directory-based locking
     LOCK_DIR="${TARGET_INBOX}.lock"
+    # Clear stale locks (>60s old) to prevent permanent lockout
+    find "$LOCK_DIR" -maxdepth 0 -mmin +1 -exec rmdir {} \; 2>/dev/null || true
     LOCK_WAIT=0
     while ! mkdir "$LOCK_DIR" 2>/dev/null; do
       sleep 0.1

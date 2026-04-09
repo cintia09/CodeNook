@@ -4,9 +4,10 @@ set -euo pipefail
 # Multi-Agent Framework Installer
 # Usage: curl -sL https://raw.githubusercontent.com/cintia09/multi-agent-framework/main/install.sh | bash
 
-VERSION="3.1.3"
+VERSION="3.1.4"
 REPO="https://github.com/cintia09/multi-agent-framework.git"
 TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/multi-agent-framework.XXXXXX")
+trap 'rm -rf "$TMP_DIR"' EXIT
 CLAUDE_DIR="${HOME}/.claude"
 
 # Colors
@@ -110,6 +111,7 @@ install() {
     
     # Step 1: Download source
     if [ -d "$TMP_DIR" ]; then rm -rf "$TMP_DIR"; fi
+    mkdir -p "$TMP_DIR"
     echo "📥 Downloading framework..."
     if [ "$dry_run" = true ]; then
         echo "  [DRY RUN] Would download to ${TMP_DIR}"
@@ -189,7 +191,7 @@ install() {
         cp "${TMP_DIR}/hooks/lib/"*.sh "${CLAUDE_DIR}/hooks/lib/"
         chmod +x "${CLAUDE_DIR}/hooks/agent-"*.sh
         chmod +x "${CLAUDE_DIR}/hooks/security-scan.sh" 2>/dev/null || true
-        if [ -f "${CLAUDE_DIR}/hooks/hooks.json" ]; then
+        if [ -f "${CLAUDE_DIR}/hooks/hooks.json" ] && [ ! -f "${CLAUDE_DIR}/hooks/hooks.json.bak" ]; then
             cp "${CLAUDE_DIR}/hooks/hooks.json" "${CLAUDE_DIR}/hooks/hooks.json.bak"
             info "Backed up existing hooks.json → hooks.json.bak"
         fi
@@ -242,7 +244,7 @@ install() {
             mkdir -p "${COPILOT_DIR}/hooks/lib"
             cp "${TMP_DIR}/hooks/lib/"*.sh "${COPILOT_DIR}/hooks/lib/"
             chmod +x "${COPILOT_DIR}/hooks/agent-"*.sh "${COPILOT_DIR}/hooks/security-scan.sh" 2>/dev/null || true
-            if [ -f "${COPILOT_DIR}/hooks/hooks.json" ]; then
+            if [ -f "${COPILOT_DIR}/hooks/hooks.json" ] && [ ! -f "${COPILOT_DIR}/hooks/hooks.json.bak" ]; then
                 cp "${COPILOT_DIR}/hooks/hooks.json" "${COPILOT_DIR}/hooks/hooks.json.bak"
                 info "Backed up existing Copilot hooks.json → hooks.json.bak"
             fi

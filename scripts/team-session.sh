@@ -13,9 +13,9 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --agents) AGENTS="$2"; shift 2 ;;
-    --task)   TASK_FILTER="$2"; shift 2 ;;
-    --layout) LAYOUT="$2"; shift 2 ;;
+    --agents) [ -z "${2:-}" ] && { echo "❌ Missing value for --agents"; exit 1; }; AGENTS="$2"; shift 2 ;;
+    --task)   [ -z "${2:-}" ] && { echo "❌ Missing value for --task"; exit 1; }; TASK_FILTER="$2"; shift 2 ;;
+    --layout) [ -z "${2:-}" ] && { echo "❌ Missing value for --layout"; exit 1; }; LAYOUT="$2"; shift 2 ;;
     --help)
       echo "Usage: team-session.sh [--agents roles] [--task T-XXX] [--layout tiled|even-horizontal]"
       echo "  --agents  Comma-separated agent roles (default: all 5)"
@@ -54,20 +54,26 @@ echo ""
 FIRST_AGENT="${AGENT_LIST[0]}"
 SAFE_PROJECT=$(printf '%s' "$PROJECT_DIR" | sed "s/'/'\\\\''/g")
 SAFE_FILTER=$(printf '%s' "${TASK_FILTER:-all}" | sed "s/'/'\\\\''/g")
-AGENT_CMD="cd '${SAFE_PROJECT}' && echo '🤖 Agent: $FIRST_AGENT' && echo 'Task: ${SAFE_FILTER}' && echo '---'"
+SAFE_FIRST=$(printf '%s' "$FIRST_AGENT" | sed "s/'/'\\\\''/g")
+AGENT_CMD="cd '${SAFE_PROJECT}' && echo '🤖 Agent: ${SAFE_FIRST}' && echo 'Task: ${SAFE_FILTER}' && echo '---'"
 tmux new-session -d -s "$SESSION_NAME" -x 200 -y 50 "$AGENT_CMD; bash"
 
 # Create additional panes for remaining agents
 for ((i=1; i<AGENT_COUNT; i++)); do
   AGENT="${AGENT_LIST[$i]}"
-  AGENT_CMD="cd '${SAFE_PROJECT}' && echo '🤖 Agent: $AGENT' && echo 'Task: ${SAFE_FILTER}' && echo '---'"
+  SAFE_AGENT=$(printf '%s' "$AGENT" | sed "s/'/'\\\\''/g")
+  AGENT_CMD="cd '${SAFE_PROJECT}' && echo '🤖 Agent: ${SAFE_AGENT}' && echo 'Task: ${SAFE_FILTER}' && echo '---'"
   tmux split-window -t "$SESSION_NAME" "$AGENT_CMD; bash"
   tmux select-layout -t "$SESSION_NAME" "$LAYOUT"
 done
 
 # Add dashboard pane
 SAFE_SCRIPT_DIR=$(printf '%s' "$SCRIPT_DIR" | sed "s/'/'\\\\''/g")
-DASHBOARD_CMD="cd '${SAFE_PROJECT}' && watch -n 10 'bash \"${SAFE_SCRIPT_DIR}/team-dashboard.sh\" 2>/dev/null || echo \"Dashboard loading...\"'"
+if command -v watch &>/dev/null; then
+  DASHBOARD_CMD="cd '${SAFE_PROJECT}' && watch -n 10 'bash \"${SAFE_SCRIPT_DIR}/team-dashboard.sh\" 2>/dev/null || echo \"Dashboard loading...\"'"
+else
+  DASHBOARD_CMD="cd '${SAFE_PROJECT}' && while true; do clear; bash '${SAFE_SCRIPT_DIR}/team-dashboard.sh' 2>/dev/null || echo 'Dashboard loading...'; sleep 10; done"
+fi
 tmux split-window -t "$SESSION_NAME" -l 8 "$DASHBOARD_CMD"
 
 # Final layout

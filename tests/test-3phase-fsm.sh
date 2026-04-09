@@ -62,7 +62,7 @@ run_fsm_check() {
       case "${old_status}→${new_status}" in
         "created→requirements"|"requirements→architecture"|"architecture→tdd_design"|\
         "tdd_design→dfmea"|"dfmea→design_review"|\
-        "design_review→implementing"|"design_review→architecture"|\
+        "design_review→implementing"|"design_review→architecture"|"design_review→test_scripting"|\
         "implementing→code_reviewing"|"implementing→ci_monitoring"|\
         "test_scripting→code_reviewing"|\
         "code_reviewing→implementing"|"code_reviewing→ci_monitoring"|\
@@ -178,7 +178,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 setup
 
-# --- Goal 1: Test all 26 legal 3-Phase transitions ---
+# --- Goal 1: Test all 27 legal 3-Phase transitions ---
 echo ""
 echo "📋 G-037-1: Legal 3-Phase Transitions"
 
@@ -223,14 +223,14 @@ for trans in "${LEGAL_TRANSITIONS[@]}"; do
     set_task_status "T-TEST" "$from" "$to" "3phase"
   fi
   result=$(run_fsm_check)
-  if echo "$result" | grep -q "LEGAL"; then
+  if echo "$result" | grep -q "✅ LEGAL"; then
     LEGAL_PASS=$((LEGAL_PASS + 1))
   else
     echo "    ⚠️  $from → $to: $result"
     LEGAL_FAIL=$((LEGAL_FAIL + 1))
   fi
 done
-check "26 legal transitions" "LEGAL" "$([ $LEGAL_FAIL -eq 0 ] && echo 'ALL LEGAL' || echo "$LEGAL_FAIL FAILED")"
+check "27 legal transitions" "LEGAL" "$([ $LEGAL_FAIL -eq 0 ] && echo 'ALL LEGAL' || echo "$LEGAL_FAIL FAILED")"
 echo "    ($LEGAL_PASS passed, $LEGAL_FAIL failed)"
 
 # --- Goal 2: Test illegal transitions are blocked ---
