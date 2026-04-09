@@ -24,10 +24,16 @@ if [ ! -f "$INDEX_DB" ]; then
   exit 1
 fi
 
+# Escape and validate inputs for SQL safety
+QUERY_ESC=$(echo "$QUERY" | sed "s/'/''/g")
+ROLE_ESC=$(echo "$ROLE" | sed "s/'/''/g")
+LAYER_ESC=$(echo "$LAYER" | sed "s/'/''/g")
+LIMIT=$(echo "$LIMIT" | grep -oE '^[0-9]+$' || echo 6)
+
 # Build WHERE clause
 WHERE=""
-[ -n "$ROLE" ] && WHERE="AND role='$ROLE'"
-[ -n "$LAYER" ] && WHERE="$WHERE AND layer='$LAYER'"
+[ -n "$ROLE_ESC" ] && WHERE="AND role='$ROLE_ESC'"
+[ -n "$LAYER_ESC" ] && WHERE="$WHERE AND layer='$LAYER_ESC'"
 
 # FTS5 search with ranking
 sqlite3 -header -column "$INDEX_DB" << SQL
@@ -36,7 +42,7 @@ SELECT
   snippet(memory_fts, 2, '**', '**', '...', 32) AS context,
   rank
 FROM memory_fts
-WHERE memory_fts MATCH '${QUERY}'
+WHERE memory_fts MATCH '${QUERY_ESC}'
 ${WHERE}
 ORDER BY rank
 LIMIT ${LIMIT};

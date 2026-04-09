@@ -37,11 +37,6 @@
             "type": "command",
             "command": "~/.claude/hooks/agent-post-tool-use.sh",
             "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/agent-staleness-check.sh",
-            "timeout": 5000
           }
         ]
       }

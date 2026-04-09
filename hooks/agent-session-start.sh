@@ -7,7 +7,8 @@ set -euo pipefail
 INPUT=$(cat)
 CWD=$(echo "$INPUT" | jq -r '.cwd')
 SOURCE=$(echo "$INPUT" | jq -r '.source')
-TIMESTAMP=$(echo "$INPUT" | jq -r '.timestamp')
+TIMESTAMP_RAW=$(echo "$INPUT" | jq -r '.timestamp')
+TIMESTAMP=$(echo "$TIMESTAMP_RAW" | grep -oE '^[0-9]+$' || date +%s)
 
 AGENTS_DIR="$CWD/.agents"
 

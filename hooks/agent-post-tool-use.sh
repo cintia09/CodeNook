@@ -31,10 +31,10 @@ ACTIVE_FILE="$AGENTS_DIR/runtime/active-agent"
 # Escape all input variables
 TOOL_NAME_ESC=$(sql_escape "$TOOL_NAME")
 RESULT_TYPE_ESC=$(sql_escape "$RESULT_TYPE")
-TOOL_ARGS_ESC=$(echo "$TOOL_ARGS" | head -c 500 | sed "s/'/''/g")
+TOOL_ARGS_SAFE=$(echo "$TOOL_ARGS" | head -c 500 | tr '\n' ' ' | sed 's/\\/\\\\/g; s/"/\\"/g' | sed "s/'/''/g")
 
 # Log every tool use to events.db
-sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, tool_name, detail) VALUES ($TIMESTAMP, 'tool_use', '$ACTIVE_AGENT', '$TOOL_NAME_ESC', '{\"result\":\"$RESULT_TYPE_ESC\",\"args\":\"$TOOL_ARGS_ESC\"}');"
+sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, tool_name, detail) VALUES ($TIMESTAMP, 'tool_use', '$ACTIVE_AGENT', '$TOOL_NAME_ESC', '{\"result\":\"$RESULT_TYPE_ESC\",\"args\":\"$TOOL_ARGS_SAFE\"}');"
 
 # Detect task-board writes
 if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
@@ -66,9 +66,9 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
     source "$HOOK_DIR/lib/memory-capture.sh"
     run_memory_capture
 
-    # Update snapshot for next comparison
+    # Update snapshot from cached content (not disk) to avoid TOCTOU race
     if [ -n "$TASK_BOARD_CACHE" ]; then
-      cp "$AGENTS_DIR/task-board.json" "$SNAPSHOT" 2>/dev/null || true
+      echo "$TASK_BOARD_CACHE" > "$SNAPSHOT" 2>/dev/null || true
     fi
   fi
 fi

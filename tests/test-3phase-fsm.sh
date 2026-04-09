@@ -12,7 +12,7 @@ EVENTS_DB="$AGENTS_DIR/events.db"
 # Setup test environment
 setup() {
   mkdir -p "$AGENTS_DIR/runtime"
-  sqlite3 "$EVENTS_DB" "CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY, timestamp INTEGER, event_type TEXT, agent TEXT, task_id TEXT, tool_name TEXT, detail TEXT);"
+  sqlite3 "$EVENTS_DB" "CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER NOT NULL, event_type TEXT NOT NULL, agent TEXT, task_id TEXT, tool_name TEXT, detail TEXT, created_at TEXT DEFAULT (datetime('now')));"
   echo "designer" > "$AGENTS_DIR/runtime/active-agent"
 }
 

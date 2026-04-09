@@ -102,7 +102,7 @@ _validate_3phase() {
     *→blocked)                            LEGAL=true ;;
     "blocked→"*)
       if [ -n "$BLOCKED_FROM" ] && [ "$BLOCKED_FROM" != "null" ]; then
-        [ "$NEW_STATUS_SQL" = "$BLOCKED_FROM" ] && LEGAL=true
+        [ "$NEW_STATUS" = "$BLOCKED_FROM" ] && LEGAL=true
       else
         echo "⚠️ [FSM] Task $TASK_ID unblocked without blocked_from record."
         LEGAL=true
@@ -148,7 +148,7 @@ _validate_simple() {
     *→blocked)                 LEGAL=true ;;
     "blocked→"*)
       if [ -n "$BLOCKED_FROM" ] && [ "$BLOCKED_FROM" != "null" ]; then
-        [ "$NEW_STATUS_SQL" = "$BLOCKED_FROM" ] && LEGAL=true
+        [ "$NEW_STATUS" = "$BLOCKED_FROM" ] && LEGAL=true
       else
         echo "⚠️ [FSM] Task $TASK_ID unblocked without blocked_from record."
         LEGAL=true

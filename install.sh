@@ -4,7 +4,7 @@ set -euo pipefail
 # Multi-Agent Framework Installer
 # Usage: curl -sL https://raw.githubusercontent.com/cintia09/multi-agent-framework/main/install.sh | bash
 
-VERSION="3.0.21"
+VERSION="3.0.22"
 REPO="https://github.com/cintia09/multi-agent-framework.git"
 TMP_DIR="/tmp/multi-agent-framework"
 CLAUDE_DIR="${HOME}/.claude"
@@ -39,8 +39,8 @@ check_platform() {
     local hooks=$(ls "${dir}/hooks/"*.sh 2>/dev/null | wc -l | tr -d ' ')
     local has_json=$([ -f "${dir}/hooks/hooks.json" ] && echo '✅' || echo '❌')
     echo "  ${name}:"
-    echo "    Skills: ${skills}/16 | Agents: ${agents}/5 | Hooks: ${hooks}/13 | hooks.json: ${has_json}"
-    [ "$skills" -ge 16 ] && [ "$agents" -ge 5 ] && [ "$hooks" -ge 13 ] && [ -f "${dir}/hooks/hooks.json" ]
+    echo "    Skills: ${skills}/17 | Agents: ${agents}/5 | Hooks: ${hooks}/13 | hooks.json: ${has_json}"
+    [ "$skills" -ge 17 ] && [ "$agents" -ge 5 ] && [ "$hooks" -ge 13 ] && [ -f "${dir}/hooks/hooks.json" ]
 }
 
 check_install() {
@@ -74,6 +74,7 @@ uninstall() {
         rm -f "${CLAUDE_DIR}/agents/"*.agent.md
         rm -f "${CLAUDE_DIR}/hooks/agent-"*.sh
         rm -f "${CLAUDE_DIR}/hooks/security-scan.sh"
+        rm -rf "${CLAUDE_DIR}/hooks/lib"
         rm -f "${CLAUDE_DIR}/rules/agent-workflow.md" "${CLAUDE_DIR}/rules/security.md" "${CLAUDE_DIR}/rules/commit-standards.md"
         if [ -f "${CLAUDE_DIR}/hooks/hooks.json.bak" ]; then
             mv "${CLAUDE_DIR}/hooks/hooks.json.bak" "${CLAUDE_DIR}/hooks/hooks.json"
@@ -88,6 +89,7 @@ uninstall() {
         rm -f "${COPILOT_DIR}/agents/"*.agent.md
         rm -f "${COPILOT_DIR}/hooks/agent-"*.sh
         rm -f "${COPILOT_DIR}/hooks/security-scan.sh"
+        rm -rf "${COPILOT_DIR}/hooks/lib"
         if [ -f "${COPILOT_DIR}/hooks/hooks.json.bak" ]; then
             mv "${COPILOT_DIR}/hooks/hooks.json.bak" "${COPILOT_DIR}/hooks/hooks.json"
             info "Restored Copilot hooks.json from backup"
@@ -117,7 +119,7 @@ install() {
         if curl -sL --connect-timeout 10 --max-time 60 "$TARBALL_URL" | tar xz -C /tmp 2>/dev/null; then
             mv /tmp/multi-agent-framework-main "$TMP_DIR" 2>/dev/null && success=true
             # Basic integrity: ensure key files exist
-            if [ "$success" = true ] && [ ! -f "$TMP_DIR/install.sh" ] || [ ! -d "$TMP_DIR/skills" ]; then
+            if [ "$success" = true ] && { [ ! -f "$TMP_DIR/install.sh" ] || [ ! -d "$TMP_DIR/skills" ]; }; then
                 warn "Download may be corrupted (missing key files)"
                 success=false
                 rm -rf "$TMP_DIR"
@@ -183,6 +185,8 @@ install() {
     else
         mkdir -p "${CLAUDE_DIR}/hooks"
         cp "${TMP_DIR}/hooks/"*.sh "${CLAUDE_DIR}/hooks/"
+        mkdir -p "${CLAUDE_DIR}/hooks/lib"
+        cp "${TMP_DIR}/hooks/lib/"*.sh "${CLAUDE_DIR}/hooks/lib/"
         chmod +x "${CLAUDE_DIR}/hooks/agent-"*.sh
         chmod +x "${CLAUDE_DIR}/hooks/security-scan.sh" 2>/dev/null || true
         if [ -f "${CLAUDE_DIR}/hooks/hooks.json" ]; then
@@ -235,6 +239,8 @@ install() {
             # Hooks
             mkdir -p "${COPILOT_DIR}/hooks"
             cp "${TMP_DIR}/hooks/"*.sh "${COPILOT_DIR}/hooks/"
+            mkdir -p "${COPILOT_DIR}/hooks/lib"
+            cp "${TMP_DIR}/hooks/lib/"*.sh "${COPILOT_DIR}/hooks/lib/"
             chmod +x "${COPILOT_DIR}/hooks/"*.sh
             if [ -f "${COPILOT_DIR}/hooks/hooks.json" ]; then
                 cp "${COPILOT_DIR}/hooks/hooks.json" "${COPILOT_DIR}/hooks/hooks.json.bak"

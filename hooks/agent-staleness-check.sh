@@ -24,7 +24,7 @@ iso_to_epoch() {
   case "$_DATE_TOOL" in
     bsd)  date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts" +%s 2>/dev/null || echo 0 ;;
     gnu)  date -d "$ts" +%s 2>/dev/null || echo 0 ;;
-    perl) perl -e "use Time::Piece; print Time::Piece->strptime('$ts','%Y-%m-%dT%H:%M:%SZ')->epoch" 2>/dev/null || echo 0 ;;
+    perl) TS_VAL="$ts" perl -e 'use Time::Piece; print Time::Piece->strptime($ENV{"TS_VAL"},"%Y-%m-%dT%H:%M:%SZ")->epoch' 2>/dev/null || echo 0 ;;
     *)    echo 0 ;;
   esac
 }

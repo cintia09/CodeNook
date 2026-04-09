@@ -16,7 +16,7 @@ AGENTS_DIR="$CWD/.agents"
 if [ -f "$AGENTS_DIR/task-board.json" ]; then
   EXISTS=$(jq -r --arg tid "$TASK_ID" '[.tasks[] | select(.id == $tid)] | length' "$AGENTS_DIR/task-board.json" 2>/dev/null || echo 0)
   if [ "$EXISTS" -gt 0 ]; then
-    echo "{\"block\": true, \"reason\": \"Task $TASK_ID already exists\"}"
+    jq -n --arg tid "$TASK_ID" '{block:true,reason:("Task " + $tid + " already exists")}'
     exit 0
   fi
 fi

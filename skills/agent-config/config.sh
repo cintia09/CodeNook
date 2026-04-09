@@ -77,7 +77,7 @@ set_field() {
         _sed_i "s|^${field_esc}:.*|${field_esc}: \"${value_esc}\"|" "$file"
     else
         _sed_i "/^description:/a\\
-${field}: \"${value}\"" "$file"
+${field_esc}: \"${value_esc}\"" "$file"
     fi
 }
 
@@ -282,8 +282,9 @@ cmd_tools_rm() {
                 echo "  ⚠ ${dir}/${agent}: no tools restriction set"
                 continue
             fi
-            # Remove tool from csv
-            new_tools=$(echo "$current" | sed "s/^${tool},//; s/,${tool},/,/; s/,${tool}$//; s/^${tool}$//")
+            # Remove tool from csv (escape regex metacharacters)
+            tool_re=$(printf '%s\n' "$tool" | sed 's/[.[\*^$()+?{|]/\\&/g')
+            new_tools=$(echo "$current" | sed "s/^${tool_re},//; s/,${tool_re},/,/; s/,${tool_re}$//; s/^${tool_re}$//")
             if [ "$new_tools" = "$current" ]; then
                 echo "  ⚠ ${dir}/${agent}: tool '${tool}' not found"
                 continue

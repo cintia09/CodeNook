@@ -29,12 +29,6 @@
         "bash": "~/.copilot/hooks/agent-post-tool-use.sh",
         "comment": "Multi-Agent Framework: audit log + auto-dispatch",
         "timeoutSec": 5
-      },
-      {
-        "type": "command",
-        "bash": "~/.copilot/hooks/agent-staleness-check.sh",
-        "comment": "Multi-Agent Framework: detect stale tasks",
-        "timeoutSec": 5
       }
     ],
     "agentSwitch": [

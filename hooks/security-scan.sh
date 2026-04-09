@@ -58,8 +58,9 @@ case "$TOOL_NAME" in
         done <<< "$STAGED_FILES"
 
         if [ -n "$SECRETS_FOUND" ]; then
-          REASON="🔒 Pre-commit security scan found sensitive data:${SECRETS_FOUND}\nRemove secrets before committing. Use git reset HEAD <file> to unstage."
-          echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"$(echo -e "$REASON" | head -c 500)\"}"
+          REASON="🔒 Pre-commit security scan found sensitive data:${SECRETS_FOUND} Remove secrets before committing. Use git reset HEAD <file> to unstage."
+          SAFE_REASON=$(echo -e "$REASON" | tr '\n' ' ' | head -c 500 | sed 's/"/\\"/g')
+          echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"${SAFE_REASON}\"}"
           exit 0
         fi
       fi

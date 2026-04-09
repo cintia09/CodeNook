@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.22] - 2026-04-09
+
+### 🔒 Security Audit Round 4 (22 issues fixed)
+
+**CRITICAL:**
+- `install.sh`: Now copies `hooks/lib/` directory (auto-dispatch, fsm-validate, memory-capture modules were missing after install!)
+
+**HIGH — SQL/Code Injection:**
+- `session-start.sh`: TIMESTAMP numeric validation (missed in Round 1)
+- `memory-search.sh`: escape QUERY, ROLE, LAYER params; validate LIMIT is numeric
+- `security-scan.sh`: sanitize newlines in JSON output (was producing invalid JSON)
+
+**MEDIUM — Correctness & Safety:**
+- `memory-capture.sh`: use jq for memory file JSON (fixes title with double quotes)
+- `post-tool-use.sh`: escape double quotes/backslashes in TOOL_ARGS detail JSON; fix TOCTOU race (snapshot from cache, not disk)
+- `install.sh`: fix operator precedence in integrity check; consistent skill count (17)
+- `fsm-validate.sh`: compare raw status (not sql-escaped) for blocked_from
+- `staleness-check.sh`: fix Perl code injection via environment variable
+- `auto-dispatch.sh`: use @tsv (tab) instead of pipe delimiter; fail-safe lock skip
+- `verify-install.sh`: add agent-docs to skill check list; threshold 16→17
+- `agent-after-switch.sh`: jq for JSON output; null-safety for assigned_to
+- `agent-before-task-create.sh`: jq for JSON output
+
+**LOW — Hardening:**
+- `config.sh`: use escaped values in sed append; escape regex in tool removal
+- Test schema aligned with production (created_at column)
+- Test #14 validates exit code + output (no false pass on crash)
+- Remove redundant staleness-check from PostToolUse hooks.json
+- `memory-index.sh`: track + report actual indexed count
+- `webhook-handler.sh`: validate CWD before writing files
+
 ## [3.0.21] - 2026-04-09
 
 ### 🔒 Security Audit Round 3 (12 issues fixed)

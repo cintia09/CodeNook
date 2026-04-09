@@ -23,7 +23,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 TEST_DIR=$(mktemp -d)
 trap "rm -rf '$TEST_DIR'" EXIT
 mkdir -p "$TEST_DIR/.agents/runtime"/{acceptor,designer,implementer,reviewer,tester}
-sqlite3 "$TEST_DIR/.agents/events.db" "CREATE TABLE events (id INTEGER PRIMARY KEY, timestamp INTEGER, event_type TEXT, agent TEXT, tool_name TEXT, task_id TEXT, detail TEXT);"
+sqlite3 "$TEST_DIR/.agents/events.db" "CREATE TABLE events (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER NOT NULL, event_type TEXT NOT NULL, agent TEXT, tool_name TEXT, task_id TEXT, detail TEXT, created_at TEXT DEFAULT (datetime('now')));"
 echo "designer" > "$TEST_DIR/.agents/runtime/active-agent"
 for a in acceptor designer implementer reviewer tester; do
   echo '{"messages":[]}' > "$TEST_DIR/.agents/runtime/$a/inbox.json"
@@ -107,9 +107,10 @@ check "Pre-tool-use: acceptor blocked from source edit" "$(echo "$OUTPUT" | grep
 
 # === Test 14: Pre-tool-use allows implementer to edit source ===
 echo "implementer" > "$TEST_DIR/.agents/runtime/active-agent"
+IMPL_RC=0
 OUTPUT=$(echo '{"toolName":"edit","toolArgs":"{\"path\":\"'"$TEST_DIR"'/src/main.js\"}","cwd":"'"$TEST_DIR"'"}' \
-  | bash "$HOOK_DIR/agent-pre-tool-use.sh" 2>&1)
-check "Pre-tool-use: implementer allowed source edit" "$(echo "$OUTPUT" | grep -q 'deny' && echo fail || echo pass)"
+  | bash "$HOOK_DIR/agent-pre-tool-use.sh" 2>&1) || IMPL_RC=$?
+check "Pre-tool-use: implementer allowed source edit" "$([ $IMPL_RC -eq 0 ] && ! echo "$OUTPUT" | grep -q 'deny' && echo pass || echo fail)"
 
 # === Test 15: Pre-tool-use blocks reviewer from destructive bash ===
 echo "reviewer" > "$TEST_DIR/.agents/runtime/active-agent"

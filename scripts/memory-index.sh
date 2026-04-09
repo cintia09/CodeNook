@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS memory_meta (
 SQL
 
 # Index all memory .md files
-find "$AGENTS_DIR/memory" -name "*.md" -type f | while read -r file; do
+INDEX_COUNT=0
+while read -r file; do
   # Check if file changed since last index
   current_checksum=$(md5 -q "$file" 2>/dev/null || md5sum "$file" | cut -d' ' -f1)
   file_esc=$(echo "$file" | sed "s/'/''/g")
@@ -68,7 +69,9 @@ find "$AGENTS_DIR/memory" -name "*.md" -type f | while read -r file; do
 
   if ! sqlite3 "$INDEX_DB" "$SQL_BATCH" 2>/dev/null; then
     echo "Warning: Failed to index $file" >&2
+  else
+    INDEX_COUNT=$((INDEX_COUNT + 1))
   fi
-done
+done < <(find "$AGENTS_DIR/memory" -name "*.md" -type f)
 
-echo "✓ Memory index updated"
+echo "✓ Memory index updated ($INDEX_COUNT files)"

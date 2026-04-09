@@ -34,9 +34,9 @@ run_memory_capture() {
       MEMORY_FILE="$MEMORY_DIR/${TASK_ID}-memory.json"
       if [ ! -f "$MEMORY_FILE" ]; then
         NOW_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-        cat > "$MEMORY_FILE" << MEMEOF
-{"task_id":"$TASK_ID","title":"$TITLE","version":1,"created_at":"$NOW_ISO","last_updated":"$NOW_ISO","stages":{}}
-MEMEOF
+        jq -n --arg tid "$TASK_ID" --arg title "$TITLE" --arg ts "$NOW_ISO" \
+          '{task_id:$tid,title:$title,version:1,created_at:$ts,last_updated:$ts,stages:{}}' \
+          > "$MEMORY_FILE"
       fi
 
       echo "🧠 [Auto-Capture] Task $TASK_ID status changed: $OLD_STATUS → $NEW_STATUS. Please save memory snapshot to .agents/memory/${TASK_ID}-memory.json (summary, decisions, files_modified, handoff_notes)."

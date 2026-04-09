@@ -46,14 +46,14 @@ fi
 if [ -n "$MODEL" ]; then
   MSG="📌 Agent ${AGENT} configured model: ${MODEL}. Use /model ${MODEL} to switch."
   [ -n "$DOC_MSG" ] && MSG="${MSG} ${DOC_MSG}"
-  echo "{\"status\": \"ok\", \"message\": \"${MSG}\"}"
+  jq -n --arg msg "$MSG" '{status:"ok",message:$msg}'
 elif [ -n "$MODEL_HINT" ]; then
   MSG="💡 Agent ${AGENT} model hint: ${MODEL_HINT}"
   [ -n "$DOC_MSG" ] && MSG="${MSG} ${DOC_MSG}"
-  echo "{\"status\": \"ok\", \"message\": \"${MSG}\"}"
+  jq -n --arg msg "$MSG" '{status:"ok",message:$msg}'
 else
   if [ -n "$DOC_MSG" ]; then
-    echo "{\"status\": \"ok\", \"message\": \"${DOC_MSG}\"}"
+    jq -n --arg msg "$DOC_MSG" '{status:"ok",message:$msg}'
   else
     echo '{"status": "ok"}'
   fi

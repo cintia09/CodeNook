@@ -7,6 +7,9 @@ set -euo pipefail
 EVENT="${1:?Usage: webhook-handler.sh <event_type> [payload_json]}"
 PAYLOAD="${2:-{}}"
 
+# Validate CWD has agent framework
+[ -d ".agents/runtime" ] || { echo "Error: .agents/runtime not found in $(pwd). Run from project root."; exit 1; }
+
 log_event() {
   if [ -f ".agents/events.db" ]; then
     local detail_esc
