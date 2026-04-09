@@ -6,6 +6,9 @@ CWD=$(echo "$INPUT" | jq -r '.cwd // "."')
 AGENTS_DIR="$CWD/.agents"
 
 AGENT=$(cat "$AGENTS_DIR/runtime/active-agent" 2>/dev/null || echo "unknown")
+if [ "$AGENT" = "unknown" ]; then
+  echo '{"status": "skipped", "reason": "no active agent"}' && exit 0
+fi
 DATE=$(date +%Y-%m-%d)
 DIARY_DIR="$AGENTS_DIR/memory/$AGENT/diary"
 

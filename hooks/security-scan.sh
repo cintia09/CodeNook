@@ -14,7 +14,8 @@ case "$TOOL_NAME" in
   bash)
     CMD=$(echo "$TOOL_ARGS" | jq -r '.command // empty' 2>/dev/null)
     if echo "$CMD" | grep -qE '(git\s+(commit|push)|git\s+.*\s+(commit|push))'; then
-      STAGED_FILES=$(cd "$CWD" && git diff --cached --name-only 2>/dev/null)
+      [ -d "$CWD" ] || exit 0
+      STAGED_FILES=$(cd "$CWD" && git diff --cached --name-only 2>/dev/null) || exit 0
       if [ -n "$STAGED_FILES" ]; then
         SECRETS_FOUND=""
         while IFS= read -r f; do
@@ -26,7 +27,7 @@ case "$TOOL_NAME" in
           fi
 
           # Passwords/secrets in key=value assignments
-          if grep -qiE '(password|passwd|secret|token|api_key)\s*[:=]\s*["\x27][^\s"'\'']{8,}' "$CWD/$f" 2>/dev/null; then
+          if grep -qiE '(password|passwd|secret|token|api_key)\s*[:=]\s*["'"'"'"][^\s"'"'"'"]{8,}' "$CWD/$f" 2>/dev/null; then
             SECRETS_FOUND="$SECRETS_FOUND\n  ⚠️ $f: possible password/secret"
           fi
 

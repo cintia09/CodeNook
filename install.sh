@@ -4,7 +4,7 @@ set -euo pipefail
 # Multi-Agent Framework Installer
 # Usage: curl -sL https://raw.githubusercontent.com/cintia09/multi-agent-framework/main/install.sh | bash
 
-VERSION="3.0.16"
+VERSION="3.0.17"
 REPO="https://github.com/cintia09/multi-agent-framework.git"
 TMP_DIR="/tmp/multi-agent-framework"
 CLAUDE_DIR="${HOME}/.claude"
@@ -116,6 +116,12 @@ install() {
         local TARBALL_URL="https://github.com/cintia09/multi-agent-framework/archive/refs/heads/main.tar.gz"
         if curl -sL --connect-timeout 10 --max-time 60 "$TARBALL_URL" | tar xz -C /tmp 2>/dev/null; then
             mv /tmp/multi-agent-framework-main "$TMP_DIR" 2>/dev/null && success=true
+            # Basic integrity: ensure key files exist
+            if [ "$success" = true ] && [ ! -f "$TMP_DIR/install.sh" ] || [ ! -d "$TMP_DIR/skills" ]; then
+                warn "Download may be corrupted (missing key files)"
+                success=false
+                rm -rf "$TMP_DIR"
+            fi
         fi
         # Method 2: Fallback to git clone with retry
         if [ "$success" = false ]; then
@@ -238,8 +244,10 @@ install() {
             # Rules → copilot-instructions.md
             if ! grep -q "## Agent Collaboration Rules" "${COPILOT_DIR}/copilot-instructions.md" 2>/dev/null; then
                 mkdir -p "${COPILOT_DIR}"
-                echo "" >> "${COPILOT_DIR}/copilot-instructions.md"
-                cat "${TMP_DIR}/docs/agent-rules.md" >> "${COPILOT_DIR}/copilot-instructions.md"
+                if ! { echo "" >> "${COPILOT_DIR}/copilot-instructions.md" && \
+                       cat "${TMP_DIR}/docs/agent-rules.md" >> "${COPILOT_DIR}/copilot-instructions.md"; }; then
+                    warn "Failed to append Copilot rules to copilot-instructions.md"
+                fi
             fi
             info "Copilot installation complete (agents + skills + hooks + rules)"
         fi

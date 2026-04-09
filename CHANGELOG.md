@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.17] - 2026-04-09
+
+### 🐛 Deep Audit Round 2 (20 issues fixed)
+
+**Security & Robustness:**
+- **CWD extraction** in `agent-before-task-create.sh` — duplicate check now works from any directory
+- **Lock release safety** — jq/mv failures no longer leave stale tmp files
+- **grep pattern portability** in `security-scan.sh` — single-quote matching works across all grep implementations
+- **CWD validation** in `security-scan.sh` — graceful exit if directory invalid
+- **Download integrity** in `install.sh` — verify key files exist after tarball extraction
+- **Copilot rules write check** — warn if append to copilot-instructions.md fails
+
+**Cross-Platform Compatibility:**
+- **Portable sed** in `config.sh` — `_sed_i()` helper detects macOS vs Linux (fixes `sed -i ''` failure on Linux/CI)
+- **Portable date parsing** in `agent-staleness-check.sh` — replaced python3 fallback with perl `Time::Piece` (faster, no timeout risk)
+
+**FSM Logic & Safety:**
+- **Simple mode feedback loop protection** — `reviewing→implementing`, `testing→fixing`, `accept_fail→designing` now capped at 10 loops
+- **Convergence gate event logging** — gate failures now logged to events.db (audit trail)
+- **Unblock warnings** — tasks unblocked without `blocked_from` record get visible warning
+
+**Memory & State:**
+- **Memory directory creation check** — explicit error if `mkdir -p` fails
+- **Compaction hook guard** — skip diary flush if no active agent found
+
+**Documentation:**
+- **README skill count** — badge updated 15→16, added `agent-config` to skills table
+- **Section anchor** — `#15-个-skills` → `#16-个-skills`
+
 ## [3.0.16] - 2026-04-09
 
 ### 🐛 Critical Bug Fixes (Security & Reliability Audit)

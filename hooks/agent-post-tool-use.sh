@@ -88,13 +88,13 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
         TARGET_INBOX="$AGENTS_DIR/runtime/$TARGET/inbox.json"
         [ -f "$TARGET_INBOX" ] || continue
 
-        # Duplicate prevention: skip if message for same task+status already exists
-        EXISTING=$(jq --arg tid "$TASK_ID" --arg status "$STATUS" \
-          '[.messages[] | select(.task_id == $tid and (.content | contains($status)))] | length' \
+        # Duplicate prevention: skip if message with same ID already exists
+        MSG_ID="MSG-auto-${TASK_ID}-${STATUS}"
+        EXISTING=$(jq --arg mid "$MSG_ID" \
+          '[.messages[] | select(.id == $mid)] | length' \
           "$TARGET_INBOX" 2>/dev/null || echo 0)
         [ "$EXISTING" -gt 0 ] && continue
 
-        MSG_ID="MSG-auto-${TASK_ID}-${STATUS}"
         NOW_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
         # Atomic write with portable directory-based locking (works on macOS + Linux)
@@ -105,11 +105,15 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
           LOCK_WAIT=$((LOCK_WAIT + 1))
           [ "$LOCK_WAIT" -ge 50 ] && break  # 5 second timeout
         done
-        jq --arg id "$MSG_ID" --arg from "$ACTIVE_AGENT" --arg to "$TARGET" \
+        if jq --arg id "$MSG_ID" --arg from "$ACTIVE_AGENT" --arg to "$TARGET" \
            --arg tid "$TASK_ID" --arg status "$STATUS" --arg title "$TITLE" \
            --arg ts "$NOW_ISO" \
            '.messages += [{"id":$id,"from":$from,"to":$to,"type":"task_update","task_id":$tid,"content":"Task \($tid) [\($title)] status changed to \($status). Please process.","timestamp":$ts,"read":false}]' \
-           "$TARGET_INBOX" > "${TARGET_INBOX}.tmp" && mv "${TARGET_INBOX}.tmp" "$TARGET_INBOX"
+           "$TARGET_INBOX" > "${TARGET_INBOX}.tmp" && mv "${TARGET_INBOX}.tmp" "$TARGET_INBOX"; then
+          : # success
+        else
+          rm -f "${TARGET_INBOX}.tmp"
+        fi
         rmdir "$LOCK_DIR" 2>/dev/null || true
 
         TARGET_ESC=$(sql_escape "$TARGET")
@@ -182,7 +186,8 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
               if [ -n "$BLOCKED_FROM" ] && [ "$BLOCKED_FROM" != "null" ]; then
                 [ "$NEW_STATUS_SQL" = "$BLOCKED_FROM" ] && LEGAL=true
               else
-                LEGAL=true  # no blocked_from recorded, allow any unblock
+                echo "⚠️ [FSM] Task $TASK_ID unblocked without blocked_from record. Set blocked_from when blocking."
+                LEGAL=true
               fi
               ;;
           esac
@@ -211,6 +216,7 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
             CI_STATUS=$(echo "$TASK_BOARD_CACHE" | jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .parallel_tracks.ci_monitoring // "pending"' 2>/dev/null || echo "pending")
             if [ "$IMPL_STATUS" != "complete" ] || [ "$TEST_STATUS" != "complete" ] || [ "$REVIEW_STATUS" != "complete" ] || [ "$CI_STATUS" != "green" ]; then
               echo "⛔ [FSM] CONVERGENCE GATE: Task $TASK_ID cannot enter device_baseline. Parallel tracks not converged (impl=$IMPL_STATUS, test=$TEST_STATUS, review=$REVIEW_STATUS, ci=$CI_STATUS)."
+              sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'convergence_gate_block', '$ACTIVE_AGENT', '$TASK_ID_SQL', '{\"impl\":\"$IMPL_STATUS\",\"test\":\"$TEST_STATUS\",\"review\":\"$REVIEW_STATUS\",\"ci\":\"$CI_STATUS\"}');" 2>/dev/null || true
               LEGAL=false
             fi
           fi
@@ -235,10 +241,25 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
               if [ -n "$BLOCKED_FROM" ] && [ "$BLOCKED_FROM" != "null" ]; then
                 [ "$NEW_STATUS_SQL" = "$BLOCKED_FROM" ] && LEGAL=true
               else
-                LEGAL=true  # no blocked_from recorded, allow any unblock
+                echo "⚠️ [FSM] Task $TASK_ID unblocked without blocked_from record. Set blocked_from when blocking."
+                LEGAL=true
               fi
               ;;
           esac
+
+          # Feedback loop safety check for simple mode
+          if [ "$LEGAL" = true ]; then
+            case "${OLD_STATUS}→${NEW_STATUS}" in
+              "reviewing→implementing"|"testing→fixing"|"accept_fail→designing")
+                FEEDBACK_COUNT=$(echo "$TASK_BOARD_CACHE" | jq -r --arg tid "$TASK_ID" '.tasks[] | select(.id == $tid) | .feedback_loops // 0' 2>/dev/null || echo 0)
+                if [ "$FEEDBACK_COUNT" -ge 10 ]; then
+                  echo "⛔ [FSM] FEEDBACK SAFETY LIMIT: Task $TASK_ID has reached 10 feedback loops. Transition $OLD_STATUS → $NEW_STATUS blocked."
+                  sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'fsm_feedback_limit', '$ACTIVE_AGENT', '$TASK_ID_SQL', '{\"from\":\"$OLD_STATUS_SQL\",\"to\":\"$NEW_STATUS_SQL\",\"loops\":$FEEDBACK_COUNT}');" 2>/dev/null || true
+                  LEGAL=false
+                fi
+                ;;
+            esac
+          fi
         fi
 
         # === Goal Guard: block acceptance if goals not all verified ===
@@ -283,7 +304,9 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
 
             # Create memory directory if needed
             MEMORY_DIR="$AGENTS_DIR/memory"
-            mkdir -p "$MEMORY_DIR"
+            if ! mkdir -p "$MEMORY_DIR" 2>/dev/null; then
+              echo "⚠️ [Memory] Failed to create $MEMORY_DIR" && continue
+            fi
 
             # Initialize memory file if it doesn't exist
             MEMORY_FILE="$MEMORY_DIR/${TASK_ID}-memory.json"

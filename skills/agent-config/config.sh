@@ -51,6 +51,15 @@ discover_agents() {
 }
 
 # ── YAML Field Read/Write ──────────────────────────────────────
+# Portable sed -i (macOS uses -i '', GNU uses -i)
+_sed_i() {
+    if [ "$(uname)" = "Darwin" ]; then
+        sed -i '' "$@"
+    else
+        sed -i "$@"
+    fi
+}
+
 get_field() {
     local file="$1" field="$2"
     if [ -f "$file" ]; then
@@ -62,9 +71,9 @@ set_field() {
     local file="$1" field="$2" value="$3"
     [ ! -f "$file" ] && return 1
     if grep -q "^${field}:" "$file"; then
-        sed -i '' "s|^${field}:.*|${field}: \"${value}\"|" "$file"
+        _sed_i "s|^${field}:.*|${field}: \"${value}\"|" "$file"
     else
-        sed -i '' "/^description:/a\\
+        _sed_i "/^description:/a\\
 ${field}: \"${value}\"" "$file"
     fi
 }
@@ -89,15 +98,15 @@ set_tools_field() {
     if [ -z "$tools_csv" ]; then
         # Remove tools field entirely (unrestricted)
         if grep -q '^tools:' "$file"; then
-            sed -i '' '/^tools:/d' "$file"
+            _sed_i '/^tools:/d' "$file"
         fi
         return 0
     fi
     yaml_array=$(echo "$tools_csv" | sed 's/,/", "/g; s/^/["/; s/$/"]/')
     if grep -q '^tools:' "$file"; then
-        sed -i '' "s|^tools:.*|tools: ${yaml_array}|" "$file"
+        _sed_i "s|^tools:.*|tools: ${yaml_array}|" "$file"
     else
-        sed -i '' "/^description:/a\\
+        _sed_i "/^description:/a\\
 tools: ${yaml_array}" "$file"
     fi
 }
