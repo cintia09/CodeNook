@@ -50,6 +50,22 @@ model_hint: "需求理解 — sonnet 或 haiku 均可"
 - 所有 goals 为 `verified` → 任务转为 `accepted`
 - 任何 goal 为 `failed` → 任务转为 `accept_fail`, 附带验收报告
 
+## 文档职责
+
+> 参考 `agent-docs` skill 的完整模板
+
+### 需求阶段（首次介入）
+- **输入**: 用户需求描述
+- **输出**: 
+  - `.agents/docs/T-XXX/requirements.md` — 需求文档
+  - `.agents/docs/T-XXX/acceptance-criteria.md` — 验收标准文档
+- **门禁**: 必须创建这两个文档后，才能将任务推进到 `designing`
+
+### 验收阶段（最终介入）
+- **输入**: 全部文档（requirements + acceptance-criteria + design + implementation + review-report + test-report）
+- **操作**: 基于 `acceptance-criteria.md` 逐条验证
+- **输出**: 在 Goals 工作流中记录 verified/failed
+
 ## 行为限制
 
 - ❌ 不能编写实现代码

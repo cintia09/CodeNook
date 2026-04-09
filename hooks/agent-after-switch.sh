@@ -26,11 +26,35 @@ for agents_dir in "${HOME}/.claude/agents" "${HOME}/.copilot/agents"; do
   fi
 done
 
-# Build response with model suggestion
+# Document pipeline: list available input documents for this agent
+DOC_MSG=""
+if [ -f "$AGENTS_DIR/task-board.json" ]; then
+  # Find current task for this agent
+  CURRENT_TASK=$(jq -r --arg agent "$AGENT" \
+    '[.tasks[] | select(.assigned_to == $agent and .status != "accepted" and .status != "blocked")] | first | .id // empty' \
+    "$AGENTS_DIR/task-board.json" 2>/dev/null)
+  if [ -n "$CURRENT_TASK" ]; then
+    DOCS_DIR="$AGENTS_DIR/docs/$CURRENT_TASK"
+    if [ -d "$DOCS_DIR" ]; then
+      DOC_LIST=$(ls "$DOCS_DIR"/*.md 2>/dev/null | xargs -I{} basename {} | tr '\n' ', ' | sed 's/,$//')
+      [ -n "$DOC_LIST" ] && DOC_MSG="📄 Task ${CURRENT_TASK} docs: ${DOC_LIST}. Read input docs before starting."
+    fi
+  fi
+fi
+
+# Build response with model suggestion + document info
 if [ -n "$MODEL" ]; then
-  echo "{\"status\": \"ok\", \"message\": \"📌 Agent ${AGENT} configured model: ${MODEL}. Use /model ${MODEL} to switch.\"}"
+  MSG="📌 Agent ${AGENT} configured model: ${MODEL}. Use /model ${MODEL} to switch."
+  [ -n "$DOC_MSG" ] && MSG="${MSG} ${DOC_MSG}"
+  echo "{\"status\": \"ok\", \"message\": \"${MSG}\"}"
 elif [ -n "$MODEL_HINT" ]; then
-  echo "{\"status\": \"ok\", \"message\": \"💡 Agent ${AGENT} model hint: ${MODEL_HINT}\"}"
+  MSG="💡 Agent ${AGENT} model hint: ${MODEL_HINT}"
+  [ -n "$DOC_MSG" ] && MSG="${MSG} ${DOC_MSG}"
+  echo "{\"status\": \"ok\", \"message\": \"${MSG}\"}"
 else
-  echo '{"status": "ok"}'
+  if [ -n "$DOC_MSG" ]; then
+    echo "{\"status\": \"ok\", \"message\": \"${DOC_MSG}\"}"
+  else
+    echo '{"status": "ok"}'
+  fi
 fi

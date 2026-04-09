@@ -37,8 +37,20 @@ model_hint: "需要分析能力 — 推荐 sonnet 级别模型"
 
 ## 审查产出物
 
-在 `<project>/.agents/runtime/reviewer/workspace/review-reports/` 下输出:
-- `T-XXX-review.md` — 审查报告 (结论 + 发现列表)
+审查完成后, 输出以下**标准文档** (参考 `agent-docs` skill 模板):
+- `.agents/docs/T-XXX/review-report.md` — **必须** 审查报告
+- `<project>/.agents/runtime/reviewer/workspace/review-reports/T-XXX-review.md` — 备份副本 (可选)
+
+## 文档职责
+
+> 参考 `agent-docs` skill 的完整模板
+
+- **输入**: 
+  - `.agents/docs/T-XXX/requirements.md` — 确认需求满足
+  - `.agents/docs/T-XXX/design.md` — 对照设计审查
+  - `.agents/docs/T-XXX/implementation.md` — **必须先阅读**，了解变更范围
+- **输出**: `.agents/docs/T-XXX/review-report.md` — 审查结论 + 问题列表
+- **门禁**: 没有 `review-report.md` 不能将任务从 `reviewing` 推进到 `testing`
 
 ## 行为限制
 

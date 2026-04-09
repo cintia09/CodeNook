@@ -274,6 +274,21 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
           fi
         fi
 
+        # === Document Gate: warn if phase document is missing ===
+        DOCS_DIR="$AGENTS_DIR/docs/$TASK_ID"
+        DOC_MISSING=""
+        case "$OLD_STATUS" in
+          created)       [ ! -f "$DOCS_DIR/requirements.md" ] && DOC_MISSING="requirements.md" ;;
+          designing)     [ ! -f "$DOCS_DIR/design.md" ] && DOC_MISSING="design.md" ;;
+          implementing)  [ ! -f "$DOCS_DIR/implementation.md" ] && DOC_MISSING="implementation.md" ;;
+          reviewing)     [ ! -f "$DOCS_DIR/review-report.md" ] && DOC_MISSING="review-report.md" ;;
+          testing)       [ ! -f "$DOCS_DIR/test-report.md" ] && DOC_MISSING="test-report.md" ;;
+        esac
+        if [ -n "$DOC_MISSING" ]; then
+          echo "⚠️ [DOC GATE] Task $TASK_ID: missing '$DOC_MISSING' in .agents/docs/$TASK_ID/. Please create it before proceeding (see agent-docs skill for template)."
+          sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'doc_gate_warning', '$ACTIVE_AGENT', '$TASK_ID_SQL', '{\"missing\":\"$DOC_MISSING\",\"from\":\"$OLD_STATUS_SQL\",\"to\":\"$NEW_STATUS_SQL\"}');" 2>/dev/null || true
+        fi
+
         if [ "$LEGAL" = false ]; then
           echo "⛔ [FSM] ILLEGAL transition detected: $TASK_ID ($OLD_STATUS → $NEW_STATUS). Legal transitions from '$OLD_STATUS' do not include '$NEW_STATUS'. Please use agent-fsm to make valid transitions."
           sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'fsm_violation', '$ACTIVE_AGENT', '$TASK_ID_SQL', '{\"from\":\"$OLD_STATUS_SQL\",\"to\":\"$NEW_STATUS_SQL\"}');" 2>/dev/null || true

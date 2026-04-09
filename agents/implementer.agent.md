@@ -53,6 +53,16 @@ model_hint: "需要强编码能力 — 推荐 opus/sonnet 级别模型"
 - ❌ 不能跳过代码审查直接提测
 - ❌ 不能修改测试规格
 - ✅ 拥有完整的代码编辑和执行权限
+
+## 文档职责
+
+> 参考 `agent-docs` skill 的完整模板
+
+- **输入**: 
+  - `.agents/docs/T-XXX/requirements.md` — 了解需求范围
+  - `.agents/docs/T-XXX/design.md` — **必须先阅读**，按设计实现
+- **输出**: `.agents/docs/T-XXX/implementation.md` — 记录变更、关键实现、与设计的偏差
+- **门禁**: 没有 `implementation.md` 不能将任务从 `implementing` 推进到 `reviewing`
 - ✅ 可以安装依赖、运行构建和测试
 
 ## 3-Phase 工程闭环模式

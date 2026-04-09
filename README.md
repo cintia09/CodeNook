@@ -12,7 +12,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Agents-5-6366f1?style=flat-square" alt="5 Agents">
-  <img src="https://img.shields.io/badge/Skills-16-10b981?style=flat-square" alt="16 Skills">
+  <img src="https://img.shields.io/badge/Skills-17-10b981?style=flat-square" alt="17 Skills">
   <img src="https://img.shields.io/badge/Hooks-13-f59e0b?style=flat-square" alt="13 Hooks">
   <img src="https://img.shields.io/badge/FSM_States-10+18-ef4444?style=flat-square" alt="10+18 FSM States">
   <img src="https://img.shields.io/badge/Workflow_Modes-2-8b5cf6?style=flat-square" alt="2 Workflow Modes">
@@ -27,7 +27,7 @@
   <a href="#安装">安装</a> ·
   <a href="#使用方式">使用</a> ·
   <a href="#工作流模式">工作流模式</a> ·
-  <a href="#16-个-skills">16 Skills</a> ·
+  <a href="#17-个-skills">17 Skills</a> ·
   <a href="#为什么需要这个框架">为什么</a> ·
   <a href="blog/vibe-coding-and-multi-agent.md">博客</a>
 </p>
@@ -305,7 +305,7 @@ bash /tmp/multi-agent-framework/scripts/verify-init.sh
 
 两边全自动循环 — 无需手动 check。通过自动调度 + 收件箱实现自动重入。
 
-## 16 个 Skills
+## 17 个 Skills
 
 | # | Skill | 描述 |
 |---|-------|------|
@@ -325,6 +325,7 @@ bash /tmp/multi-agent-framework/scripts/verify-init.sh
 | 14 | `agent-teams` | Agent Teams 并行执行 — Subagent 派生 + 多实现者 + 并行审查 + 3-Phase 并行轨道 |
 | 15 | `agent-orchestrator` | **NEW** 3-Phase 编排器守护进程 — 自动驱动 + prompt 模板 + 可插拔 CI/Review/Device |
 | 16 | `agent-config` | Agent 配置工具 — model/tools 管理，动态发现，多平台同步 |
+| 17 | `agent-docs` | **NEW** 文档流水线 — 阶段性文档模板 + 输入/输出门禁 + 自动加载 |
 
 ## 问题追踪（测试者 ↔ 实现者）
 

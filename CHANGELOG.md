@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.18] - 2026-04-09
+
+### 📄 New Feature: Document Pipeline (`agent-docs` skill)
+
+**Core concept**: Each SDLC phase must produce standardized documents that serve as inputs to the next phase.
+
+**Document flow matrix**:
+| Phase | Agent | Input | Output |
+|-------|-------|-------|--------|
+| Requirements | Acceptor | user request | `requirements.md` + `acceptance-criteria.md` |
+| Design | Designer | requirements.md | `design.md` |
+| Implementation | Implementer | requirements + design | `implementation.md` |
+| Review | Reviewer | requirements + design + implementation | `review-report.md` |
+| Testing | Tester | requirements + design + implementation | `test-report.md` |
+| Acceptance | Acceptor | acceptance-criteria + all docs | Accept/Reject |
+
+**What's included**:
+- New `agent-docs` skill with 6 document templates (requirements, acceptance-criteria, design, implementation, review-report, test-report)
+- Storage convention: `.agents/docs/T-XXX/` per task
+- FSM document gate: warns when transitioning without required output document
+- After-switch hook: lists available input documents for the current task
+- All 5 agent profiles updated with explicit document input/output requirements
+- 3-Phase mode document mapping included
+
 ## [3.0.17] - 2026-04-09
 
 ### 🐛 Deep Audit Round 2 (20 issues fixed)

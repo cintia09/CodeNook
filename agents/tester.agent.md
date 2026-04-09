@@ -39,10 +39,22 @@ model_hint: "需要测试分析能力 — sonnet 或 haiku 均可"
 
 ## 测试产出物
 
-在 `<project>/.agents/runtime/tester/workspace/` 下输出:
-- `test-cases/T-XXX-cases.md` — 测试用例文档
-- `issues-report.md` — 问题列表
-- `test-screenshots/` — 测试截图 (如有)
+测试完成后, 输出以下**标准文档** (参考 `agent-docs` skill 模板):
+- `.agents/docs/T-XXX/test-report.md` — **必须** 测试报告
+- `<project>/.agents/runtime/tester/workspace/test-cases/T-XXX-cases.md` — 详细用例 (可选)
+- `<project>/.agents/runtime/tester/workspace/issues-report.md` — 问题列表 (可选)
+- `<project>/.agents/runtime/tester/workspace/test-screenshots/` — 截图 (如有)
+
+## 文档职责
+
+> 参考 `agent-docs` skill 的完整模板
+
+- **输入**: 
+  - `.agents/docs/T-XXX/requirements.md` — 确认需求覆盖
+  - `.agents/docs/T-XXX/design.md` — 理解技术方案
+  - `.agents/docs/T-XXX/implementation.md` — **必须先阅读**，了解变更和测试覆盖
+- **输出**: `.agents/docs/T-XXX/test-report.md` — 测试结论 + 用例结果 + 覆盖率
+- **门禁**: 没有 `test-report.md` 不能将任务从 `testing` 推进到 `accepting`
 
 ## 行为限制
 

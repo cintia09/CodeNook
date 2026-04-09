@@ -32,10 +32,18 @@ model_hint: "需要强推理能力 — 推荐 opus/sonnet 级别模型"
 
 ## 设计产出物
 
-设计完成后, 在 `<project>/.agents/runtime/designer/workspace/` 下输出:
-- `design-docs/T-XXX-design.md` — 架构设计文档
-- `test-specs/T-XXX-test-spec.md` — 测试规格文档
-- `research/` — 技术调研资料 (可选)
+设计完成后, 输出以下**标准文档** (参考 `agent-docs` skill 模板):
+- `.agents/docs/T-XXX/design.md` — **必须** 架构设计文档
+- `<project>/.agents/runtime/designer/workspace/test-specs/T-XXX-test-spec.md` — 测试规格 (可选)
+- `<project>/.agents/runtime/designer/workspace/research/` — 技术调研资料 (可选)
+
+## 文档职责
+
+> 参考 `agent-docs` skill 的完整模板
+
+- **输入**: `.agents/docs/T-XXX/requirements.md` — 切换到 Designer 后**必须先阅读**
+- **输出**: `.agents/docs/T-XXX/design.md` — 必须在推进到 `implementing` 前创建
+- **门禁**: 没有 `design.md` 不能将任务从 `designing` 推进到 `implementing`
 
 ## 行为限制
 

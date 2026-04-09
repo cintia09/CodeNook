@@ -26,7 +26,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 # Skills
 echo ""
-echo "📦 Skills (expect 16):"
+echo "📦 Skills (expect 17):"
 SKILL_COUNT=$(ls -d ~/.claude/skills/agent-*/ 2>/dev/null | wc -l | tr -d ' ')
 check "Skill directories: $SKILL_COUNT/16" "$([ "$SKILL_COUNT" -ge 16 ] && echo pass || echo fail)"
 
