@@ -2,61 +2,100 @@
 set -euo pipefail
 
 # Multi-Agent Framework — Agent Configuration Helper
+# Supports model and tools configuration across all platforms.
+#
 # Usage:
-#   config.sh list                    — Show all agent model settings
-#   config.sh get <agent>             — Show model for specific agent
-#   config.sh set <agent> <model>     — Set model for an agent
-#   config.sh reset <agent>           — Reset model to empty (use system default)
-#   config.sh set-all <model>         — Set model for all agents
-#   config.sh reset-all               — Reset all agents to system default
-#   config.sh platforms               — Show detected platforms
+#   config.sh list                           — Show all agent config (model + tools)
+#   config.sh get <agent>                    — Show full config for one agent
+#   config.sh model set <agent> <model>      — Set model for an agent
+#   config.sh model set-all <model>          — Set model for all agents
+#   config.sh model reset <agent>            — Reset model to system default
+#   config.sh model reset-all               — Reset all models
+#   config.sh tools get <agent>              — Show tools for an agent
+#   config.sh tools set <agent> <t1,t2,...>  — Set tools (comma-separated)
+#   config.sh tools add <agent> <tool>       — Add a tool to agent
+#   config.sh tools rm <agent> <tool>        — Remove a tool from agent
+#   config.sh tools reset <agent>            — Remove tools restriction (all tools)
+#   config.sh platforms                      — Show detected platforms
 
 AGENTS=(acceptor designer implementer reviewer tester)
 
-# Detect all platform agent directories
+# ── Platform Detection ──────────────────────────────────────────
 detect_dirs() {
     local dirs=()
     [ -d "${HOME}/.claude/agents" ] && dirs+=("${HOME}/.claude/agents")
     [ -d "${HOME}/.copilot/agents" ] && dirs+=("${HOME}/.copilot/agents")
-    # Project-level agents
     [ -d ".agents" ] && dirs+=(".agents")
     [ -d ".github/agents" ] && dirs+=(".github/agents")
     echo "${dirs[@]}"
 }
 
-get_model() {
-    local file="$1"
+# ── YAML Field Read/Write ──────────────────────────────────────
+get_field() {
+    local file="$1" field="$2"
     if [ -f "$file" ]; then
-        # Extract model from YAML frontmatter
-        sed -n '/^---$/,/^---$/p' "$file" | grep '^model:' | head -1 | sed 's/^model: *//; s/^"//; s/"$//'
+        sed -n '/^---$/,/^---$/p' "$file" | grep "^${field}:" | head -1 | sed "s/^${field}: *//; s/^\"//; s/\"$//"
     fi
 }
 
-get_hint() {
-    local file="$1"
-    if [ -f "$file" ]; then
-        sed -n '/^---$/,/^---$/p' "$file" | grep '^model_hint:' | head -1 | sed 's/^model_hint: *//; s/^"//; s/"$//'
-    fi
-}
-
-set_model() {
-    local file="$1" model="$2"
-    if [ ! -f "$file" ]; then
-        echo "  ⚠ File not found: $file"
-        return 1
-    fi
-    # Use sed to replace model line in YAML frontmatter
-    if grep -q '^model:' "$file"; then
-        sed -i '' "s|^model:.*|model: \"${model}\"|" "$file"
+set_field() {
+    local file="$1" field="$2" value="$3"
+    [ ! -f "$file" ] && return 1
+    if grep -q "^${field}:" "$file"; then
+        sed -i '' "s|^${field}:.*|${field}: \"${value}\"|" "$file"
     else
-        # Insert model field after description line
         sed -i '' "/^description:/a\\
-model: \"${model}\"" "$file"
+${field}: \"${value}\"" "$file"
     fi
 }
 
+# ── Tools Field (YAML array) ──────────────────────────────────
+get_tools() {
+    local file="$1"
+    if [ -f "$file" ]; then
+        local line
+        line=$(sed -n '/^---$/,/^---$/p' "$file" | grep '^tools:' | head -1)
+        if [ -n "$line" ]; then
+            echo "$line" | sed 's/^tools: *//; s/\[//; s/\]//; s/"//g; s/ *, */,/g'
+        fi
+    fi
+}
+
+set_tools_field() {
+    local file="$1" tools_csv="$2"
+    [ ! -f "$file" ] && return 1
+    # Convert csv to YAML array: tool1,tool2 → ["tool1", "tool2"]
+    local yaml_array
+    if [ -z "$tools_csv" ]; then
+        # Remove tools field entirely (unrestricted)
+        if grep -q '^tools:' "$file"; then
+            sed -i '' '/^tools:/d' "$file"
+        fi
+        return 0
+    fi
+    yaml_array=$(echo "$tools_csv" | sed 's/,/", "/g; s/^/["/; s/$/"]/')
+    if grep -q '^tools:' "$file"; then
+        sed -i '' "s|^tools:.*|tools: ${yaml_array}|" "$file"
+    else
+        sed -i '' "/^description:/a\\
+tools: ${yaml_array}" "$file"
+    fi
+}
+
+# ── Validation ──────────────────────────────────────────────────
+validate_agent() {
+    local agent="$1"
+    for a in "${AGENTS[@]}"; do
+        [ "$a" = "$agent" ] && return 0
+    done
+    echo "❌ Unknown agent: ${agent}"
+    echo "   Valid agents: ${AGENTS[*]}"
+    exit 1
+}
+
+# ── Commands ────────────────────────────────────────────────────
 cmd_list() {
-    echo "📋 Agent Model Configuration"
+    echo "📋 Agent Configuration"
     echo ""
     local dirs
     read -ra dirs <<< "$(detect_dirs)"
@@ -65,14 +104,21 @@ cmd_list() {
         for agent in "${AGENTS[@]}"; do
             local file="${dir}/${agent}.agent.md"
             if [ -f "$file" ]; then
-                local model=$(get_model "$file")
-                local hint=$(get_hint "$file")
+                local model hint tools
+                model=$(get_field "$file" "model")
+                hint=$(get_field "$file" "model_hint")
+                tools=$(get_tools "$file")
+                printf "    %-14s" "$agent"
                 if [ -n "$model" ]; then
-                    printf "    %-14s → %s" "$agent" "$model"
+                    printf "model=%-20s" "$model"
                 else
-                    printf "    %-14s → (system default)" "$agent"
+                    printf "model=%-20s" "(default)"
                 fi
-                [ -n "$hint" ] && printf "  [%s]" "$hint"
+                if [ -n "$tools" ]; then
+                    printf "tools=[%s]" "$tools"
+                else
+                    printf "tools=(all)"
+                fi
                 echo ""
             fi
         done
@@ -87,75 +133,184 @@ cmd_get() {
     for dir in "${dirs[@]}"; do
         local file="${dir}/${agent}.agent.md"
         if [ -f "$file" ]; then
-            local model=$(get_model "$file")
-            local hint=$(get_hint "$file")
-            echo "${dir}: model=${model:-<empty>} hint=${hint:-<none>}"
+            local model hint tools desc
+            model=$(get_field "$file" "model")
+            hint=$(get_field "$file" "model_hint")
+            tools=$(get_tools "$file")
+            desc=$(get_field "$file" "description")
+            echo "📁 ${dir}/${agent}.agent.md"
+            echo "  description: ${desc:-<none>}"
+            echo "  model:       ${model:-<default>}"
+            echo "  model_hint:  ${hint:-<none>}"
+            echo "  tools:       ${tools:-<all>}"
+            echo ""
         fi
     done
 }
 
-cmd_set() {
+cmd_model_set() {
     local agent="$1" model="$2"
     local dirs
     read -ra dirs <<< "$(detect_dirs)"
     for dir in "${dirs[@]}"; do
         local file="${dir}/${agent}.agent.md"
         if [ -f "$file" ]; then
-            set_model "$file" "$model"
-            echo "  ✓ ${dir}/${agent}.agent.md → model: \"${model}\""
+            set_field "$file" "model" "$model"
+            echo "  ✓ ${dir}/${agent} → model: \"${model}\""
         fi
     done
 }
 
-cmd_reset() {
+cmd_model_reset() {
+    local agent="$1"
+    cmd_model_set "$agent" ""
+}
+
+cmd_model_set_all() {
+    local model="$1"
+    echo "Setting all agents model → ${model}"
+    for agent in "${AGENTS[@]}"; do
+        cmd_model_set "$agent" "$model"
+    done
+}
+
+cmd_model_reset_all() {
+    echo "Resetting all agents to system default model"
+    for agent in "${AGENTS[@]}"; do
+        cmd_model_set "$agent" ""
+    done
+}
+
+cmd_tools_get() {
     local agent="$1"
     local dirs
     read -ra dirs <<< "$(detect_dirs)"
     for dir in "${dirs[@]}"; do
         local file="${dir}/${agent}.agent.md"
         if [ -f "$file" ]; then
-            set_model "$file" ""
-            echo "  ✓ ${dir}/${agent}.agent.md → model: \"\" (system default)"
+            local tools
+            tools=$(get_tools "$file")
+            echo "${dir}/${agent}: tools=${tools:-<all (unrestricted)>}"
         fi
     done
 }
 
-cmd_set_all() {
-    local model="$1"
-    echo "Setting all agents to model: ${model}"
-    for agent in "${AGENTS[@]}"; do
-        cmd_set "$agent" "$model"
+cmd_tools_set() {
+    local agent="$1" tools_csv="$2"
+    local dirs
+    read -ra dirs <<< "$(detect_dirs)"
+    for dir in "${dirs[@]}"; do
+        local file="${dir}/${agent}.agent.md"
+        if [ -f "$file" ]; then
+            set_tools_field "$file" "$tools_csv"
+            echo "  ✓ ${dir}/${agent} → tools: [${tools_csv}]"
+        fi
     done
 }
 
-cmd_reset_all() {
-    echo "Resetting all agents to system default"
-    for agent in "${AGENTS[@]}"; do
-        cmd_reset "$agent"
+cmd_tools_add() {
+    local agent="$1" tool="$2"
+    local dirs
+    read -ra dirs <<< "$(detect_dirs)"
+    for dir in "${dirs[@]}"; do
+        local file="${dir}/${agent}.agent.md"
+        if [ -f "$file" ]; then
+            local current
+            current=$(get_tools "$file")
+            if [ -z "$current" ]; then
+                set_tools_field "$file" "$tool"
+            elif echo ",$current," | grep -q ",$tool,"; then
+                echo "  ⚠ ${dir}/${agent}: tool '${tool}' already present"
+                continue
+            else
+                set_tools_field "$file" "${current},${tool}"
+            fi
+            echo "  ✓ ${dir}/${agent} → added tool: ${tool}"
+        fi
+    done
+}
+
+cmd_tools_rm() {
+    local agent="$1" tool="$2"
+    local dirs
+    read -ra dirs <<< "$(detect_dirs)"
+    for dir in "${dirs[@]}"; do
+        local file="${dir}/${agent}.agent.md"
+        if [ -f "$file" ]; then
+            local current new_tools
+            current=$(get_tools "$file")
+            if [ -z "$current" ]; then
+                echo "  ⚠ ${dir}/${agent}: no tools restriction set"
+                continue
+            fi
+            # Remove tool from csv
+            new_tools=$(echo "$current" | sed "s/^${tool},//; s/,${tool},/,/; s/,${tool}$//; s/^${tool}$//")
+            if [ "$new_tools" = "$current" ]; then
+                echo "  ⚠ ${dir}/${agent}: tool '${tool}' not found"
+                continue
+            fi
+            set_tools_field "$file" "$new_tools"
+            echo "  ✓ ${dir}/${agent} → removed tool: ${tool}"
+        fi
+    done
+}
+
+cmd_tools_reset() {
+    local agent="$1"
+    local dirs
+    read -ra dirs <<< "$(detect_dirs)"
+    for dir in "${dirs[@]}"; do
+        local file="${dir}/${agent}.agent.md"
+        if [ -f "$file" ]; then
+            set_tools_field "$file" ""
+            echo "  ✓ ${dir}/${agent} → tools: (all — unrestricted)"
+        fi
     done
 }
 
 cmd_platforms() {
     echo "🔍 Detected platforms:"
-    [ -d "${HOME}/.claude/agents" ] && echo "  ✅ Claude Code  — ${HOME}/.claude/agents/ ($(ls "${HOME}/.claude/agents/"*.agent.md 2>/dev/null | wc -l | tr -d ' ') agents)"
-    [ -d "${HOME}/.copilot/agents" ] && echo "  ✅ Copilot CLI  — ${HOME}/.copilot/agents/ ($(ls "${HOME}/.copilot/agents/"*.agent.md 2>/dev/null | wc -l | tr -d ' ') agents)"
+    [ -d "${HOME}/.claude/agents" ] && echo "  ✅ Claude Code  — ${HOME}/.claude/agents/"
+    [ -d "${HOME}/.copilot/agents" ] && echo "  ✅ Copilot CLI  — ${HOME}/.copilot/agents/"
     [ -d ".agents" ] && echo "  ✅ Project      — .agents/"
     [ -d ".github/agents" ] && echo "  ✅ GitHub       — .github/agents/"
     true
 }
 
-# Validate agent name
-validate_agent() {
-    local agent="$1"
-    for a in "${AGENTS[@]}"; do
-        [ "$a" = "$agent" ] && return 0
-    done
-    echo "❌ Unknown agent: ${agent}"
-    echo "   Valid agents: ${AGENTS[*]}"
-    exit 1
+show_help() {
+    cat <<'EOF'
+Agent Configuration Helper — Multi-Agent Framework
+
+OVERVIEW:
+  config.sh list                           Show all agent config
+  config.sh get <agent>                    Show full config for one agent
+  config.sh platforms                      Show detected platforms
+
+MODEL:
+  config.sh model set <agent> <model>      Set model for an agent
+  config.sh model set-all <model>          Set model for all agents
+  config.sh model reset <agent>            Reset model to system default
+  config.sh model reset-all                Reset all models
+
+TOOLS (Copilot CLI native, guidance-only for Claude Code):
+  config.sh tools get <agent>              Show tools for an agent
+  config.sh tools set <agent> <t1,t2,...>  Set tools (comma-separated)
+  config.sh tools add <agent> <tool>       Add a tool to agent
+  config.sh tools rm <agent> <tool>        Remove a tool from agent
+  config.sh tools reset <agent>            Remove tools restriction
+
+BACKWARD COMPAT:
+  config.sh set <agent> <model>            Alias for: model set
+  config.sh reset <agent>                  Alias for: model reset
+  config.sh set-all <model>                Alias for: model set-all
+  config.sh reset-all                      Alias for: model reset-all
+
+Agents: acceptor designer implementer reviewer tester
+Changes apply to ALL detected platforms simultaneously.
+EOF
 }
 
-# Main
+# ── Main Router ─────────────────────────────────────────────────
 case "${1:-}" in
     list|ls)
         cmd_list
@@ -165,41 +320,87 @@ case "${1:-}" in
         validate_agent "$2"
         cmd_get "$2"
         ;;
+    model)
+        case "${2:-}" in
+            set)
+                [ -z "${3:-}" ] || [ -z "${4:-}" ] && echo "Usage: config.sh model set <agent> <model>" && exit 1
+                validate_agent "$3"
+                cmd_model_set "$3" "$4"
+                ;;
+            set-all)
+                [ -z "${3:-}" ] && echo "Usage: config.sh model set-all <model>" && exit 1
+                cmd_model_set_all "$3"
+                ;;
+            reset)
+                [ -z "${3:-}" ] && echo "Usage: config.sh model reset <agent>" && exit 1
+                validate_agent "$3"
+                cmd_model_reset "$3"
+                ;;
+            reset-all)
+                cmd_model_reset_all
+                ;;
+            *)
+                echo "Usage: config.sh model {set|set-all|reset|reset-all} ..."
+                exit 1
+                ;;
+        esac
+        ;;
+    tools)
+        case "${2:-}" in
+            get)
+                [ -z "${3:-}" ] && echo "Usage: config.sh tools get <agent>" && exit 1
+                validate_agent "$3"
+                cmd_tools_get "$3"
+                ;;
+            set)
+                [ -z "${3:-}" ] || [ -z "${4:-}" ] && echo "Usage: config.sh tools set <agent> <t1,t2,...>" && exit 1
+                validate_agent "$3"
+                cmd_tools_set "$3" "$4"
+                ;;
+            add)
+                [ -z "${3:-}" ] || [ -z "${4:-}" ] && echo "Usage: config.sh tools add <agent> <tool>" && exit 1
+                validate_agent "$3"
+                cmd_tools_add "$3" "$4"
+                ;;
+            rm|remove)
+                [ -z "${3:-}" ] || [ -z "${4:-}" ] && echo "Usage: config.sh tools rm <agent> <tool>" && exit 1
+                validate_agent "$3"
+                cmd_tools_rm "$3" "$4"
+                ;;
+            reset)
+                [ -z "${3:-}" ] && echo "Usage: config.sh tools reset <agent>" && exit 1
+                validate_agent "$3"
+                cmd_tools_reset "$3"
+                ;;
+            *)
+                echo "Usage: config.sh tools {get|set|add|rm|reset} ..."
+                exit 1
+                ;;
+        esac
+        ;;
+    # Backward-compatible aliases
     set)
         [ -z "${2:-}" ] || [ -z "${3:-}" ] && echo "Usage: config.sh set <agent> <model>" && exit 1
         validate_agent "$2"
-        cmd_set "$2" "$3"
+        cmd_model_set "$2" "$3"
         ;;
     reset)
         [ -z "${2:-}" ] && echo "Usage: config.sh reset <agent>" && exit 1
         validate_agent "$2"
-        cmd_reset "$2"
+        cmd_model_reset "$2"
         ;;
     set-all)
         [ -z "${2:-}" ] && echo "Usage: config.sh set-all <model>" && exit 1
-        cmd_set_all "$2"
+        cmd_model_set_all "$2"
         ;;
     reset-all)
-        cmd_reset_all
+        cmd_model_reset_all
         ;;
     platforms)
         cmd_platforms
         ;;
     -h|--help|help|"")
-        echo "Agent Configuration Helper"
-        echo ""
-        echo "Commands:"
-        echo "  list                  Show all agent model settings"
-        echo "  get <agent>           Show model for specific agent"
-        echo "  set <agent> <model>   Set model for an agent"
-        echo "  reset <agent>         Reset agent to system default"
-        echo "  set-all <model>       Set model for all agents"
-        echo "  reset-all             Reset all agents to system default"
-        echo "  platforms             Show detected platforms"
-        echo ""
-        echo "Agents: ${AGENTS[*]}"
-        echo ""
-        echo "Changes are applied to ALL detected platforms simultaneously."
+        show_help
         ;;
     *)
         echo "Unknown command: $1"
