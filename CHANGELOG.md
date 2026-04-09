@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.23] - 2026-04-09
+
+### 🔒 Security Audit Round 5 (16 issues fixed)
+
+**HIGH:**
+- `agent-post-tool-use.sh`: Fixed ACTIVE_AGENT double-escaping — raw value now stored, escaped only at SQL use sites (H1)
+- `agent-post-tool-use.sh`: All sqlite3 calls now have `2>/dev/null || true` to prevent hook crash on DB errors (H2)
+- `auto-dispatch.sh`: `created` status now routes to acceptor in 3-phase mode (was always designer) (H3)
+
+**MEDIUM:**
+- `fsm-validate.sh`: Added `design_review→test_scripting` transition (M1)
+- `agent-fsm/SKILL.md`: Fixed ci_monitoring/device_baseline agent assignment (implementer→tester) (M2)
+- `fsm-validate.sh`: Document gate now covers 3-phase states + acceptance-criteria.md (M3)
+- `agent-post-tool-use.sh`: Reordered modules — FSM validation runs BEFORE auto-dispatch (M4)
+- `memory-capture.sh`: Skips FSM-violated tasks to avoid capturing illegal transitions (M5)
+- `fsm-validate.sh`: Goal guard uses `$NEW_STATUS` instead of `$NEW_STATUS_SQL` for comparison (M6)
+- `install.sh`: Uses `mktemp -d` instead of predictable `/tmp/multi-agent-framework` path (M7)
+- `agent-pre-tool-use.sh`: grep pattern uses `(\s|$)` to catch commands at end of line (M8)
+
+**LOW:**
+- `test-3phase-fsm.sh`: Added trap for temp dir cleanup (L1)
+- `install.sh`: Split `local` declarations from assignments to avoid masking exit codes (L2)
+- `verify-install.sh`: Replaced python3 path-injection-prone JSON check with jq (L4)
+- `cron-scheduler.sh`: Resolved subprocess paths relative to script directory (L5)
+
 ## [3.0.22] - 2026-04-09
 
 ### 🔒 Security Audit Round 4 (22 issues fixed)

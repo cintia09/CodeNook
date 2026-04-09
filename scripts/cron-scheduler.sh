@@ -6,6 +6,8 @@ set -euo pipefail
 
 AGENTS_DIR=".agents"
 JOBS_FILE="$AGENTS_DIR/jobs.json"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 if [ ! -f "$JOBS_FILE" ]; then
   echo "⚠️ No jobs.json found. Creating default..."
@@ -62,9 +64,9 @@ for j in jobs['jobs']:
         continue
     action = j['action']
     if action == 'check-staleness':
-        subprocess.run(['bash', 'hooks/agent-staleness-check.sh'], capture_output=True)
+        subprocess.run(['bash', '$PROJECT_DIR/hooks/agent-staleness-check.sh'], capture_output=True)
     elif action == 'index-memory':
-        subprocess.run(['bash', 'scripts/memory-index.sh'], capture_output=True)
+        subprocess.run(['bash', '$PROJECT_DIR/scripts/memory-index.sh'], capture_output=True)
     elif action == 'generate-report':
         # Generate simple report
         board = json.load(open('.agents/task-board.json'))

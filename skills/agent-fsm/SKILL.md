@@ -137,9 +137,9 @@ For complex, safety-critical, or multi-team features, the 3-Phase workflow provi
 | 7 | 2: Implementation | `implementing` | Feature coding (Track A) | implementer |
 | 8 | 2: Implementation | `test_scripting` | Test automation scripting (Track B) | tester |
 | 9 | 2: Implementation | `code_reviewing` | Continuous code review (Track C) | reviewer |
-| 10 | 2: Implementation | `ci_monitoring` | CI pipeline monitoring | implementer |
+| 10 | 2: Implementation | `ci_monitoring` | CI pipeline monitoring | tester |
 | 11 | 2: Implementation | `ci_fixing` | CI failure resolution | implementer |
-| 12 | 2: Implementation | `device_baseline` | Device/environment baseline verification | implementer |
+| 12 | 2: Implementation | `device_baseline` | Device/environment baseline verification | tester |
 | 13 | 3: Testing | `deploying` | Deploy to test environment | implementer |
 | 14 | 3: Testing | `regression_testing` | Full regression test suite | tester |
 | 15 | 3: Testing | `feature_testing` | New feature-specific testing | tester |
@@ -263,9 +263,9 @@ In addition to the Simple FSM guard rules, 3-Phase mode enforces:
 | implementing | implementer | — |
 | test_scripting | tester | — |
 | code_reviewing | reviewer | — |
-| ci_monitoring | implementer | — |
+| ci_monitoring | tester | — |
 | ci_fixing | implementer | — |
-| device_baseline | implementer | — |
+| device_baseline | tester | — |
 | deploying | implementer | — |
 | regression_testing | tester | — |
 | feature_testing | tester | — |

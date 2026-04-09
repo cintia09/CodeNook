@@ -26,21 +26,22 @@ sql_escape() { echo "$1" | sed "s/'/''/g"; }
 
 ACTIVE_AGENT="none"
 ACTIVE_FILE="$AGENTS_DIR/runtime/active-agent"
-[ -f "$ACTIVE_FILE" ] && ACTIVE_AGENT=$(sql_escape "$(cat "$ACTIVE_FILE")")
+[ -f "$ACTIVE_FILE" ] && ACTIVE_AGENT=$(cat "$ACTIVE_FILE")
 
 # Escape all input variables
+ACTIVE_AGENT_ESC=$(sql_escape "$ACTIVE_AGENT")
 TOOL_NAME_ESC=$(sql_escape "$TOOL_NAME")
 RESULT_TYPE_ESC=$(sql_escape "$RESULT_TYPE")
 TOOL_ARGS_SAFE=$(echo "$TOOL_ARGS" | head -c 500 | tr '\n' ' ' | sed 's/\\/\\\\/g; s/"/\\"/g' | sed "s/'/''/g")
 
 # Log every tool use to events.db
-sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, tool_name, detail) VALUES ($TIMESTAMP, 'tool_use', '$ACTIVE_AGENT', '$TOOL_NAME_ESC', '{\"result\":\"$RESULT_TYPE_ESC\",\"args\":\"$TOOL_ARGS_SAFE\"}');"
+sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, tool_name, detail) VALUES ($TIMESTAMP, 'tool_use', '$ACTIVE_AGENT_ESC', '$TOOL_NAME_ESC', '{\"result\":\"$RESULT_TYPE_ESC\",\"args\":\"$TOOL_ARGS_SAFE\"}');" 2>/dev/null || true
 
 # Detect task-board writes
 if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
   FILE_PATH=$(echo "$TOOL_ARGS" | jq -r '.path // empty' 2>/dev/null)
   if [[ "$FILE_PATH" =~ task-board\.json ]]; then
-    sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, detail) VALUES ($TIMESTAMP, 'task_board_write', '$ACTIVE_AGENT', '{\"tool\":\"$TOOL_NAME_ESC\"}');"
+    sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, detail) VALUES ($TIMESTAMP, 'task_board_write', '$ACTIVE_AGENT_ESC', '{\"tool\":\"$TOOL_NAME_ESC\"}');" 2>/dev/null || true
 
     # Cache file content with validation to avoid processing corrupted JSON
     TASK_BOARD_CACHE=""
@@ -53,14 +54,15 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
       fi
     fi
 
-    # Source and run modules
-    # shellcheck source=lib/auto-dispatch.sh
-    source "$HOOK_DIR/lib/auto-dispatch.sh"
-    run_auto_dispatch
-
+    # Run FSM validation FIRST (before dispatch, so illegal transitions don't trigger messages)
     # shellcheck source=lib/fsm-validate.sh
     source "$HOOK_DIR/lib/fsm-validate.sh"
     run_fsm_validation
+
+    # Source and run auto-dispatch (after FSM, so only valid transitions get dispatched)
+    # shellcheck source=lib/auto-dispatch.sh
+    source "$HOOK_DIR/lib/auto-dispatch.sh"
+    run_auto_dispatch
 
     # shellcheck source=lib/memory-capture.sh
     source "$HOOK_DIR/lib/memory-capture.sh"
@@ -79,6 +81,6 @@ if [ "$TOOL_NAME" = "edit" ] || [ "$TOOL_NAME" = "create" ]; then
   if [[ "$FILE_PATH" =~ state\.json ]]; then
     AGENT_FROM_PATH=$(echo "$FILE_PATH" | sed -n 's|.*runtime/\([^/]*\).*|\1|p')
     AGENT_PATH_ESC=$(sql_escape "${AGENT_FROM_PATH:-unknown}")
-    sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, detail) VALUES ($TIMESTAMP, 'state_change', '$AGENT_PATH_ESC', '{\"tool\":\"$TOOL_NAME_ESC\"}');"
+    sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, detail) VALUES ($TIMESTAMP, 'state_change', '$AGENT_PATH_ESC', '{\"tool\":\"$TOOL_NAME_ESC\"}');" 2>/dev/null || true
   fi
 fi

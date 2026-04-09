@@ -7,6 +7,9 @@ run_fsm_validation() {
     return 0
   fi
 
+  # Track tasks with FSM violations so downstream modules can skip them
+  FSM_VIOLATED_TASKS=""
+
   # Pre-load old statuses from snapshot (1 jq call instead of N)
   local SNAPSHOT_STATUSES
   SNAPSHOT_STATUSES=$(jq -r '.tasks[] | "\(.id)\t\(.status)"' "$SNAPSHOT" 2>/dev/null || true)
@@ -20,6 +23,7 @@ run_fsm_validation() {
     TASK_ID_SQL=$(sql_escape "$TASK_ID")
     OLD_STATUS_SQL=$(sql_escape "$OLD_STATUS")
     NEW_STATUS_SQL=$(sql_escape "$NEW_STATUS")
+    # Use ACTIVE_AGENT_ESC from parent (post-tool-use.sh) for SQL
 
     LEGAL=false
 
@@ -30,10 +34,10 @@ run_fsm_validation() {
     fi
 
     # === Goal Guard ===
-    if [ "$LEGAL" = true ] && [ "$NEW_STATUS_SQL" = "accepted" ]; then
+    if [ "$LEGAL" = true ] && [ "$NEW_STATUS" = "accepted" ]; then
       if [ "$UNVERIFIED_GOALS" -gt 0 ] 2>/dev/null; then
         echo "⛔ [GOAL GUARD] Task $TASK_ID cannot be accepted: $UNVERIFIED_GOALS goal(s) not yet verified."
-        sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'goal_guard_block', '$ACTIVE_AGENT', '$TASK_ID_SQL', '{\"unverified_goals\":$UNVERIFIED_GOALS}');" 2>/dev/null || true
+        sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'goal_guard_block', '$ACTIVE_AGENT_ESC', '$TASK_ID_SQL', '{\"unverified_goals\":$UNVERIFIED_GOALS}');" 2>/dev/null || true
         LEGAL=false
       fi
     fi
@@ -42,20 +46,28 @@ run_fsm_validation() {
     DOCS_DIR="$AGENTS_DIR/docs/$TASK_ID"
     DOC_MISSING=""
     case "$OLD_STATUS" in
-      created)       [ ! -f "$DOCS_DIR/requirements.md" ] && DOC_MISSING="requirements.md" ;;
-      designing)     [ ! -f "$DOCS_DIR/design.md" ] && DOC_MISSING="design.md" ;;
-      implementing)  [ ! -f "$DOCS_DIR/implementation.md" ] && DOC_MISSING="implementation.md" ;;
-      reviewing)     [ ! -f "$DOCS_DIR/review-report.md" ] && DOC_MISSING="review-report.md" ;;
-      testing)       [ ! -f "$DOCS_DIR/test-report.md" ] && DOC_MISSING="test-report.md" ;;
+      created)
+        [ ! -f "$DOCS_DIR/requirements.md" ] && DOC_MISSING="requirements.md"
+        [ ! -f "$DOCS_DIR/acceptance-criteria.md" ] && DOC_MISSING="${DOC_MISSING:+$DOC_MISSING, }acceptance-criteria.md"
+        ;;
+      designing|architecture|tdd_design|dfmea)
+        [ ! -f "$DOCS_DIR/design.md" ] && DOC_MISSING="design.md" ;;
+      implementing)
+        [ ! -f "$DOCS_DIR/implementation.md" ] && DOC_MISSING="implementation.md" ;;
+      reviewing|design_review|code_reviewing)
+        [ ! -f "$DOCS_DIR/review-report.md" ] && DOC_MISSING="review-report.md" ;;
+      testing|test_scripting|regression_testing)
+        [ ! -f "$DOCS_DIR/test-report.md" ] && DOC_MISSING="test-report.md" ;;
     esac
     if [ -n "$DOC_MISSING" ]; then
       echo "⚠️ [DOC GATE] Task $TASK_ID: missing '$DOC_MISSING' in .agents/docs/$TASK_ID/. See agent-docs skill for template."
-      sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'doc_gate_warning', '$ACTIVE_AGENT', '$TASK_ID_SQL', '{\"missing\":\"$DOC_MISSING\",\"from\":\"$OLD_STATUS_SQL\",\"to\":\"$NEW_STATUS_SQL\"}');" 2>/dev/null || true
+      sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'doc_gate_warning', '$ACTIVE_AGENT_ESC', '$TASK_ID_SQL', '{\"missing\":\"$DOC_MISSING\",\"from\":\"$OLD_STATUS_SQL\",\"to\":\"$NEW_STATUS_SQL\"}');" 2>/dev/null || true
     fi
 
     if [ "$LEGAL" = false ]; then
       echo "⛔ [FSM] ILLEGAL transition: $TASK_ID ($OLD_STATUS → $NEW_STATUS)."
-      sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'fsm_violation', '$ACTIVE_AGENT', '$TASK_ID_SQL', '{\"from\":\"$OLD_STATUS_SQL\",\"to\":\"$NEW_STATUS_SQL\"}');" 2>/dev/null || true
+      sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'fsm_violation', '$ACTIVE_AGENT_ESC', '$TASK_ID_SQL', '{\"from\":\"$OLD_STATUS_SQL\",\"to\":\"$NEW_STATUS_SQL\"}');" 2>/dev/null || true
+      FSM_VIOLATED_TASKS="${FSM_VIOLATED_TASKS:+$FSM_VIOLATED_TASKS }$TASK_ID"
     fi
   done < <(echo "$TASK_BOARD_CACHE" | jq -r '.tasks[] | [
     .id // "",
@@ -80,6 +92,7 @@ _validate_3phase() {
     "tdd_design→dfmea")              LEGAL=true ;;
     "dfmea→design_review")           LEGAL=true ;;
     "design_review→implementing")    LEGAL=true ;;
+    "design_review→test_scripting")   LEGAL=true ;;
     "design_review→architecture")    LEGAL=true ;;
     "implementing→code_reviewing")   LEGAL=true ;;
     "implementing→ci_monitoring")    LEGAL=true ;;
@@ -125,7 +138,7 @@ _validate_3phase() {
   if [ "$LEGAL" = true ] && [ "$NEW_STATUS_SQL" = "device_baseline" ]; then
     if [ "$PT_IMPL" != "complete" ] || [ "$PT_TEST" != "complete" ] || [ "$PT_REVIEW" != "complete" ] || [ "$PT_CI" != "green" ]; then
       echo "⛔ [FSM] CONVERGENCE GATE: Task $TASK_ID — tracks not converged (impl=$PT_IMPL, test=$PT_TEST, review=$PT_REVIEW, ci=$PT_CI)."
-      sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'convergence_gate_block', '$ACTIVE_AGENT', '$TASK_ID_SQL', '{\"impl\":\"$PT_IMPL\",\"test\":\"$PT_TEST\",\"review\":\"$PT_REVIEW\",\"ci\":\"$PT_CI\"}');" 2>/dev/null || true
+      sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'convergence_gate_block', '$ACTIVE_AGENT_ESC', '$TASK_ID_SQL', '{\"impl\":\"$PT_IMPL\",\"test\":\"$PT_TEST\",\"review\":\"$PT_REVIEW\",\"ci\":\"$PT_CI\"}');" 2>/dev/null || true
       LEGAL=false
     fi
   fi
@@ -170,7 +183,7 @@ _validate_simple() {
 _check_feedback_limit() {
   if [ "$FEEDBACK_LOOPS" -ge 10 ] 2>/dev/null; then
     echo "⛔ [FSM] FEEDBACK LIMIT: Task $TASK_ID reached 10 loops. $OLD_STATUS → $NEW_STATUS blocked."
-    sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'fsm_feedback_limit', '$ACTIVE_AGENT', '$TASK_ID_SQL', '{\"from\":\"$OLD_STATUS_SQL\",\"to\":\"$NEW_STATUS_SQL\",\"loops\":$FEEDBACK_LOOPS}');" 2>/dev/null || true
+    sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'fsm_feedback_limit', '$ACTIVE_AGENT_ESC', '$TASK_ID_SQL', '{\"from\":\"$OLD_STATUS_SQL\",\"to\":\"$NEW_STATUS_SQL\",\"loops\":$FEEDBACK_LOOPS}');" 2>/dev/null || true
     LEGAL=false
   fi
 }

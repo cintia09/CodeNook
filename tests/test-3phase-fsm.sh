@@ -6,6 +6,7 @@ set -euo pipefail
 PASS=0
 FAIL=0
 TEST_DIR=$(mktemp -d)
+trap 'rm -rf "$TEST_DIR"' EXIT
 AGENTS_DIR="$TEST_DIR/.agents"
 EVENTS_DB="$AGENTS_DIR/events.db"
 

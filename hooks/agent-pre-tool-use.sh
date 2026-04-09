@@ -77,7 +77,7 @@ case "$TOOL_NAME" in
     case "$ACTIVE_AGENT" in
       acceptor|designer)
         # Read-only roles: block destructive commands
-        if echo "$BASH_CMD" | grep -qE '(^|\s)(rm|mv|cp|git\s+push|git\s+commit|npm\s+publish|docker\s+run|chmod|chown)\s'; then
+        if echo "$BASH_CMD" | grep -qE '(^|\s)(rm|mv|cp|git\s+push|git\s+commit|npm\s+publish|docker\s+run|chmod|chown)(\s|$)'; then
           AGENT_JSON_ESC=$(echo "$ACTIVE_AGENT" | sed 's/"/\\"/g')
           echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"${AGENT_JSON_ESC} cannot run write/destructive commands via bash.\"}"
           exit 0
@@ -85,7 +85,7 @@ case "$TOOL_NAME" in
         ;;
       reviewer)
         # Reviewer: read + git diff/log allowed, no writes
-        if echo "$BASH_CMD" | grep -qE '(^|\s)(rm|mv|cp|git\s+push|git\s+commit|npm\s+publish|docker\s+run|chmod|chown)\s'; then
+        if echo "$BASH_CMD" | grep -qE '(^|\s)(rm|mv|cp|git\s+push|git\s+commit|npm\s+publish|docker\s+run|chmod|chown)(\s|$)'; then
           echo '{"permissionDecision":"deny","permissionDecisionReason":"🔍 Reviewer cannot run write/destructive commands via bash."}'
           exit 0
         fi

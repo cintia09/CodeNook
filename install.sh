@@ -4,9 +4,9 @@ set -euo pipefail
 # Multi-Agent Framework Installer
 # Usage: curl -sL https://raw.githubusercontent.com/cintia09/multi-agent-framework/main/install.sh | bash
 
-VERSION="3.0.22"
+VERSION="3.0.23"
 REPO="https://github.com/cintia09/multi-agent-framework.git"
-TMP_DIR="/tmp/multi-agent-framework"
+TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/multi-agent-framework.XXXXXX")
 CLAUDE_DIR="${HOME}/.claude"
 
 # Colors
@@ -34,10 +34,11 @@ usage() {
 
 check_platform() {
     local dir="$1" name="$2"
-    local skills=$(ls -d "${dir}/skills/agent-"* 2>/dev/null | wc -l | tr -d ' ')
-    local agents=$(ls "${dir}/agents/"*.agent.md 2>/dev/null | wc -l | tr -d ' ')
-    local hooks=$(ls "${dir}/hooks/"*.sh 2>/dev/null | wc -l | tr -d ' ')
-    local has_json=$([ -f "${dir}/hooks/hooks.json" ] && echo '✅' || echo '❌')
+    local skills agents hooks has_json
+    skills=$(ls -d "${dir}/skills/agent-"* 2>/dev/null | wc -l | tr -d ' ')
+    agents=$(ls "${dir}/agents/"*.agent.md 2>/dev/null | wc -l | tr -d ' ')
+    hooks=$(ls "${dir}/hooks/"*.sh 2>/dev/null | wc -l | tr -d ' ')
+    has_json=$([ -f "${dir}/hooks/hooks.json" ] && echo '✅' || echo '❌')
     echo "  ${name}:"
     echo "    Skills: ${skills}/17 | Agents: ${agents}/5 | Hooks: ${hooks}/13 | hooks.json: ${has_json}"
     [ "$skills" -ge 17 ] && [ "$agents" -ge 5 ] && [ "$hooks" -ge 13 ] && [ -f "${dir}/hooks/hooks.json" ]

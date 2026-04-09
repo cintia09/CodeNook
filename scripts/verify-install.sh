@@ -83,7 +83,7 @@ for script in security-scan.sh agent-session-start.sh agent-pre-tool-use.sh agen
 done
 
 if [ -f ~/.claude/hooks/hooks.json ]; then
-  if python3 -c "import json; json.load(open('$HOME/.claude/hooks/hooks.json'))" 2>/dev/null; then
+  if jq empty ~/.claude/hooks/hooks.json 2>/dev/null; then
     check "hooks.json (valid JSON)" "pass"
   else
     check "hooks.json (invalid JSON)" "fail"

@@ -16,13 +16,18 @@ run_memory_capture() {
     [ -z "$TASK_ID" ] || [ -z "$NEW_STATUS" ] && continue
     OLD_STATUS=$(echo "$SNAPSHOT_STATUSES" | awk -F'\t' -v tid="$TASK_ID" '$1==tid{print $2; exit}')
 
-    # Only trigger on actual transitions
+    # Only trigger on actual transitions (skip FSM-violated tasks)
     if [ -n "$OLD_STATUS" ] && [ "$OLD_STATUS" != "$NEW_STATUS" ]; then
+      # Skip if FSM validation flagged this task as illegal
+      if echo " $FSM_VIOLATED_TASKS " | grep -qF " $TASK_ID "; then
+        continue
+      fi
+
       TASK_ID_ESC=$(sql_escape "$TASK_ID")
       OLD_STATUS_ESC=$(sql_escape "$OLD_STATUS")
       NEW_STATUS_ESC=$(sql_escape "$NEW_STATUS")
 
-      sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'memory_capture_needed', '$ACTIVE_AGENT', '$TASK_ID_ESC', '{\"from_status\":\"$OLD_STATUS_ESC\",\"to_status\":\"$NEW_STATUS_ESC\"}');" 2>/dev/null || true
+      sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'memory_capture_needed', '$ACTIVE_AGENT_ESC', '$TASK_ID_ESC', '{\"from_status\":\"$OLD_STATUS_ESC\",\"to_status\":\"$NEW_STATUS_ESC\"}');" 2>/dev/null || true
 
       # Create memory directory
       MEMORY_DIR="$AGENTS_DIR/memory"

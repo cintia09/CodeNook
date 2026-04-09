@@ -5,10 +5,17 @@
 run_auto_dispatch() {
   [ -z "$TASK_BOARD_CACHE" ] && return 0
 
-  while IFS=$'\t' read -r TASK_ID STATUS TITLE; do
+  while IFS=$'\t' read -r TASK_ID STATUS TITLE WORKFLOW_MODE; do
     # Map status to target agent
     case "$STATUS" in
-      created)        TARGET="designer" ;;
+      created)
+        # In 3-phase mode, 'created' goes to acceptor (requirements phase); simple goes to designer
+        if [ "$WORKFLOW_MODE" = "3phase" ]; then
+          TARGET="acceptor"
+        else
+          TARGET="designer"
+        fi
+        ;;
       designing)      TARGET="designer" ;;
       implementing)   TARGET="implementer" ;;
       reviewing)      TARGET="reviewer" ;;
@@ -73,7 +80,6 @@ run_auto_dispatch() {
     TARGET_ESC=$(sql_escape "$TARGET")
     TASK_ID_ESC=$(sql_escape "$TASK_ID")
     STATUS_ESC=$(sql_escape "$STATUS")
-    ACTIVE_AGENT_ESC=$(sql_escape "$ACTIVE_AGENT")
     sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'auto_dispatch', '$TARGET_ESC', '$TASK_ID_ESC', '{\"from_status\":\"$STATUS_ESC\",\"from_agent\":\"$ACTIVE_AGENT_ESC\"}');" 2>/dev/null || true
-  done < <(echo "$TASK_BOARD_CACHE" | jq -r '.tasks[] | [.id // "", .status // "", .title // ""] | @tsv' 2>/dev/null)
+  done < <(echo "$TASK_BOARD_CACHE" | jq -r '.tasks[] | [.id // "", .status // "", .title // "", .workflow_mode // "simple"] | @tsv' 2>/dev/null)
 }
