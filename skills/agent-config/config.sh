@@ -304,6 +304,45 @@ cmd_platforms() {
     true
 }
 
+cmd_models() {
+    echo "🤖 Available Models"
+    echo ""
+    # Claude Code
+    if command -v claude &>/dev/null; then
+        echo "  Claude Code (claude CLI detected):"
+        echo "    Run '/model' in Claude Code to see full list"
+        echo "    Common model IDs:"
+        echo "      claude-opus-4-6          Premium reasoning"
+        echo "      claude-sonnet-4-6        Standard (default)"
+        echo "      claude-haiku-4-5         Fast/cheap"
+        # Check for custom model in settings
+        local custom_model
+        custom_model=$(python3 -c "import json; d=json.load(open('$HOME/.claude/settings.json')); print(d.get('env',{}).get('ANTHROPIC_MODEL',''))" 2>/dev/null)
+        [ -n "$custom_model" ] && echo "    ⚙ Custom: ${custom_model} (via ANTHROPIC_MODEL)"
+        echo ""
+    fi
+    # Copilot CLI
+    if command -v copilot &>/dev/null; then
+        echo "  Copilot CLI (copilot CLI detected):"
+        echo "    Run '/model' in Copilot CLI to see full list"
+        echo "    Common model IDs:"
+        echo "      claude-sonnet-4.5        Claude (default)"
+        echo "      claude-sonnet-4          Claude standard"
+        echo "      gpt-5.4                  GPT latest"
+        echo "      gpt-5.2                  GPT stable"
+        echo "      gpt-5-mini              GPT fast/cheap"
+        # Check current model from config
+        local copilot_model
+        copilot_model=$(python3 -c "import json; d=json.load(open('$HOME/.copilot/config.json')); print(d.get('model',''))" 2>/dev/null)
+        [ -n "$copilot_model" ] && echo "    ⚙ Current: ${copilot_model}"
+        echo ""
+    fi
+    echo "  💡 Tip: Use '/model' command in either platform for the"
+    echo "     authoritative, up-to-date list of available models."
+    echo ""
+    echo "  To set: config.sh model set <agent> <model-id>"
+}
+
 show_help() {
     local all_agents
     read -ra all_agents <<< "$(discover_agents)"
@@ -313,6 +352,7 @@ Agent Configuration Helper — Multi-Agent Framework
 OVERVIEW:
   config.sh list                           Show all agent config
   config.sh get <agent>                    Show full config for one agent
+  config.sh models                         Show available models per platform
   config.sh platforms                      Show detected platforms
 
 MODEL:
@@ -427,6 +467,9 @@ case "${1:-}" in
         ;;
     platforms)
         cmd_platforms
+        ;;
+    models)
+        cmd_models
         ;;
     -h|--help|help|"")
         show_help

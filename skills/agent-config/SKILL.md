@@ -27,6 +27,9 @@ bash ~/.claude/skills/agent-config/config.sh platforms
 ### 模型配置
 
 ```bash
+# 查看可用模型列表
+bash ~/.claude/skills/agent-config/config.sh models
+
 # 设置单个 agent 的模型
 bash ~/.claude/skills/agent-config/config.sh model set implementer claude-sonnet-4
 
@@ -86,17 +89,23 @@ bash ~/.claude/skills/agent-config/config.sh tools reset reviewer
 
 当用户要求配置 agent 时:
 
-1. **先运行发现命令**获取实际 agent 列表:
+1. **发现 agent 和模型** — 运行以下两个命令:
    ```bash
    bash ~/.claude/skills/agent-config/config.sh list
+   bash ~/.claude/skills/agent-config/config.sh models
    ```
-   > ⚠️ 不要假设只有 5 个 agent。用户可能添加了自定义 agent（如 `security-auditor.agent.md`）。始终从 `config.sh list` 的输出中动态获取 agent 列表。
+   > ⚠️ 不要假设只有 5 个 agent。不要假设只有几个固定模型。始终从命令输出中获取实际列表。
 
-2. 向用户展示 `config.sh list` 的**完整输出**（包括所有检测到的 agent）
+2. 向用户展示**完整的当前配置**（所有 agent + 当前 model + tools）
 3. 询问用户要配置什么（模型/工具/两者都配）
-4. 询问目标 agent — **列出所有从 step 1 发现的 agent**，加上"全部"选项
-5. 执行对应命令
-6. 再次运行 `config.sh list` 确认更改
+4. 如果配置模型:
+   - 展示从 `config.sh models` 获取的**实际可用模型列表**
+   - 让用户选择 agent 和目标模型
+5. 如果配置工具:
+   - 展示从 `config.sh list` 获取的当前工具配置
+   - 让用户选择要配置的 agent 和工具列表
+6. 执行对应命令
+7. 再次运行 `config.sh list` 确认更改
 
 ## 注意事项
 
