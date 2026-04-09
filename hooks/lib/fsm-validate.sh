@@ -60,8 +60,19 @@ run_fsm_validation() {
         [ ! -f "$DOCS_DIR/test-report.md" ] && DOC_MISSING="test-report.md" ;;
     esac
     if [ -n "$DOC_MISSING" ]; then
-      echo "⚠️ [DOC GATE] Task $TASK_ID: missing '$DOC_MISSING' in .agents/docs/$TASK_ID/. See agent-docs skill for template."
-      sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'doc_gate_warning', '$ACTIVE_AGENT_ESC', '$TASK_ID_SQL', '{\"missing\":\"$DOC_MISSING\",\"from\":\"$OLD_STATUS_SQL\",\"to\":\"$NEW_STATUS_SQL\"}');" 2>/dev/null || true
+      # Check doc_gate_mode: "strict" blocks transition, "warn" (default) only warns
+      DOC_GATE_MODE="warn"
+      if [ -n "$TASK_BOARD_CACHE" ]; then
+        DOC_GATE_MODE=$(echo "$TASK_BOARD_CACHE" | jq -r '.doc_gate_mode // "warn"' 2>/dev/null)
+      fi
+      if [ "$DOC_GATE_MODE" = "strict" ]; then
+        echo "⛔ [DOC GATE/STRICT] Task $TASK_ID: BLOCKED — missing '$DOC_MISSING'. Write docs to .agents/docs/$TASK_ID/ before transitioning."
+        sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'doc_gate_block', '$ACTIVE_AGENT_ESC', '$TASK_ID_SQL', '{\"missing\":\"$DOC_MISSING\",\"from\":\"$OLD_STATUS_SQL\",\"to\":\"$NEW_STATUS_SQL\",\"mode\":\"strict\"}');" 2>/dev/null || true
+        LEGAL=false
+      else
+        echo "⚠️ [DOC GATE] Task $TASK_ID: missing '$DOC_MISSING' in .agents/docs/$TASK_ID/. See agent-docs skill for template."
+        sqlite3 "$EVENTS_DB" "INSERT INTO events (timestamp, event_type, agent, task_id, detail) VALUES ($TIMESTAMP, 'doc_gate_warning', '$ACTIVE_AGENT_ESC', '$TASK_ID_SQL', '{\"missing\":\"$DOC_MISSING\",\"from\":\"$OLD_STATUS_SQL\",\"to\":\"$NEW_STATUS_SQL\",\"mode\":\"warn\"}');" 2>/dev/null || true
+      fi
     fi
 
     if [ "$LEGAL" = false ]; then

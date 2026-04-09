@@ -163,6 +163,25 @@ DASH_RESULT="pass"
 (cd "$TEST_DIR" && bash "$HOOK_DIR/../scripts/team-dashboard.sh" >/dev/null 2>&1) || DASH_RESULT="fail"
 check "Team dashboard: runs without error" "$DASH_RESULT"
 
+# === Test 24: Strict doc gate blocks transition when docs missing ===
+jq '.doc_gate_mode = "strict" | .tasks[0].status = "created" | .tasks[0].assigned_to = "designer"' "$TEST_DIR/.agents/task-board.json" > "$TEST_DIR/.agents/task-board-strict.json" && mv "$TEST_DIR/.agents/task-board-strict.json" "$TEST_DIR/.agents/task-board.json"
+cp "$TEST_DIR/.agents/task-board.json" "$TEST_DIR/.agents/runtime/.task-board-snapshot.json"
+echo "designer" > "$TEST_DIR/.agents/runtime/active-agent"
+jq '.tasks[0].status = "designing"' "$TEST_DIR/.agents/task-board.json" > "$TEST_DIR/.agents/task-board-strict2.json" && mv "$TEST_DIR/.agents/task-board-strict2.json" "$TEST_DIR/.agents/task-board.json"
+STRICT_OUTPUT=$(echo '{"toolName":"edit","toolArgs":"{\"path\":\"'"$TEST_DIR"'/.agents/task-board.json\"}","toolResult":{"resultType":"success"},"cwd":"'"$TEST_DIR"'","timestamp":"1744200700"}' \
+  | bash "$HOOK_DIR/agent-post-tool-use.sh" 2>&1)
+STRICT_BLOCK=$(echo "$STRICT_OUTPUT" | grep -c "DOC GATE/STRICT" || true)
+check "Strict doc gate: blocks transition when docs missing" "$([ "$STRICT_BLOCK" -ge 1 ] && echo pass || echo fail)"
+
+# === Test 25: Warn doc gate allows transition when docs missing ===
+jq '.doc_gate_mode = "warn" | .tasks[0].status = "created" | .tasks[0].assigned_to = "designer"' "$TEST_DIR/.agents/task-board.json" > "$TEST_DIR/.agents/task-board-warn.json" && mv "$TEST_DIR/.agents/task-board-warn.json" "$TEST_DIR/.agents/task-board.json"
+cp "$TEST_DIR/.agents/task-board.json" "$TEST_DIR/.agents/runtime/.task-board-snapshot.json"
+jq '.tasks[0].status = "designing"' "$TEST_DIR/.agents/task-board.json" > "$TEST_DIR/.agents/task-board-warn2.json" && mv "$TEST_DIR/.agents/task-board-warn2.json" "$TEST_DIR/.agents/task-board.json"
+WARN_OUTPUT=$(echo '{"toolName":"edit","toolArgs":"{\"path\":\"'"$TEST_DIR"'/.agents/task-board.json\"}","toolResult":{"resultType":"success"},"cwd":"'"$TEST_DIR"'","timestamp":"1744200800"}' \
+  | bash "$HOOK_DIR/agent-post-tool-use.sh" 2>&1)
+WARN_ILLEGAL=$(echo "$WARN_OUTPUT" | grep -c "ILLEGAL" || true)
+check "Warn doc gate: warns but does NOT block" "$([ "$WARN_ILLEGAL" -eq 0 ] && echo pass || echo fail)"
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Results: $PASS/$TOTAL passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] && echo "✅ All integration tests passed!" || echo "❌ Some tests failed"

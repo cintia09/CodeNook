@@ -57,7 +57,14 @@ description: "文档流水线 — 标准化阶段性文档模板、输入/输出
 | `reviewing → implementing` (打回) | `review-report.md`（含问题列表）|
 | `testing → fixing` (发现问题) | `test-report.md`（含失败用例）|
 
-> **注意**: 文档门禁为 ⚠️ 警告，不强制阻止。AI Agent 应自动补齐。
+> **门禁模式** 由 `task-board.json` 顶层字段 `"doc_gate_mode"` 控制：
+>
+> | 模式 | 行为 |
+> |------|------|
+> | `"warn"` (默认) | ⚠️ 输出警告，不阻止转换。AI Agent 应自动补齐 |
+> | `"strict"` | ⛔ 阻止转换，`LEGAL=false`。必须先写好文档才能推进 |
+>
+> 配置方法：在 `task-board.json` 中添加 `"doc_gate_mode": "strict"`
 
 ---
 

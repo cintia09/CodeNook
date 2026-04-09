@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.1.3] - 2026-04-09
+
+### 🚀 Strict Document Gate Mode
+
+- `hooks/lib/fsm-validate.sh`: Document gate now supports `"strict"` mode — blocks transitions (`LEGAL=false`) when required docs are missing
+- Configuration via `task-board.json` top-level field `"doc_gate_mode": "strict"` (default: `"warn"`)
+- `skills/agent-docs/SKILL.md`: Updated with strict/warn mode documentation
+- `skills/agent-fsm/SKILL.md`: Added document gate as guard #5 in FSM validation rules
+- `tests/test-integration.sh`: 2 new tests (strict blocks, warn allows) — 25 total
+
 ## [3.1.2] - 2026-04-09
 
 ### 🔒 Security Audit Round 7 (10 issues fixed)

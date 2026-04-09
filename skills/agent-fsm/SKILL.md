@@ -115,6 +115,11 @@ state.json 格式:
 4. **目标清单检查 (goals guard)**:
    - `implementing → reviewing`: 任务的 goals 数组中所有目标的 status 必须为 `done` — 有任何 `pending` 则拒绝, 提示 implementer 还有未完成的功能目标
    - `accepting → accepted`: 任务的 goals 数组中所有目标的 status 必须为 `verified` — 有任何 `pending`/`done`/`failed` 则拒绝, 提示 acceptor 还有未验证或验证失败的目标
+5. **文档门禁 (document gate)**:
+   - 状态转换前，检查当前阶段要求的输出文档是否存在于 `.agents/docs/T-XXX/`
+   - 模式由 `task-board.json` 顶层 `"doc_gate_mode"` 字段控制:
+     - `"warn"` (默认): ⚠️ 输出警告，不阻止转换
+     - `"strict"`: ⛔ 阻止转换（`LEGAL=false`），必须先写好文档
 
 如果任何 Guard 检查失败, 中止转移, 报告原因。
 
