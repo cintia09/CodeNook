@@ -188,28 +188,45 @@ bash .agents/orchestrator/run.sh T-001 --stop
 
 ## 安装
 
-### 一键安装
+### 方式一：一键安装（脚本自动）
+
 ```bash
 curl -sL https://raw.githubusercontent.com/cintia09/multi-agent-framework/main/install.sh | bash
 ```
 
-或手动安装：
+自动检测 Claude Code / Copilot CLI，下载并安装全部组件。
+
+### 方式二：提示安装（AI 引导）
 
 对你的 AI 助手（Claude Code、GitHub Copilot 等）说：
 
 > "根据 cintia09/multi-agent-framework 仓库里的指引, 将 agents 安装到我本地。"
 
-助手会读取仓库中的 AGENTS.md 并自动：
-1. 克隆仓库到临时目录
-2. 复制 15 个 Skill 目录到 `~/.claude/skills/`
-3. 复制 5 个 `.agent.md` 文件到 `~/.claude/agents/`
-4. 复制 13 个 Hook 脚本 + hooks.json 到 `~/.claude/hooks/`
-5. 追加协作规则到 `~/.claude/CLAUDE.md`（幂等）
-6. 清理临时目录
+助手会读取仓库文档并自动执行以下步骤：
 
-使用内置脚本验证：
+1. 克隆仓库到临时目录
+2. 复制 18 个 Skill 目录到目标平台 skills 目录
+3. 复制 5 个 `.agent.md` 文件到 agents 目录
+4. 复制 13 个 Hook 脚本 + `hooks/lib/` 模块 + hooks.json 到 hooks 目录
+5. 安装 3 个模块化规则到 rules 目录
+6. 追加协作规则到全局指令文件（幂等）
+7. 清理临时目录
+
+**目标目录：**
+
+| 平台 | Skills | Agents | Hooks | Rules | 全局指令 |
+|------|--------|--------|-------|-------|---------|
+| Claude Code | `~/.claude/skills/` | `~/.claude/agents/` | `~/.claude/hooks/` | `~/.claude/rules/` | `~/.claude/CLAUDE.md` |
+| Copilot CLI | `~/.copilot/skills/` | `~/.copilot/agents/` | `~/.copilot/hooks/` | — | `~/.copilot/copilot-instructions.md` |
+
+**hooks.json 格式差异**：Claude Code 用 `hooks.json`（PascalCase, `command`, 毫秒），Copilot CLI 用 `hooks-copilot.json`（camelCase, `bash`, 秒）。安装脚本自动选择。
+
+**权限设置**：所有 `.sh` 文件需 `chmod +x`。
+
+### 验证安装
+
 ```bash
-bash /tmp/multi-agent-framework/scripts/verify-install.sh
+bash install.sh --check
 ```
 
 安装完成后，`~/.claude/` 目录结构：
@@ -236,7 +253,7 @@ bash /tmp/multi-agent-framework/scripts/verify-install.sh
 │   ├── agent-on-goal-verified.sh    # 目标验证进度更新
 │   └── security-scan.sh          # 🔒 密钥扫描（独立于 Agent 系统）
 ├── skills/
-│   └── agent-*/SKILL.md          # 15 个 Skill 目录（每个含 SKILL.md）
+│   └── agent-*/SKILL.md          # 18 个 Skill 目录（每个含 SKILL.md）
 └── agents/
     ├── acceptor.agent.md         # 验收者（原生 Agent Profile）
     ├── designer.agent.md         # 设计者

@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.2.0] - 2026-04-10
+
+### 🚀 Skills Mechanism Optimization (T-SKILL-OPT)
+
+**R2: Per-Agent Skill Isolation:**
+- All 5 `.agent.md` profiles now declare `skills:` allowlist in frontmatter
+- Each agent has explicit "Skill 权限" section with positive and negative constraints
+- Shared skills (7): orchestrator, fsm, task-board, messaging, memory, switch, docs
+- Role-specific skills (11): config, init, acceptor, designer, implementer, reviewer, tester, events, hooks, hypothesis, teams
+
+**R1: Token Distribution Documentation Fix:**
+- `docs/llm-message-structure.md`: Corrected token pie chart from "18 Skills 全文 40%" to "Skills 摘要列表 1%"
+- Added explanation of two-level loading mechanism (summary ~1% + on-demand full text)
+- Updated ASCII packet structure to reflect summary-only skill injection
+- Corrected "关键洞察" section to describe two-level loading
+
+**R4: Dual Installation Methods in README:**
+- "方式一: 一键安装" — `curl | bash` (script-driven)
+- "方式二: 提示安装" — Tell AI assistant to install from repo (AI-guided)
+- Added detailed manual install steps table (target directories per platform)
+- Updated skill count from 15 to 18
+
 ## [3.1.5] - 2026-04-10
 
 ### 📝 Audit Round 10 — Convergence (2 doc fixes)

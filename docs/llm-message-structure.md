@@ -25,13 +25,13 @@ block-beta
             R3["输出格式规则 (简洁回复、代码风格)"]
         end
 
-        block:skills["📚 第2层: Skills 知识库 (全部注入)"]
+        block:skills["📚 第2层: Skills 摘要 (发现列表)"]
             columns 1
-            SK1["agent-fsm/SKILL.md — 状态机规则"]
-            SK2["agent-messaging/SKILL.md — 消息格式"]
-            SK3["agent-task-board/SKILL.md — 任务管理"]
-            SK4["agent-hypothesis/SKILL.md — 竞争假设"]
-            SK5["... 共 18 个 Skills 全文"]
+            SK1["agent-fsm — 状态机规则 (名称+描述, ≤250字符)"]
+            SK2["agent-messaging — 消息格式"]
+            SK3["agent-task-board — 任务管理"]
+            SK4["... 共 18 个 Skills 摘要列表"]
+            SK5["💡 调用时才加载 SKILL.md 全文"]
         end
 
         block:agent["👤 第3层: Agent Profile"]
@@ -103,13 +103,12 @@ block-beta
 │  │  │  • Output format rules                            │  │ │
 │  │  └──────────────────────────────────────────────────┘  │ │
 │  │                                                         │ │
-│  │  ┌── 📚 Skills (全部18个 SKILL.md 原文) ──────────────┐  │ │
-│  │  │  agent-fsm:        ~200 lines (FSM rules)         │  │ │
-│  │  │  agent-messaging:  ~290 lines (message schema)    │  │ │
-│  │  │  agent-task-board: ~180 lines (task CRUD)         │  │ │
-│  │  │  agent-memory:     ~250 lines (3-layer memory)    │  │ │
-│  │  │  agent-hypothesis: ~185 lines (competitive)       │  │ │
-│  │  │  ... 共 18 个, ~3000+ lines total                  │  │ │
+│  │  ┌── 📚 Skills 摘要列表 (~1% token) ──────────────────┐  │ │
+│  │  │  agent-fsm:        "FSM 状态机 — 管理任务..."     │  │ │
+│  │  │  agent-messaging:  "消息系统 — Agent 间通信..."   │  │ │
+│  │  │  agent-task-board: "任务看板 — CRUD + 乐观锁..."  │  │ │
+│  │  │  ... 共 18 个, 每个 ≤250 字符描述                  │  │ │
+│  │  │  💡 全文按需加载到 Messages 数组 (非 System Prompt)│  │ │
 │  │  └──────────────────────────────────────────────────┘  │ │
 │  │                                                         │ │
 │  │  ┌── 👤 Agent Profile (.agent.md) ─────────────────┐  │ │
@@ -152,13 +151,20 @@ block-beta
 ```mermaid
 pie title "一次 LLM 请求的 Token 占比"
     "Platform Rules" : 15
-    "18 Skills 全文" : 40
+    "Skills 摘要列表" : 1
     "Agent Profile" : 5
     "Project Rules" : 5
-    "对话历史" : 25
+    "对话历史 (含已调用 Skill 全文)" : 54
     "当前用户输入" : 2
     "Hook 输出" : 8
+    "Custom Instructions" : 10
 ```
+
+> **两级加载机制说明**:
+> - **Skills 摘要列表 (~1%)**: 每轮 System Prompt 中只注入 skill 名称 + 截断到 250 字符的描述（非全文）
+> - **Skill 全文 (按需)**: 当 LLM 判断需要某 skill 或用户调用 `/skillname` 时，完整 `SKILL.md` 才被加载到对话历史中
+> - **Custom Instructions**: `copilot-instructions.md` / `CLAUDE.md` 是**每轮全量注入**的，与 Skills 不同
+> - Claude Code 和 Copilot CLI 均使用此机制，符合 [Agent Skills 开源标准](https://agentskills.io)
 
 ## Hook 输出如何回流到 LLM
 
@@ -199,5 +205,5 @@ sequenceDiagram
 1. **Skills 是"知识"不是"代码"** — LLM 读了 SKILL.md 后**理解**了规则，不是在执行它
 2. **Hook 是真正的"执行"** — Shell 脚本在 LLM 之外运行，强制执行规则
 3. **Hook 输出回流** — Hook 的 stdout 被拼接进 tool_result，LLM 能看到这些信息
-4. **每次请求都带全量 Skills** — 不是按需加载，是全部注入（所以 token 占比很高）
-5. **Agent 切换 = 更换 Profile** — Skills 不变，只是 Agent Profile 部分被替换
+4. **两级加载** — System Prompt 只含 skill 摘要列表（~1% token），全文在调用时按需加载到 Messages 中
+5. **Agent 切换 = 更换 Profile** — Skills 摘要列表不变，只是 Agent Profile 部分被替换；Skill 权限通过 prompt 约束实现
