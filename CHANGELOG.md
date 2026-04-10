@@ -611,3 +611,18 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - Designer: Architecture Decision Records (ADR)
 - Designer: Goal coverage self-check
 - Acceptor: User story format for goals
+
+## v3.2.1
+
+### R3: Architecture Docs Update
+- Rewrote `docs/skills-mechanism.md` with 5 updated Mermaid diagrams
+- New: Two-level loading sequence diagram (summary ~1% + on-demand full text)
+- New: Skill discovery paths comparison (Claude Code vs Copilot CLI)
+- New: Per-Agent skill isolation flowchart with shared/role-specific allocation
+- Updated: Three-layer behavior control (added skill constraints)
+- Updated: Request lifecycle (reflects two-level loading + doc gate)
+
+### R5: Conditional Activation (Partial)
+- Added `paths:` frontmatter to `agent-hooks` skill (`hooks/**`, `**/*.sh`, config files)
+- Documented `paths:` feature in skills-mechanism.md platform comparison table
+- Role skills (tester, implementer) excluded to avoid breaking agent workflow

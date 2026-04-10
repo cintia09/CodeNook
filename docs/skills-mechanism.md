@@ -69,7 +69,9 @@ flowchart TB
 | 项目级 | `.claude/skills/` | `.github/skills/` |
 | 共享路径 | `.agents/skills/` ✅ | `.agents/skills/` ✅ |
 | 热加载 | ⚠️ memoize 缓存, 需新会话 | `/skills reload` |
-| 选择性 | frontmatter `paths:` | `/skills` 命令 |
+| 条件激活 | frontmatter `paths:` glob | 不支持 (忽略) |
+
+> **`paths:` 条件激活**: 在 SKILL.md frontmatter 中添加 `paths: ["hooks/**", "**/*.sh"]` 后, 该 skill 仅在操作匹配文件时自动加载到摘要列表。手动 `/skillname` 调用不受影响。目前仅 `agent-hooks` 使用此特性。
 
 ## 3. Per-Agent Skill 隔离
 

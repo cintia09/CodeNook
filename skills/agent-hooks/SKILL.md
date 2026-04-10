@@ -1,6 +1,11 @@
 ---
 name: agent-hooks
 description: "Hook lifecycle management. Shell scripts triggered at lifecycle points to enforce boundaries, validate operations, and coordinate agents."
+paths:
+  - "hooks/**"
+  - "**/*.sh"
+  - ".claude/hooks.json"
+  - ".github/hooks-copilot.json"
 ---
 
 # Skill: Agent Hooks
