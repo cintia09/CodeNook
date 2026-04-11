@@ -107,17 +107,23 @@ case "$TOOL_NAME" in
     # Enforce bash command boundaries for non-implementer roles
     BASH_CMD=$(echo "$TOOL_ARGS" | jq -r '.command // empty' 2>/dev/null)
     [ -n "$BASH_CMD" ] || exit 0
+
+    # Strip quoted strings to avoid false positives from argument content
+    # e.g., gh release --notes "mentions npm publish" should NOT trigger npm publish check
+    # Direct commands like `npm publish` (unquoted) are still caught
+    BASH_CMD_CHECK=$(echo "$BASH_CMD" | sed "s/'[^']*'/_Q_/g" | sed 's/"[^"]*"/_Q_/g')
+
     case "$ACTIVE_AGENT" in
       acceptor|designer)
         # Read-only roles: block destructive commands and file writes
-        if echo "$BASH_CMD" | grep -qE '(^|\s)(rm|mv|cp|git\s+push|git\s+commit|npm\s+publish|docker\s+run|chmod|chown)(\s|$)'; then
+        if echo "$BASH_CMD_CHECK" | grep -qE '(^|\s)(rm|mv|cp|git\s+push|git\s+commit|npm\s+publish|docker\s+run|chmod|chown)(\s|$)'; then
           AGENT_JSON_ESC=$(echo "$ACTIVE_AGENT" | sed 's/"/\\"/g')
           echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"${AGENT_JSON_ESC} cannot run write/destructive commands via bash.\"}"
           exit 0
         fi
         # Block bash file-write patterns (redirects, in-place edits) outside .agents/
-        if echo "$BASH_CMD" | grep -qE '(>[^&]|>>|tee\s|sed\s+-i|patch\s|dd\s)' && \
-           ! echo "$BASH_CMD" | grep -qE '\.agents/'; then
+        if echo "$BASH_CMD_CHECK" | grep -qE '(>[^&]|>>|tee\s|sed\s+-i|patch\s|dd\s)' && \
+           ! echo "$BASH_CMD_CHECK" | grep -qE '\.agents/'; then
           AGENT_JSON_ESC=$(echo "$ACTIVE_AGENT" | sed 's/"/\\"/g')
           echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"${AGENT_JSON_ESC} cannot write to files via bash redirects. Use task-board or messaging instead.\"}"
           exit 0
@@ -125,32 +131,32 @@ case "$TOOL_NAME" in
         ;;
       reviewer)
         # Reviewer: read + git diff/log allowed, no writes
-        if echo "$BASH_CMD" | grep -qE '(^|\s)(rm|mv|cp|git\s+push|git\s+commit|npm\s+publish|docker\s+run|chmod|chown)(\s|$)'; then
+        if echo "$BASH_CMD_CHECK" | grep -qE '(^|\s)(rm|mv|cp|git\s+push|git\s+commit|npm\s+publish|docker\s+run|chmod|chown)(\s|$)'; then
           echo '{"permissionDecision":"deny","permissionDecisionReason":"🔍 Reviewer cannot run write/destructive commands via bash."}'
           exit 0
         fi
         # Block bash file-write patterns outside .agents/
-        if echo "$BASH_CMD" | grep -qE '(>[^&]|>>|tee\s|sed\s+-i|patch\s|dd\s)' && \
-           ! echo "$BASH_CMD" | grep -qE '\.agents/'; then
+        if echo "$BASH_CMD_CHECK" | grep -qE '(>[^&]|>>|tee\s|sed\s+-i|patch\s|dd\s)' && \
+           ! echo "$BASH_CMD_CHECK" | grep -qE '\.agents/'; then
           echo '{"permissionDecision":"deny","permissionDecisionReason":"🔍 Reviewer cannot write to files via bash redirects."}'
           exit 0
         fi
         ;;
       tester)
         # Tester: can run tests, read code, but not modify source or deploy
-        if echo "$BASH_CMD" | grep -qE '(^|\s)(git\s+push|git\s+commit|npm\s+publish|docker\s+run|chmod|chown)(\s|$)'; then
+        if echo "$BASH_CMD_CHECK" | grep -qE '(^|\s)(git\s+push|git\s+commit|npm\s+publish|docker\s+run|chmod|chown)(\s|$)'; then
           echo '{"permissionDecision":"deny","permissionDecisionReason":"🧪 Tester cannot run commit/publish/deploy commands. Use test runners only."}'
           exit 0
         fi
         # Block destructive commands on non-test files
-        if echo "$BASH_CMD" | grep -qE '(^|\s)(rm|mv|cp)(\s)' && \
-           ! echo "$BASH_CMD" | grep -qE '(tests?/|\.test\.|\.spec\.|\.agents/|/tmp/)'; then
+        if echo "$BASH_CMD_CHECK" | grep -qE '(^|\s)(rm|mv|cp)(\s)' && \
+           ! echo "$BASH_CMD_CHECK" | grep -qE '(tests?/|\.test\.|\.spec\.|\.agents/|/tmp/)'; then
           echo '{"permissionDecision":"deny","permissionDecisionReason":"🧪 Tester cannot modify non-test files via rm/mv/cp."}'
           exit 0
         fi
         # Block bash file-write patterns outside .agents/ and test dirs
-        if echo "$BASH_CMD" | grep -qE '(>[^&]|>>|tee\s|sed\s+-i|patch\s|dd\s)' && \
-           ! echo "$BASH_CMD" | grep -qE '(\.agents/|tests?/|\.test\.|\.spec\.)'; then
+        if echo "$BASH_CMD_CHECK" | grep -qE '(>[^&]|>>|tee\s|sed\s+-i|patch\s|dd\s)' && \
+           ! echo "$BASH_CMD_CHECK" | grep -qE '(\.agents/|tests?/|\.test\.|\.spec\.)'; then
           echo '{"permissionDecision":"deny","permissionDecisionReason":"🧪 Tester cannot write to non-test files via bash redirects."}'
           exit 0
         fi
@@ -158,13 +164,13 @@ case "$TOOL_NAME" in
       implementer)
         # Implementer: broadest access but cannot touch other agents' workspaces or deploy
         # Block editing other agents' runtime directories via redirects
-        if echo "$BASH_CMD" | grep -qE '(>[^&]|>>|tee\s|sed\s+-i)' && \
-           echo "$BASH_CMD" | grep -qE '\.agents/runtime/(acceptor|designer|reviewer|tester)/'; then
+        if echo "$BASH_CMD_CHECK" | grep -qE '(>[^&]|>>|tee\s|sed\s+-i)' && \
+           echo "$BASH_CMD_CHECK" | grep -qE '\.agents/runtime/(acceptor|designer|reviewer|tester)/'; then
           echo '{"permissionDecision":"deny","permissionDecisionReason":"💻 Implementer cannot write to other agents workspaces via bash. Use messaging."}'
           exit 0
         fi
         # Block direct deploy without going through review pipeline
-        if echo "$BASH_CMD" | grep -qE '(^|\s)(npm\s+publish|docker\s+push)(\s|$)'; then
+        if echo "$BASH_CMD_CHECK" | grep -qE '(^|\s)(npm\s+publish|docker\s+push)(\s|$)'; then
           echo '{"permissionDecision":"deny","permissionDecisionReason":"💻 Implementer cannot publish/deploy directly. Code must go through review first."}'
           exit 0
         fi
