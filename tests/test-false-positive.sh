@@ -118,6 +118,15 @@ check "command with &>/dev/null" \
   '{"toolName":"bash","toolArgs":{"command":"git status &>/dev/null && echo ok"},"cwd":"'"$PROJECT_ROOT"'"}' \
   "allow"
 
+echo "--- Acceptor: redirect target detection ---"
+check "jq read .agents/ with redirect to /tmp (should DENY)" \
+  '{"toolName":"bash","toolArgs":{"command":"jq .tasks .agents/task-board.json > /tmp/out.json"},"cwd":"'"$PROJECT_ROOT"'"}' \
+  "deny"
+
+check "redirect TO .agents/ (should allow)" \
+  '{"toolName":"bash","toolArgs":{"command":"echo {} > .agents/runtime/acceptor/workspace/test.json"},"cwd":"'"$PROJECT_ROOT"'"}' \
+  "allow"
+
 # --- Cleanup ---
 echo ""
 echo "implementer" > .agents/runtime/active-agent

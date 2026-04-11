@@ -235,16 +235,47 @@ case "$TOOL_NAME" in
     BASH_CMD_CHECK=$(echo "$BASH_CMD" | tr '\n' ' ' | sed "s/'[^']*'/_Q_/g" | sed 's/"[^"]*"/_Q_/g' | sed -E 's/[0-9]*>&?\/dev\/null//g; s/&>\/dev\/null//g')
 
     # Helper: check if ANY segment of a chained command has a dangerous pattern
-    # without matching a whitelist. Splits on &&, ||, ; for per-segment analysis.
+    # pointing OUTSIDE the whitelist. For redirect patterns, check redirect TARGETS only
+    # (prevents false negatives like `jq .agents/f > /tmp/out`).
+    # For non-redirect patterns (rm/mv/cp), check the whole segment.
     has_dangerous_segment() {
       local cmd="$1" pattern="$2" whitelist="$3"
       echo "$cmd" | sed 's/&&/\n/g; s/||/\n/g; s/;/\n/g' | while IFS= read -r seg; do
         seg=$(echo "$seg" | sed 's/^[[:space:]]*//')
         [ -z "$seg" ] && continue
         if echo "$seg" | grep -qE "$pattern"; then
-          if [ -z "$whitelist" ] || ! echo "$seg" | grep -qE "$whitelist"; then
+          if [ -z "$whitelist" ]; then
             echo "DENY"
             break
+          fi
+          # Determine if this is a redirect pattern or a command pattern
+          local is_redirect=false
+          echo "$pattern" | grep -qE '>[^&]|>>|tee|sed.*-i|patch|dd' && is_redirect=true
+          if [ "$is_redirect" = true ]; then
+            # Extract redirect targets (paths after > or >>) and tee/sed -i targets
+            local targets
+            targets=$(echo "$seg" | grep -oE '>{1,2}\s*[^ |&;]+' | sed 's/^>*\s*//' || true)
+            targets="$targets $(echo "$seg" | grep -oE 'tee\s+(-a\s+)?[^ |&;]+' | sed 's/tee\s*\(-a\s*\)\?//' || true)"
+            targets="$targets $(echo "$seg" | grep -oE 'sed\s+-i[^ ]*\s+[^ |&;]+' | grep -oE '[^ ]+$' || true)"
+            # If ALL redirect targets match whitelist → allow; otherwise deny
+            local has_bad_target=false
+            for target in $targets; do
+              [ -z "$target" ] && continue
+              if ! echo "$target" | grep -qE "$whitelist"; then
+                has_bad_target=true
+                break
+              fi
+            done
+            if [ "$has_bad_target" = true ]; then
+              echo "DENY"
+              break
+            fi
+          else
+            # Non-redirect pattern (rm/mv/cp etc.) — check whole segment
+            if ! echo "$seg" | grep -qE "$whitelist"; then
+              echo "DENY"
+              break
+            fi
           fi
         fi
       done
