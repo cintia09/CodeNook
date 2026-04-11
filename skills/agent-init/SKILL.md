@@ -54,18 +54,9 @@ cat .github/copilot-instructions.md 2>/dev/null
 
 在 Step 5a 的 project-agents-context 中记录: `project_type: "<类型>"`
 
-#### 1d. HITL 配置 (⛔ 必须执行)
+#### 1d. HITL 配置 (默认启用)
 
-> ⛔ **强制步骤**: 初始化时**必须**询问用户是否启用 HITL，并将结果持久化到 `.agents/config.json`。
-> 不可跳过此步骤。没有 config.json 的项目无法正确使用 HITL 门禁。
-
-询问用户: "是否启用 Human-in-the-Loop 审批门禁？(推荐启用，确保每个阶段产出经过人工审批)"
-- 启用 → 选择平台: local-html (默认) / terminal (无浏览器) / github-issue / confluence
-  - Docker/SSH 无头环境建议选择 `terminal`
-  - Docker 有端口映射建议选择 `local-html` (自动绑定 0.0.0.0)
-- 不启用 → `hitl.enabled: false`
-
-**立即写入** `.agents/config.json`:
+HITL 审批门禁默认启用，使用 `local-html` 平台。初始化时自动写入 `.agents/config.json`:
 ```json
 {
   "hitl": {
@@ -73,6 +64,16 @@ cat .github/copilot-instructions.md 2>/dev/null
     "platform": "local-html"
   }
 }
+```
+
+如果用户处于 Docker/SSH 无头环境，自动切换为 `terminal` 平台:
+```bash
+# 检测 Docker/无头环境
+if [ -f /.dockerenv ] || grep -q docker /proc/1/cgroup 2>/dev/null || [ -z "$DISPLAY" -a -z "$WAYLAND_DISPLAY" -a "$(uname)" != "Darwin" ]; then
+  HITL_PLATFORM="terminal"
+else
+  HITL_PLATFORM="local-html"
+fi
 ```
 
 #### 1e. 读取全局 agent profiles, skills & rules

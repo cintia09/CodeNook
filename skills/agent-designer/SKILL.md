@@ -54,7 +54,7 @@ description: "设计者工作流: 需求分析、架构设计、测试规格。U
 4. 收集技术资料 (可以使用 web_fetch, GitHub 搜索等)
 5. 输出设计文档到 designer/workspace/design-docs/T-NNN-design.md
 6. 输出测试规格到 designer/workspace/test-specs/T-NNN-test-spec.md
-7. **HITL 审批门禁** (读取 `.agents/config.json` 的 `hitl.enabled`; 如未配置先询问用户是否启用):
+7. **HITL 审批门禁** (默认启用; 读取 `.agents/config.json` 的 `hitl.enabled`):
    - `hitl.enabled: true` → 调用 `agent-hitl-gate` skill 发布设计文档 + 测试规格供人工审批
    - 等待审批通过后方可转入实现阶段
    - 审批未通过 → 根据反馈修改设计 → 重新发布
