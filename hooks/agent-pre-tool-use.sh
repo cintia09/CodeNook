@@ -9,10 +9,43 @@ TOOL_NAME=$(echo "$INPUT" | jq -r '.toolName')
 TOOL_ARGS=$(echo "$INPUT" | jq -r '.toolArgs')
 CWD=$(echo "$INPUT" | jq -r '.cwd')
 
-AGENTS_DIR="$CWD/.agents"
+# --- Locate project root (walk up from cwd, then try file path) ---
+find_agents_dir() {
+  local dir="$1"
+  while [ "$dir" != "/" ] && [ -n "$dir" ]; do
+    [ -d "$dir/.agents/runtime" ] && echo "$dir" && return 0
+    dir=$(dirname "$dir")
+  done
+  return 1
+}
 
-# Only enforce if agent framework is initialized and an agent is active
-[ -d "$AGENTS_DIR/runtime" ] || exit 0
+PROJECT_ROOT=""
+# Strategy 1: walk up from cwd
+PROJECT_ROOT=$(find_agents_dir "$CWD" 2>/dev/null) || true
+
+# Strategy 2: if not found, try the file path from tool args (edit/create targets)
+if [ -z "$PROJECT_ROOT" ]; then
+  FILE_HINT=$(echo "$TOOL_ARGS" | jq -r '.path // empty' 2>/dev/null)
+  if [ -n "$FILE_HINT" ]; then
+    PROJECT_ROOT=$(find_agents_dir "$(dirname "$FILE_HINT")" 2>/dev/null) || true
+  fi
+fi
+
+# Strategy 3: try bash command's cd target or common project paths
+if [ -z "$PROJECT_ROOT" ]; then
+  BASH_CMD_HINT=$(echo "$TOOL_ARGS" | jq -r '.command // empty' 2>/dev/null)
+  if echo "$BASH_CMD_HINT" | grep -qo 'cd [^ ;|&]*' 2>/dev/null; then
+    CD_TARGET=$(echo "$BASH_CMD_HINT" | grep -o 'cd [^ ;|&]*' | head -1 | sed 's/^cd //')
+    # Expand ~ to HOME
+    CD_TARGET="${CD_TARGET/#\~/$HOME}"
+    [ -d "$CD_TARGET" ] && PROJECT_ROOT=$(find_agents_dir "$CD_TARGET" 2>/dev/null) || true
+  fi
+fi
+
+[ -n "$PROJECT_ROOT" ] || exit 0
+AGENTS_DIR="$PROJECT_ROOT/.agents"
+
+# Only enforce if an agent is active
 ACTIVE_FILE="$AGENTS_DIR/runtime/active-agent"
 [ -f "$ACTIVE_FILE" ] || exit 0
 
@@ -25,8 +58,8 @@ case "$TOOL_NAME" in
     FILE_PATH=$(echo "$TOOL_ARGS" | jq -r '.path // empty' 2>/dev/null)
     [ -n "$FILE_PATH" ] || exit 0
 
-    # Normalize: remove CWD prefix for relative comparison
-    REL_PATH="${FILE_PATH#"$CWD"/}"
+    # Normalize: remove project root prefix for relative comparison
+    REL_PATH="${FILE_PATH#"$PROJECT_ROOT"/}"
 
     case "$ACTIVE_AGENT" in
       acceptor)

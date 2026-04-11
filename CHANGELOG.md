@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.3.4] - 2026-04-11
+
+### Fixed
+- **agent-pre-tool-use.sh**: Fixed project root detection that failed when Copilot CLI session started from a non-project directory (e.g., `~`). Now walks up directory tree from both `cwd` and file path to find `.agents/` directory.
+
+### Verified
+- **Copilot CLI hooks confirmed working** (v1.0.24): `preToolUse` hook with `permissionDecision: "deny"` successfully blocks tool execution
+- Both `~/.copilot/hooks/hooks.json` and `config.json` inline hooks are executed
+- All 6 hook events documented by GitHub are supported: `sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`, `postToolUse`, `errorOccurred`
+
 ## [3.2.0] - 2026-04-10
 
 ### 🚀 Skills Mechanism Optimization (T-SKILL-OPT)
