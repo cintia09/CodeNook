@@ -24,7 +24,7 @@ from pathlib import Path
 
 # Parse arguments
 if len(sys.argv) < 6:
-    print("Usage: hitl-server.py <port> <task_id> <role> <content_file> <feedback_dir>")
+    print("Usage: hitl-server.py <port> <task_id> <role> <content_file> <feedback_dir> [bind_host]")
     sys.exit(1)
 
 PORT = int(sys.argv[1])
@@ -32,6 +32,7 @@ TASK_ID = sys.argv[2]
 ROLE = sys.argv[3]
 CONTENT_FILE = sys.argv[4]
 FEEDBACK_DIR = sys.argv[5]
+BIND_HOST = sys.argv[6] if len(sys.argv) > 6 else "127.0.0.1"
 
 FEEDBACK_FILE = os.path.join(FEEDBACK_DIR, f"{TASK_ID}-{ROLE}-feedback.json")
 HISTORY_FILE = os.path.join(FEEDBACK_DIR, f"{TASK_ID}-{ROLE}-history.json")
@@ -284,10 +285,12 @@ class HITLHandler(http.server.BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = http.server.HTTPServer(("127.0.0.1", PORT), HITLHandler)
-    print(f"🚪 HITL Review Server running at http://127.0.0.1:{PORT}")
+    server = http.server.HTTPServer((BIND_HOST, PORT), HITLHandler)
+    print(f"🚪 HITL Review Server running at http://{BIND_HOST}:{PORT}")
     print(f"   Task: {TASK_ID} | Role: {ROLE}")
     print(f"   Feedback: {FEEDBACK_FILE}")
+    if BIND_HOST == "0.0.0.0":
+        print(f"   ⚠️  Headless mode: access from host via http://<container-ip>:{PORT}")
     print(f"   Press Ctrl+C to stop")
     try:
         server.serve_forever()

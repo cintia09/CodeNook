@@ -79,19 +79,40 @@ case "$cmd" in
 
     # Start HITL review server in background
     SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-    python3 "$SCRIPT_DIR/hitl-server.py" "$HITL_PORT" "$task_id" "$role" "$content_file" "$REVIEWS_DIR" &
+
+    # Detect headless environment (Docker, SSH, no DISPLAY)
+    BIND_HOST="127.0.0.1"
+    HEADLESS=false
+    if [ -f /.dockerenv ] || grep -q docker /proc/1/cgroup 2>/dev/null; then
+      BIND_HOST="0.0.0.0"
+      HEADLESS=true
+    elif [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ] && [ "$(uname)" != "Darwin" ]; then
+      HEADLESS=true
+    fi
+
+    python3 "$SCRIPT_DIR/hitl-server.py" "$HITL_PORT" "$task_id" "$role" "$content_file" "$REVIEWS_DIR" "$BIND_HOST" &
     SERVER_PID=$!
     echo "$SERVER_PID" > "$REVIEWS_DIR/${task_id}-${role}-server.pid"
 
     # Wait briefly for server to start
     sleep 1
 
-    # Open in browser
-    review_url="http://127.0.0.1:${HITL_PORT}"
-    if [ "$(uname)" = "Darwin" ]; then
-      open "$review_url" 2>/dev/null || true
-    elif command -v xdg-open >/dev/null 2>&1; then
-      xdg-open "$review_url" 2>/dev/null || true
+    # Build review URL
+    if [ "$BIND_HOST" = "0.0.0.0" ]; then
+      HOSTNAME_DISPLAY=$(hostname -I 2>/dev/null | awk '{print $1}')
+      [ -z "$HOSTNAME_DISPLAY" ] && HOSTNAME_DISPLAY=$(hostname)
+      review_url="http://${HOSTNAME_DISPLAY}:${HITL_PORT}"
+    else
+      review_url="http://127.0.0.1:${HITL_PORT}"
+    fi
+
+    # Open in browser (skip in headless)
+    if [ "$HEADLESS" = "false" ]; then
+      if [ "$(uname)" = "Darwin" ]; then
+        open "$review_url" 2>/dev/null || true
+      elif command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "$review_url" 2>/dev/null || true
+      fi
     fi
 
     echo "$review_url"

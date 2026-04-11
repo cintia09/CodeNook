@@ -56,7 +56,9 @@ cat .github/copilot-instructions.md 2>/dev/null
 
 #### 1d. HITL 配置
 询问用户: 是否启用 Human-in-the-Loop 审批门禁？
-- 启用 → 选择平台: local-html (默认) / github-issue / confluence
+- 启用 → 选择平台: local-html (默认) / terminal (无浏览器) / github-issue / confluence
+  - Docker/SSH 无头环境建议选择 `terminal`
+  - Docker 有端口映射建议选择 `local-html` (自动绑定 0.0.0.0)
 - 不启用 → `hitl.enabled: false`
 写入 `.agents/config.json` 中的 `hitl` 配置块。
 
