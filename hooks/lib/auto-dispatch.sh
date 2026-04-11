@@ -44,7 +44,18 @@ run_auto_dispatch() {
 
     [ -z "$TARGET" ] && continue
 
+    # Cross-worktree routing: if task has a worktree, deliver to that inbox
     TARGET_INBOX="$AGENTS_DIR/runtime/$TARGET/inbox.json"
+    if command -v git &>/dev/null; then
+      WT_PATH=$(cd "$AGENTS_DIR/.." 2>/dev/null && git worktree list --porcelain 2>/dev/null || true)
+      WT_PATH=$(echo "$WT_PATH" | awk -v tid="$TASK_ID" '
+        /^worktree / { path=$2 }
+        /^branch / && path && $0 ~ "task/" tid { print path; exit }
+      ')
+      if [ -n "$WT_PATH" ] && [ -f "$WT_PATH/.agents/runtime/$TARGET/inbox.json" ]; then
+        TARGET_INBOX="$WT_PATH/.agents/runtime/$TARGET/inbox.json"
+      fi
+    fi
     [ -f "$TARGET_INBOX" ] || continue
 
     MSG_ID="MSG-auto-${TASK_ID}-${STATUS}"

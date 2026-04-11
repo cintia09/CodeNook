@@ -330,6 +330,38 @@ bash scripts/memory-search.sh "测试策略" --layer long-term
 - task-board.json 只由协调者修改
 - sub-agent 完成后，协调者汇总验证
 
+### 3.4 Worktree 隔离并行
+
+当多个任务修改相同文件时，使用 Git Worktree 实现完全隔离：
+
+```bash
+# 创建独立 worktree
+/agent-worktree create T-042
+/agent-worktree create T-043
+
+# 查看所有活跃 worktree
+/agent-worktree list
+
+# 在各自终端独立开发
+cd ../project--T-042 && /agent implementer
+cd ../project--T-043 && /agent implementer
+
+# 完成后合并回 main
+/agent-worktree merge T-042
+
+# 启动多任务 tmux 会话（每个任务一个窗口）
+bash scripts/team-session.sh --worktree --tasks T-042,T-043
+```
+
+**共享 vs 隔离：**
+| 资源 | 方式 |
+|------|------|
+| task-board.json | Symlink → 主 worktree |
+| events.db | Symlink → 主 worktree |
+| inbox/memory/docs | 每个 worktree 独立 |
+| 源代码 | 完全隔离（独立分支） |
+| Skills/Hooks | 自动继承（全局目录） |
+
 ---
 
 ## 4. 高级功能

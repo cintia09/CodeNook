@@ -2,6 +2,7 @@
 # Integration test: actual hook execution with simulated inputs
 set -euo pipefail
 cd "$(dirname "$0")/.."
+REPO_DIR="$(pwd)"
 HOOK_DIR="$(pwd)/hooks"
 PASS=0; FAIL=0; TOTAL=0
 
@@ -181,6 +182,36 @@ WARN_OUTPUT=$(echo '{"toolName":"edit","toolArgs":"{\"path\":\"'"$TEST_DIR"'/.ag
   | bash "$HOOK_DIR/agent-post-tool-use.sh" 2>&1)
 WARN_ILLEGAL=$(echo "$WARN_OUTPUT" | grep -c "ILLEGAL" || true)
 check "Warn doc gate: warns but does NOT block" "$([ "$WARN_ILLEGAL" -eq 0 ] && echo pass || echo fail)"
+
+# === Test 26: team-session.sh --worktree validates --tasks required ===
+WT_VALIDATE=$(bash "$HOOK_DIR/../scripts/team-session.sh" --worktree 2>&1) || true
+WT_ERR=$(echo "$WT_VALIDATE" | grep -c "requires --tasks" || true)
+check "Worktree session: --worktree requires --tasks" "$([ "$WT_ERR" -ge 1 ] && echo pass || echo fail)"
+
+# === Test 27: team-session.sh --help includes worktree docs ===
+WT_HELP=$(bash "$HOOK_DIR/../scripts/team-session.sh" --help 2>&1) || true
+WT_DOC=$(echo "$WT_HELP" | grep -c "Worktree mode" || true)
+check "Worktree session: --help documents worktree mode" "$([ "$WT_DOC" -ge 1 ] && echo pass || echo fail)"
+
+# === Test 28: auto-dispatch cross-worktree routing code exists ===
+WT_ROUTE=$(grep -c "worktree list --porcelain" "$HOOK_DIR/lib/auto-dispatch.sh" || true)
+check "Auto-dispatch: cross-worktree routing present" "$([ "$WT_ROUTE" -ge 1 ] && echo pass || echo fail)"
+
+# === Test 29: task-board schema includes worktree field ===
+WT_SCHEMA=$(grep -c '"worktree"' "$REPO_DIR/skills/agent-task-board/SKILL.md" || true)
+check "Task-board schema: worktree field documented" "$([ "$WT_SCHEMA" -ge 1 ] && echo pass || echo fail)"
+
+# === Test 30: agent-worktree skill has all 4 commands ===
+WT_SKILL="$REPO_DIR/skills/agent-worktree/SKILL.md"
+WT_CREATE=$(grep -c "create" "$WT_SKILL" || true)
+WT_LIST=$(grep -c "^### list" "$WT_SKILL" || true)
+WT_MERGE=$(grep -c "^### merge" "$WT_SKILL" || true)
+WT_STATUS=$(grep -c "^### status" "$WT_SKILL" || true)
+WT_CMDS=$((WT_CREATE > 0 ? 1 : 0))
+WT_CMDS=$((WT_CMDS + (WT_LIST > 0 ? 1 : 0)))
+WT_CMDS=$((WT_CMDS + (WT_MERGE > 0 ? 1 : 0)))
+WT_CMDS=$((WT_CMDS + (WT_STATUS > 0 ? 1 : 0)))
+check "Agent-worktree: all 4 commands documented" "$([ "$WT_CMDS" -ge 4 ] && echo pass || echo fail)"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Results: $PASS/$TOTAL passed, $FAIL failed"

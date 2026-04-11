@@ -24,11 +24,30 @@ description: "任务表操作: 创建/更新/查看任务。调用时说 '创建
       "priority": "P0",
       "created_by": "acceptor",
       "created_at": "2026-04-05T08:00:00Z",
-      "updated_at": "2026-04-05T08:00:00Z"
+      "updated_at": "2026-04-05T08:00:00Z",
+      "worktree": null
     }
   ]
 }
 ```
+
+### worktree 字段 (可选)
+
+当任务通过 `agent-worktree create` 创建了独立 worktree 时, 自动填入:
+
+```json
+{
+  "worktree": {
+    "path": "../project--T-001",
+    "branch": "task/T-001",
+    "created_at": "2026-04-05T10:00:00Z"
+  }
+}
+```
+
+- `worktree: null` 表示任务在主工作目录开发 (默认)
+- 合并后 (`agent-worktree merge`), worktree 字段清除回 null
+- auto-dispatch 会根据此字段将消息路由到对应 worktree 的 inbox
 
 ## 操作
 
