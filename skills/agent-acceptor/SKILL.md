@@ -54,21 +54,21 @@ description: "验收者工作流: 需求收集、任务发布、验收测试。U
 
 ```
 1. 与用户沟通, 明确需求边界和验收标准
-1.5. **Worktree 提示**: 询问用户 "这个功能是否需要在独立的 worktree 中开发？(推荐用于较大功能或需要隔离的开发)"
-   — 如果是: 在步骤 5 创建任务后, 调用 agent-worktree skill 的 create 命令
+2. **⚠️ Worktree 提示** (必须执行): 询问用户 "这个功能是否需要在独立的 worktree 中开发？(推荐用于较大功能或需要隔离的开发)"
+   — 如果是: 在步骤 7 创建任务后, 调用 agent-worktree skill 的 create 命令
    — 如果否: 在主 worktree 中继续
-2. 在 acceptor/workspace/requirements/ 下创建需求文档 (T-NNN-requirement.md)
-3. **拆分功能目标**: 将需求拆解为具体的功能目标清单 (goals), 每个 goal 是一个可独立验证的功能点
-4. 在 acceptor/workspace/acceptance-docs/ 下创建验收文档 (T-NNN-acceptance.md)
-5. **HITL 审批门禁** (如已启用):
+3. 在 acceptor/workspace/requirements/ 下创建需求文档 (T-NNN-requirement.md)
+4. **拆分功能目标**: 将需求拆解为具体的功能目标清单 (goals), 每个 goal 是一个可独立验证的功能点
+5. 在 acceptor/workspace/acceptance-docs/ 下创建验收文档 (T-NNN-acceptance.md)
+6. **HITL 审批门禁** (如已启用):
    - 发布需求文档 + 验收标准供人工审批
    - 等待审批通过后方可发布任务
    - 审批未通过 → 根据反馈修改需求文档 → 重新发布
-6. **⛔ 必须执行**: 使用 agent-task-board skill 创建任务到 task-board.json (包含 goals 数组)
+7. **⛔ 必须执行**: 使用 agent-task-board skill 创建任务到 task-board.json (包含 goals 数组)
    — 这一步不可省略, 不可推迟, 不可用其他方式替代
-7. 更新 state.json (status: idle, 当前任务清空)
-8. 确认: "✅ 任务 T-NNN 已发布 (N 个功能目标), 设计者将接手"
-9. **自检**: 使用 jq 读取 task-board.json 确认任务存在且状态为 created
+8. 更新 state.json (status: idle, 当前任务清空)
+9. 确认: "✅ 任务 T-NNN 已发布 (N 个功能目标), 设计者将接手"
+10. **自检**: 使用 jq 读取 task-board.json 确认任务存在且状态为 created
 ```
 
 ## 用户故事格式
