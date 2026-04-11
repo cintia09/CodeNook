@@ -691,3 +691,12 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - agent-rules.md: new "强制角色切换" top-priority section
 - agent-init Step 7a: CLAUDE.md template now includes switch trigger rules
 - Supports: "切换到验收者", "switch to tester", "/agent acceptor", "我是实现者", etc.
+
+## v3.3.3
+
+### Role Permission Enforcement
+- agent-rules.md: new "角色权限强制执行" section with permission matrix
+- Self-check before every file operation: read active-agent → check matrix → block violations
+- Violation response template: shows role, blocked action, and switch suggestion
+- agent-init Step 7a: CLAUDE.md template includes enforcement rules
+- Works in both Claude Code (hook-enforced) and Copilot CLI (self-check enforced)

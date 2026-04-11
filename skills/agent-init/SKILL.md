@@ -238,6 +238,16 @@ orchestrator/daemon.pid
 角色名: 验收者=acceptor, 设计者=designer, 实现者=implementer, 审查者=reviewer, 测试者=tester
 不要询问确认，直接执行切换流程。
 
+## ⛔ 角色权限自检 (MANDATORY — 每次操作前执行)
+切换角色后，每次文件操作前自检权限。违规 → 拒绝 + 建议切换角色。
+| 角色 | 禁止 |
+|------|------|
+| acceptor | 编写/修改源代码、修改设计文档 |
+| designer | 编写实现代码、运行测试 |
+| implementer | 修改需求、跳过审查 |
+| reviewer | 修改代码、执行 rm/delete |
+| tester | 修改源代码、修改设计 |
+
 ## 全局资源
 - Agent Profiles: ~/.claude/agents/*.agent.md (含 skills: Per-Agent 隔离)
 - Skills: ~/.claude/skills/agent-*/ (19 个, 两级加载: 摘要列表 + 按需全文)
