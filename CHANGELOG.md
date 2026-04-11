@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.3.6] - 2026-04-11
+
+### 🔒 Security Hardening — Hook Enforcement
+
+**Virtual Event Enforcement via preToolUse:**
+- **agentSwitch**: validates role names on write to `active-agent`; blocks empty/invalid writes and file deletion (`rm`, `mv`)
+- **memoryWrite**: namespace isolation — agents can only write their own memory files; task memory (`T-NNN-*`) is shared
+- **taskBoard**: JSON syntax validation for full `task-board.json` writes
+
+**Security Vulnerabilities Fixed:**
+- **False positive prevention**: strip quoted strings (`'...'`, `"..."`) before pattern matching — prevents `--notes "npm publish"` from triggering block
+- **Active-agent bypass**: block `rm`/`mv` on `active-agent` file; default to `acceptor` (most restrictive) when file missing but framework initialized
+- **Chained command bypass**: per-segment analysis (`has_dangerous_segment`) splits on `&&`, `||`, `;` to prevent danger hidden behind whitelist matches
+- **Multi-line quote stripping**: collapse newlines with `tr '\n' ' '` before `sed` to handle multi-line commit messages
+- **Cross-directory attacks**: Strategy 4 extracts absolute paths from bash commands to detect operations targeting projects from outside directories
+
+**Hook Configuration Cleanup:**
+- Removed 6 unsupported custom events from `hooks-copilot.json` (Copilot CLI only supports 6 built-in events)
+- Retained: `sessionStart`, `preToolUse`, `postToolUse`
+
+### Added
+- `tests/test-false-positive.sh` — 15 false-positive test cases
+- `tests/test-virtual-events.sh` — 31 virtual event + security test cases
+- 4-strategy project root detection (cwd walk, file path walk, cd target, absolute path extraction)
+
+### Verified
+- 51/51 total tests: framework 5/5 ✅, false-positive 15/15 ✅, virtual events 31/31 ✅
+- Live-tested cross-directory, chained command, and active-agent bypass scenarios
+
 ## [3.3.5] - 2026-04-11
 
 ### Added
