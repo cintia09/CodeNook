@@ -172,6 +172,27 @@ check "deny: bash rm without active-agent (defaults to acceptor)" \
   '{"toolName":"bash","toolArgs":{"command":"rm install.sh"},"cwd":"'"$PROJECT_ROOT"'"}' \
   "deny"
 
+# --- Cross-directory attacks (cwd outside project) ---
+echo ""
+echo "--- Cross-directory attacks (cwd=~, target=project) ---"
+echo "tester" > .agents/runtime/active-agent
+
+check "deny: edit project file from outside (cwd=~)" \
+  '{"toolName":"edit","toolArgs":{"path":"'"$PROJECT_ROOT"'/install.sh","old_str":"test","new_str":"hack"},"cwd":"'"$HOME"'"}' \
+  "deny"
+
+check "deny: bash rm with absolute path from outside (Strategy 4)" \
+  '{"toolName":"bash","toolArgs":{"command":"rm '"$PROJECT_ROOT"'/install.sh"},"cwd":"'"$HOME"'"}' \
+  "deny"
+
+check "deny: bash redirect with absolute path from outside" \
+  '{"toolName":"bash","toolArgs":{"command":"echo hack >> '"$PROJECT_ROOT"'/install.sh"},"cwd":"'"$HOME"'"}' \
+  "deny"
+
+check "allow: bash read project file from outside (cat is safe)" \
+  '{"toolName":"bash","toolArgs":{"command":"cat '"$PROJECT_ROOT"'/install.sh"},"cwd":"'"$HOME"'"}' \
+  "allow"
+
 # --- Reviewer can switch roles (previously bugged) ---
 echo ""
 echo "--- Reviewer role switch regression ---"

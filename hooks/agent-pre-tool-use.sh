@@ -42,6 +42,22 @@ if [ -z "$PROJECT_ROOT" ]; then
   fi
 fi
 
+# Strategy 4: extract absolute paths from bash command arguments
+# Catches: rm /path/to/project/file, echo >> /path/to/project/file
+if [ -z "$PROJECT_ROOT" ]; then
+  BASH_CMD_HINT=$(echo "$TOOL_ARGS" | jq -r '.command // empty' 2>/dev/null)
+  if [ -n "$BASH_CMD_HINT" ]; then
+    ABS_PATHS=$(echo "$BASH_CMD_HINT" | grep -oE '/[a-zA-Z0-9_./~-]+' | head -5) || true
+    for apath in $ABS_PATHS; do
+      ADIR=$(dirname "$apath" 2>/dev/null) || true
+      if [ -n "$ADIR" ] && [ -d "$ADIR" ]; then
+        PROJECT_ROOT=$(find_agents_dir "$ADIR" 2>/dev/null) || true
+        [ -n "$PROJECT_ROOT" ] && break
+      fi
+    done
+  fi
+fi
+
 [ -n "$PROJECT_ROOT" ] || exit 0
 AGENTS_DIR="$PROJECT_ROOT/.agents"
 
