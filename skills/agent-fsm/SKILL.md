@@ -5,25 +5,15 @@ description: "FSM 引擎: 管理 Agent 和任务的状态机。调用时说 'FSM
 
 # Agent FSM 引擎
 
-## FSM Mode Selection
+## FSM Mode
 
-The framework supports **dual workflow modes**. Each task operates in exactly one mode, determined at task creation and recorded in `task-board.json`:
+The framework uses a **unified linear workflow** for all tasks. Each task follows the same state machine:
 
-| Mode | Value | Use Case | States |
-|------|-------|----------|--------|
-| **Simple Linear** | `"simple"` (default) | Standard features, bug fixes, typical SDLC | 10 states |
-| **3-Phase Engineering** | `"3phase"` | Complex/safety-critical features, hardware/firmware, multi-team | 18 states |
-
-The mode is stored in the task's `workflow_mode` field:
-```json
-{
-  "id": "T-001",
-  "workflow_mode": "simple",
-  "status": "designing"
-}
+```
+created → designing → implementing → reviewing → testing → accepting → accepted
 ```
 
-If `workflow_mode` is absent, default to `"simple"`.
+With feedback loops for quality control and a blocked state for manual intervention.
 
 ---
 
@@ -54,6 +44,10 @@ accepting    → accept_fail               (验收失败)
 accept_fail  → designing                 (重新进入流程)
 ANY          → blocked                   (遇到无法解决的问题)
 blocked      → [previous_state]          (人工 unblock)
+designing    → hypothesizing             (分叉竞争方案)
+implementing → hypothesizing             (分叉竞争方案)
+hypothesizing → designing                (胜出方案 → 设计)
+hypothesizing → implementing             (胜出方案 → 实现)
 ```
 
 ## 操作指令
@@ -121,124 +115,31 @@ state.json 格式:
      - `"warn"` (默认): ⚠️ 输出警告，不阻止转换
      - `"strict"`: ⛔ 阻止转换（`LEGAL=false`），必须先写好文档
 
+6. **DFMEA 门禁 (implementing → reviewing)**:
+   - 检查 `.agents/runtime/implementer/workspace/T-NNN-dfmea.md` 是否存在
+   - 模式与文档门禁相同 (`doc_gate_mode`: warn / strict)
+   - Strict 模式下: DFMEA 缺失 → 拒绝转移
+7. **反馈循环守卫**: 反馈转移时检查 `feedback_loops < MAX_FEEDBACK_LOOPS`
+8. **HITL 审批守卫** (仅 `hitl.enabled == true` 时生效):
+   - 检查任务的 `hitl_status.status == "approved"`
+   - 未审批 → 拒绝转移: "⛔ HITL 审批未通过, 请先完成人工审批"
+   - 配置来源: `.agents/config.json` 的 `hitl` 块
+
 如果任何 Guard 检查失败, 中止转移, 报告原因。
-
----
-
-## 3-Phase Engineering Closed Loop FSM
-
-For complex, safety-critical, or multi-team features, the 3-Phase workflow provides a rigorous 18-state engineering process with parallel tracks and feedback loops.
-
-### 3-Phase State Definitions
-
-| # | Phase | State | Description | Assigned To |
-|---|-------|-------|-------------|-------------|
-| 1 | — | `created` | Task created, pending triage | acceptor |
-| 2 | 1: Design | `requirements` | Gathering & refining requirements | acceptor |
-| 3 | 1: Design | `architecture` | System/module architecture design | designer |
-| 4 | 1: Design | `tdd_design` | TDD test plan + DFMEA input | designer + tester |
-| 5 | 1: Design | `dfmea` | Design Failure Mode & Effects Analysis | designer |
-| 6 | 1: Design | `design_review` | Formal design review gate | reviewer |
-| 7 | 2: Implementation | `implementing` | Feature coding (Track A) | implementer |
-| 8 | 2: Implementation | `test_scripting` | Test automation scripting (Track B) | tester |
-| 9 | 2: Implementation | `code_reviewing` | Continuous code review (Track C) | reviewer |
-| 10 | 2: Implementation | `ci_monitoring` | CI pipeline monitoring | tester |
-| 11 | 2: Implementation | `ci_fixing` | CI failure resolution | implementer |
-| 12 | 2: Implementation | `device_baseline` | Device/environment baseline verification | tester |
-| 13 | 3: Testing | `deploying` | Deploy to test environment | implementer |
-| 14 | 3: Testing | `regression_testing` | Full regression test suite | tester |
-| 15 | 3: Testing | `feature_testing` | New feature-specific testing | tester |
-| 16 | 3: Testing | `log_analysis` | Log/diagnostic analysis | tester + designer |
-| 17 | 3: Testing | `documentation` | Release notes, docs update | designer |
-| 18 | — | `accepted` | Task complete ✅ | — |
-
-### Legal Transitions (3-Phase)
-
-#### Phase 1 — Design Flow
-```
-created         → requirements              (acceptor triages to 3-phase)
-requirements    → architecture              (requirements approved)
-architecture    → tdd_design                (architecture complete)
-tdd_design      → dfmea                     (TDD plan + test strategy ready)
-dfmea           → design_review             (DFMEA complete)
-design_review   → implementing              (design review PASS → Phase 2)
-design_review   → test_scripting            (design review PASS → start test scripting)
-design_review   → architecture              (design review FAIL → rework)
-```
-
-#### Phase 2 — Implementation Flow (Parallel Tracks)
-```
-implementing    → code_reviewing            (code ready for review)
-implementing    → ci_monitoring             (code pushed, CI triggered)
-test_scripting  → code_reviewing            (test scripts ready for review)
-code_reviewing  → implementing              (review rejection → rework)
-code_reviewing  → ci_monitoring             (review pass → verify CI)
-ci_monitoring   → ci_fixing                 (CI failure detected)
-ci_monitoring   → device_baseline           (CI green → baseline check)
-ci_fixing       → ci_monitoring             (fix applied, re-check CI)
-device_baseline → deploying                 (baseline pass → Phase 3)
-device_baseline → implementing              (baseline fail → rework)
-```
-
-**Parallel Track Launch**: When entering Phase 2 (`design_review → implementing`), the orchestrator simultaneously launches:
-- **Track A**: `implementing` (implementer)
-- **Track B**: `test_scripting` (tester)
-- **Track C**: `code_reviewing` (reviewer — starts when Track A/B produce artifacts)
-
-**Convergence Gate**: `device_baseline` can only be entered when ALL parallel tracks report complete. The orchestrator checks:
-```
-parallel_tracks.implementing   == "complete"
-parallel_tracks.test_scripting == "complete"
-parallel_tracks.code_reviewing == "complete"
-parallel_tracks.ci_monitoring  == "green"
-```
-
-#### Phase 3 — Testing & Verification Flow
-```
-deploying           → regression_testing    (deployment confirmed)
-regression_testing  → feature_testing       (regression pass)
-regression_testing  → implementing          (regression FAIL → feedback loop)
-feature_testing     → log_analysis          (feature tests complete)
-feature_testing     → tdd_design            (feature FAIL → feedback to design)
-log_analysis        → documentation         (no anomalies)
-log_analysis        → ci_fixing             (anomaly found → feedback loop)
-documentation       → accepted              (docs complete, task done ✅)
-```
-
-#### Feedback Loop Transitions
-```
-regression_testing  → implementing          (Phase 3 → Phase 2: test failure)
-feature_testing     → tdd_design            (Phase 3 → Phase 1: design gap)
-log_analysis        → ci_fixing             (Phase 3 → Phase 2: anomaly fix)
-device_baseline     → implementing          (Phase 2 → Phase 2: baseline fail)
-design_review       → architecture          (Phase 1 → Phase 1: review fail)
-code_reviewing      → implementing          (Phase 2 → Phase 2: review reject)
-```
-
-#### Universal Transitions
-```
-ANY                 → blocked               (unresolvable issue)
-blocked             → [previous_state]      (human unblock)
-designing           → hypothesizing         (fork competitive approaches)
-implementing        → hypothesizing         (fork competitive approaches)
-hypothesizing       → designing             (winner promoted → design)
-hypothesizing       → implementing          (winner promoted → implementation)
-```
 
 ### Safety Limit: Feedback Loops
 
 **MAX_FEEDBACK_LOOPS = 10** per task.
 
-Each feedback transition increments `feedback_loops` counter in task-board.json:
+Feedback transitions (reviewing → implementing, testing → fixing, accept_fail → designing) increment the `feedback_loops` counter:
 ```json
 {
   "id": "T-005",
-  "workflow_mode": "3phase",
   "feedback_loops": 3,
   "feedback_history": [
-    {"from": "regression_testing", "to": "implementing", "at": "2026-04-10T14:00:00Z", "reason": "3 regression failures"},
-    {"from": "feature_testing", "to": "tdd_design", "at": "2026-04-10T16:00:00Z", "reason": "edge case not covered in design"},
-    {"from": "log_analysis", "to": "ci_fixing", "at": "2026-04-11T09:00:00Z", "reason": "memory leak in log"}
+    {"from": "reviewing", "to": "implementing", "at": "2026-04-10T14:00:00Z", "reason": "Security issue found"},
+    {"from": "testing", "to": "fixing", "at": "2026-04-10T16:00:00Z", "reason": "2 test failures"},
+    {"from": "accept_fail", "to": "designing", "at": "2026-04-11T09:00:00Z", "reason": "Missing requirement"}
   ]
 }
 ```
@@ -249,55 +150,33 @@ When `feedback_loops >= MAX_FEEDBACK_LOOPS`:
 3. Event logged to events.db: `fsm_feedback_limit`
 4. Human must review, resolve root cause, reset counter, and unblock
 
-### Extended Guard Rules (3-Phase)
+---
 
-In addition to the Simple FSM guard rules, 3-Phase mode enforces:
+## Legacy 3-Phase State Migration
 
-1. **Phase gate guard**: `design_review → implementing` requires reviewer to explicitly PASS the design review
-2. **Convergence guard**: `ci_monitoring → device_baseline` requires all parallel tracks complete (see above)
-3. **Feedback loop guard**: Any feedback transition checks `feedback_loops < MAX_FEEDBACK_LOOPS`
-4. **Phase consistency guard**: Cannot jump between phases without going through the defined transition path (e.g., cannot go from `requirements` directly to `deploying`)
-5. **Parallel track guard**: `test_scripting` and `code_reviewing` cannot advance to `device_baseline` independently — must converge
-6. **Workflow mode guard**: A task with `workflow_mode: "simple"` cannot use 3-Phase states, and vice versa
+> The 3-Phase Engineering workflow (18 states) has been unified into the linear workflow above.
+> Existing tasks with `workflow_mode: "3phase"` or legacy states are automatically mapped:
 
-### 3-Phase 状态 → Agent 映射
+| Legacy State (3-Phase) | Maps To (Unified) |
+|------------------------|-------------------|
+| `requirements` | `designing` |
+| `architecture` | `designing` |
+| `tdd_design` | `designing` |
+| `dfmea` | `designing` |
+| `design_review` | `reviewing` |
+| `test_scripting` | `implementing` |
+| `code_reviewing` | `reviewing` |
+| `ci_monitoring` | `testing` |
+| `ci_fixing` | `fixing` |
+| `device_baseline` | `testing` |
+| `deploying` | `implementing` |
+| `regression_testing` | `testing` |
+| `feature_testing` | `testing` |
+| `log_analysis` | `testing` |
+| `documentation` | `designing` |
 
-| State | Primary Agent | Secondary Agent |
-|-------|--------------|-----------------|
-| created | acceptor | — |
-| requirements | acceptor | — |
-| architecture | designer | — |
-| tdd_design | designer | tester |
-| dfmea | designer | — |
-| design_review | reviewer | — |
-| implementing | implementer | — |
-| test_scripting | tester | — |
-| code_reviewing | reviewer | — |
-| ci_monitoring | tester | — |
-| ci_fixing | implementer | — |
-| device_baseline | tester | — |
-| deploying | implementer | — |
-| regression_testing | tester | — |
-| feature_testing | tester | — |
-| log_analysis | tester | designer |
-| documentation | designer | — |
-| accepted | — | — |
-| blocked | — | — |
-
-### 3-Phase 操作指令
-
-#### Task Status Transition (3-Phase)
-1. Read task-board.json
-2. Check `workflow_mode` — if `"3phase"`, use 3-Phase transition rules
-3. Validate transition legality against the 3-Phase transition table above
-4. Check feedback loop count if this is a feedback transition
-5. Check convergence gate if transitioning to `device_baseline`
-6. If legal:
-   a. Update task status
-   b. Update `phase` and `step` fields
-   c. Update `parallel_tracks` if applicable
-   d. Increment `feedback_loops` if this is a feedback transition
-   e. Record history entry
-   f. Write to target Agent's inbox.json
-   g. Update task-board.json version
-   h. Sync task-board.md
+When encountering a legacy state:
+1. Map to unified state using the table above
+2. Update task's `status` to the mapped state
+3. Remove `workflow_mode`, `phase`, `step`, `parallel_tracks` fields
+4. Preserve `feedback_loops` and `feedback_history` (these are now in unified FSM)

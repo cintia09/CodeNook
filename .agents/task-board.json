@@ -1,5 +1,5 @@
 {
-  "version": 30,
+  "version": 32,
   "tasks": [
     {
       "id": "T-001",
@@ -1143,7 +1143,7 @@
       "id": "T-038",
       "title": "Inject ask-next-step rule in agent-init",
       "description": "When agent-init initializes a project, inject into the project guidance file: '你的每一次回复最后都需要询问我的下一步计划，下一步计划的内容需要和当前 agent 的角色一致'. Ensures every agent response ends with a role-appropriate next-step question.",
-      "status": "created",
+      "status": "implementing",
       "priority": "high",
       "created_at": "2026-04-11T07:20:43.331226+00:00",
       "created_by": "acceptor",
@@ -1163,13 +1163,17 @@
           "description": "Existing projects are not affected (rule only added on fresh init)",
           "status": "pending"
         }
-      ]
+      ],
+      "artifacts": {
+        "design_doc": ".agents/runtime/designer/workspace/design-docs/v3.4.0-design.md"
+      },
+      "updated_at": "2026-04-11T16:17:49.038414"
     },
     {
       "id": "T-039",
       "title": "Unify 3-phase into agent workflow",
       "description": "Merge the existing 3-Phase Engineering Closed Loop into the unified 5-agent workflow. No separate '3-phase' process — one flow: acceptor→designer→implementer→reviewer→tester→acceptor. Remove workflow_mode choice from agent-init.",
-      "status": "created",
+      "status": "implementing",
       "priority": "high",
       "created_at": "2026-04-11T07:20:43.331226+00:00",
       "created_by": "acceptor",
@@ -1194,13 +1198,17 @@
           "description": "Task schema no longer requires workflow_mode field",
           "status": "pending"
         }
-      ]
+      ],
+      "artifacts": {
+        "design_doc": ".agents/runtime/designer/workspace/design-docs/v3.4.0-design.md"
+      },
+      "updated_at": "2026-04-11T16:17:49.038414"
     },
     {
       "id": "T-040",
       "title": "DFMEA template + implementer integration",
       "description": "Create DFMEA (Design Failure Mode and Effects Analysis) template. Implementer must output DFMEA document before submitting to review. Fields: component, potential failure mode, effect, severity(1-10), occurrence(1-10), detection(1-10), RPN, recommended action.",
-      "status": "created",
+      "status": "implementing",
       "priority": "high",
       "created_at": "2026-04-11T07:20:43.331226+00:00",
       "created_by": "acceptor",
@@ -1228,13 +1236,17 @@
           "description": "Hook or skill validation ensures DFMEA exists before status transition to reviewing",
           "status": "pending"
         }
-      ]
+      ],
+      "artifacts": {
+        "design_doc": ".agents/runtime/designer/workspace/design-docs/v3.4.0-design.md"
+      },
+      "updated_at": "2026-04-11T16:17:49.038414"
     },
     {
       "id": "T-041",
       "title": "Human-in-the-loop review gate (core)",
       "description": "Each phase output requires human interaction before proceeding. Agent publishes document → human reviews/comments on interactive page → agent collects feedback → modifies → repeat until human approves. All 5 agents need this approval gate.",
-      "status": "created",
+      "status": "implementing",
       "priority": "critical",
       "created_at": "2026-04-11T07:20:43.331226+00:00",
       "created_by": "acceptor",
@@ -1264,13 +1276,17 @@
           "description": "Platform selection is configurable per-project (asked during init or first use)",
           "status": "pending"
         }
-      ]
+      ],
+      "artifacts": {
+        "design_doc": ".agents/runtime/designer/workspace/design-docs/v3.4.0-design.md"
+      },
+      "updated_at": "2026-04-11T16:17:49.038414"
     },
     {
       "id": "T-042",
       "title": "Interactive page adapters (Confluence/HTML/GitHub)",
       "description": "Platform adapters for HITL review pages. Support Confluence (API), local HTML (browser-openable), and GitHub Issues/PR as review surfaces. Platform chosen per-project during agent-init or on first task.",
-      "status": "created",
+      "status": "implementing",
       "priority": "high",
       "created_at": "2026-04-11T07:20:43.331226+00:00",
       "created_by": "acceptor",
@@ -1303,13 +1319,17 @@
           "description": "agent-init asks user which platform to use for HITL review",
           "status": "pending"
         }
-      ]
+      ],
+      "artifacts": {
+        "design_doc": ".agents/runtime/designer/workspace/design-docs/v3.4.0-design.md"
+      },
+      "updated_at": "2026-04-11T16:17:49.038414"
     },
     {
       "id": "T-043",
       "title": "Worktree prompt in acceptor workflow",
       "description": "When acceptor receives a new feature request, ask user: '是否在新的 worktree 中进行？' If yes, create worktree via agent-worktree skill before task creation.",
-      "status": "created",
+      "status": "implementing",
       "priority": "medium",
       "created_at": "2026-04-11T07:20:43.331226+00:00",
       "created_by": "acceptor",
@@ -1329,13 +1349,17 @@
           "description": "Task record includes worktree path for downstream agents",
           "status": "pending"
         }
-      ]
+      ],
+      "artifacts": {
+        "design_doc": ".agents/runtime/designer/workspace/design-docs/v3.4.0-design.md"
+      },
+      "updated_at": "2026-04-11T16:17:49.038414"
     },
     {
       "id": "T-044",
       "title": "Role mismatch detection + switch prompt",
       "description": "When user asks current agent to do something outside its scope, detect the mismatch and prompt: '这个任务更适合 <target-role>，是否切换？' If user confirms, auto-switch. All agents need this detection.",
-      "status": "created",
+      "status": "implementing",
       "priority": "medium",
       "created_at": "2026-04-11T07:20:43.331226+00:00",
       "created_by": "acceptor",
@@ -1360,8 +1384,12 @@
           "description": "User can decline switch and stay in current role",
           "status": "pending"
         }
-      ]
+      ],
+      "artifacts": {
+        "design_doc": ".agents/runtime/designer/workspace/design-docs/v3.4.0-design.md"
+      },
+      "updated_at": "2026-04-11T16:17:49.038414"
     }
   ],
-  "updated_at": "2026-04-06T16:07:35Z"
+  "updated_at": "2026-04-11T16:17:49.038414"
 }

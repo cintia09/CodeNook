@@ -54,10 +54,11 @@ cat .github/copilot-instructions.md 2>/dev/null
 
 在 Step 5a 的 project-agents-context 中记录: `project_type: "<类型>"`
 
-#### 1d. 选择工作流模式
-询问用户: Simple (线性 SDLC) 或 3-Phase (三阶段工程闭环)
-- 选择 1 → `workflow_mode: "simple"` (默认)
-- 选择 2 → `workflow_mode: "3phase"` (执行 Step 5h)
+#### 1d. HITL 配置
+询问用户: 是否启用 Human-in-the-Loop 审批门禁？
+- 启用 → 选择平台: local-html (默认) / github-issue / confluence
+- 不启用 → `hitl.enabled: false`
+写入 `.agents/config.json` 中的 `hitl` 配置块。
 
 #### 1e. 读取全局 agent profiles, skills & rules
 
@@ -177,35 +178,9 @@ for hook in agent-session-start.sh agent-pre-tool-use.sh agent-post-tool-use.sh 
 done
 ```
 
-### 5h. 3-Phase 初始化 (仅 workflow_mode = "3phase")
+### 5h. (已移除 — 3-Phase 工作流已合并到统一流程)
 
-#### 检测 AI CLI 命令
-```bash
-CLI_COMMAND=""
-command -v claude >/dev/null 2>&1 && CLI_COMMAND="claude"
-[ -z "$CLI_COMMAND" ] && command -v copilot >/dev/null 2>&1 && CLI_COMMAND="copilot"
-[ -z "$CLI_COMMAND" ] && CLI_COMMAND="claude"
-```
-
-#### 创建 3-Phase 目录 + 16 Prompt 模板
-```bash
-mkdir -p .agents/orchestrator/logs .agents/prompts
-```
-生成 16 prompt 模板 (参考 agent-orchestrator SKILL.md):
-- Phase 1: requirements, architecture, tdd-design, dfmea, design-review
-- Phase 2: implementing, test-scripting, code-reviewing, ci-monitoring, ci-fixing, device-baseline
-- Phase 3: deploying, regression-testing, feature-testing, log-analysis, documentation
-
-占位符: `{PROJECT_DIR}`, `{TASK_ID}`, `{CLI_COMMAND}`, `{BUILD_CMD}`, `{TEST_CMD}`, `{LINT_CMD}`, `{CI_SYSTEM}`, `{CI_URL}`, `{REVIEW_SYSTEM}`, `{REVIEW_CMD}`, `{DEVICE_TYPE}`, `{DEPLOY_CMD}`, `{LOG_CMD}`, `{BASELINE_CMD}`
-
-#### 生成 Orchestrator Daemon
-从 `agent-orchestrator/SKILL.md` daemon 模板生成, 替换占位符 → `.agents/orchestrator/run.sh`
-
-#### 3-Phase task-board.json
-```json
-{"version": 0, "tasks": [], "default_workflow_mode": "3phase"}
-```
-扩展字段: `workflow_mode`, `phase`, `step`, `parallel_tracks`, `feedback_loops`, `feedback_history`
+> 3-Phase 工程闭环已统一到线性工作流。Orchestrator daemon 仍可选使用，但不再需要单独的 3-Phase 初始化。
 
 ### 6. 创建 .agents/.gitignore
 ```
@@ -228,8 +203,8 @@ orchestrator/daemon.pid
 # Agent Framework Configuration
 
 ## 框架信息
-- Multi-Agent Framework v3.3.x
-- 5 Agent 角色 | 19 Skills | 13 Hooks | 双模式 FSM
+- Multi-Agent Framework v3.4.x
+- 5 Agent 角色 | 19 Skills | 13 Hooks | 统一 FSM
 
 ## ⚡ 角色切换触发规则 (MANDATORY)
 当用户消息包含以下模式时，必须立即执行角色切换（调用 agent-switch skill）：
@@ -266,6 +241,14 @@ orchestrator/daemon.pid
 | /agent-task-board | 查看任务看板 |
 | /agent-fsm | 查看 FSM 状态机 |
 
+## Agent 交互规则 (MANDATORY)
+每次回复的最后，必须根据当前 Agent 角色询问用户下一步计划:
+- 🎯 验收者: 询问需求确认、任务优先级、验收时间
+- 🏗️ 设计者: 询问架构选择、技术方案偏好、设计确认
+- 💻 实现者: 询问实现策略、测试范围、是否继续下一个 Goal
+- 🔍 审查者: 询问审查重点、是否接受修改建议
+- 🧪 测试者: 询问测试范围、是否需要补充用例
+
 ## 项目规范
 <基于 Step 1b 已有 CLAUDE.md 内容保留>
 ```
@@ -299,8 +282,8 @@ GITIGNORE
 ```
 ✅ Agent 系统已初始化
 ━━━━━━━━━━━━━━━━━━━━━━━
-项目: <name> | 技术栈: <detected> | 工作流: <Simple/3-Phase>
+项目: <name> | 技术栈: <detected> | 工作流: 统一线性
 Skills: 6 project + 18 global | Runtime: 5 agents | 平台: <Claude Code/Copilot/Both>
 CLAUDE.md: ✅ 已生成 | copilot-instructions.md: ✅ 已生成
-下一步: Simple → /agent acceptor | 3-Phase → bash .agents/orchestrator/run.sh T-001
+下一步: /agent acceptor 开始收集需求
 ```

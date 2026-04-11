@@ -9,6 +9,22 @@ description: "实现者工作流: TDD 开发、按 goals 实现、Bug 修复。U
 
 > ⛔ **强制输出规则**: 实现完成后，**必须**通过 `agent-fsm` 将任务状态转为 `reviewing`，并确保代码已 commit、测试通过。**未转状态 = 实现未完成。** 严禁仅修改代码而不 commit 和转状态。
 
+## 角色越界检测 (Role Mismatch Detection)
+
+检测到以下意图时，提示用户切换角色:
+
+| 用户意图模式 | 推荐角色 | 检测关键词 |
+|-------------|---------|-----------|
+| 收集需求/发布任务 | 🎯 acceptor | "需求", "requirement", "新功能", "发布任务" |
+| 设计架构 | 🏗️ designer | "设计", "架构", "design", "方案" |
+| 审查代码 | 🔍 reviewer | "审查", "review", "code review" |
+| 跑测试/写测试 | 🧪 tester | "测试", "test", "验证", "run tests" |
+
+检测到时:
+1. 显示: "⚠️ 这个任务更适合 <推荐角色>。当前角色: 💻 实现者"
+2. 询问: "是否切换到 <推荐角色>？"
+3. 确认 → 执行 agent-switch | 拒绝 → 继续当前角色
+
 ## 核心职责
 1. **TDD 开发**: 先写测试, 再写代码, 再重构
 2. **代码实现**: 根据设计文档编写功能代码
@@ -46,11 +62,14 @@ description: "实现者工作流: TDD 开发、按 goals 实现、Bug 修复。U
    f. **将该 goal 的 status 改为 `done`, 填写 completed_at**
 6. 确保 lint/typecheck/build 全部通过
 7. **检查: 所有 goals 是否都为 `done`** — 如果有 `pending` 的, 继续实现
-8. git commit + push (commit 消息英文, 含 Co-authored-by trailer)
-9. 使用 agent-fsm 将任务状态转为 reviewing (FSM 会检查 goals 全部 done)
-10. 更新任务 artifacts
-11. 消息通知 reviewer: "T-NNN 实现完成 (N/N goals done), 请审查代码"
-12. 更新 state.json (status: idle)
+8. **DFMEA 分析**: 复制 `.agents/templates/dfmea-template.md` → `.agents/runtime/implementer/workspace/T-NNN-dfmea.md`
+   — 分析实现中的风险点, 填写失效模式表
+   — RPN > 100 的项必须标记为 `mitigated` 或 `resolved` 后方可继续
+9. git commit + push (commit 消息英文, 含 Co-authored-by trailer)
+10. 使用 agent-fsm 将任务状态转为 reviewing (FSM 会检查 goals 全部 done + DFMEA 存在)
+11. 更新任务 artifacts
+12. 消息通知 reviewer: "T-NNN 实现完成 (N/N goals done), 请审查代码"
+13. 更新 state.json (status: idle)
 ```
 
 ### 目标清单操作
@@ -315,19 +334,8 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 - **注意事项**: [后续需要关注的]
 ```
 
-## 3-Phase 工程闭环模式
+## 3-Phase 工程闭环模式 (已废弃)
 
-当任务 `workflow_mode: "3phase"` 时，Implementer 负责以下步骤:
-
-| Phase | 步骤 | 职责 |
-|-------|------|------|
-| 2 | `implementing` | Track A — 按设计文档 + TDD 实现功能代码 |
-| 2 | `ci_monitoring` | 监控 CI 构建，确保通过 |
-| 2 | `ci_fixing` | 修复 CI 失败（构建错误、测试失败），循环直到通过 |
-| 2 | `device_baseline` | 验证目标环境基线，确保可运行 |
-| 3 | `deploying` | 将通过测试的代码部署到测试环境 |
-
-与 Simple 模式的区别:
-- Phase 2 中 Track A/B/C 并行，Implementer 需监控 CI 并即时修复
-- 测试失败可回退 (`regression_testing→implementing`)，自动进入修复循环
-- 最多 10 次反馈环，超限自动阻塞
+> ⚠️ 3-Phase 工作流已统一到线性流程。此节仅保留作为历史参考。
+> 所有任务现在使用统一 FSM: created → designing → implementing → reviewing → testing → accepting → accepted
+> 反馈循环机制 (MAX_FEEDBACK_LOOPS = 10) 已集成到统一 FSM 中。
