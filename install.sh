@@ -4,7 +4,7 @@ set -euo pipefail
 # Multi-Agent Framework Installer
 # Usage: curl -sL https://raw.githubusercontent.com/cintia09/multi-agent-framework/main/install.sh | bash
 
-VERSION="3.2.4"
+VERSION="3.3.0"
 REPO="https://github.com/cintia09/multi-agent-framework.git"
 TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/multi-agent-framework.XXXXXX")
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -41,8 +41,8 @@ check_platform() {
     hooks=$(ls "${dir}/hooks/"*.sh 2>/dev/null | wc -l | tr -d ' ')
     has_json=$([ -f "${dir}/hooks/hooks.json" ] && echo '✅' || echo '❌')
     echo "  ${name}:"
-    echo "    Skills: ${skills}/18 | Agents: ${agents}/5 | Hooks: ${hooks}/13 | hooks.json: ${has_json}"
-    [ "$skills" -ge 18 ] && [ "$agents" -ge 5 ] && [ "$hooks" -ge 13 ] && [ -f "${dir}/hooks/hooks.json" ]
+    echo "    Skills: ${skills}/19 | Agents: ${agents}/5 | Hooks: ${hooks}/13 | hooks.json: ${has_json}"
+    [ "$skills" -ge 19 ] && [ "$agents" -ge 5 ] && [ "$hooks" -ge 13 ] && [ -f "${dir}/hooks/hooks.json" ]
 }
 
 check_install() {

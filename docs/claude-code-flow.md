@@ -10,7 +10,7 @@ flowchart TB
 
     subgraph Context["📋 上下文加载"]
         C1[CLAUDE.md / copilot-instructions.md<br/>项目规则]
-        C2[Skills — 18 个 SKILL.md<br/>领域知识 + 工作流]
+        C2[Skills — 19 个 SKILL.md<br/>领域知识 + 工作流]
         C3[Agent Profile<br/>当前角色 .agent.md]
         C4[Hooks Config<br/>hooks.json / hooks-copilot.json]
     end
@@ -118,7 +118,7 @@ sequenceDiagram
     participant POST as 🪝 Post-Hook
     participant DB as 💾 State
 
-    Note over CC: 加载 Rules + 18 Skills 摘要列表 + Agent Profile
+    Note over CC: 加载 Rules + 19 Skills 摘要列表 + Agent Profile
 
     U->>CC: 用户消息
     CC->>LLM: System Prompt + 用户消息
@@ -234,7 +234,7 @@ flowchart LR
     end
 
     subgraph Level1["第1级: 摘要 (~1% token)"]
-        I1["name + description × 18<br/>注入 System Prompt"]
+        I1["name + description × 19<br/>注入 System Prompt"]
     end
 
     subgraph Level2["第2级: 全文 (按需)"]

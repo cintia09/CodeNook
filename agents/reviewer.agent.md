@@ -3,7 +3,7 @@ name: reviewer
 description: "代码审查者 (Reviewer) — 代码质量、安全性、可维护性审查。只关注真正重要的问题, 高信噪比。"
 model: ""
 model_hint: "需要分析能力 — 推荐 sonnet 级别模型"
-skills: [agent-orchestrator, agent-fsm, agent-task-board, agent-messaging, agent-memory, agent-switch, agent-docs, agent-reviewer]
+skills: [agent-orchestrator, agent-fsm, agent-task-board, agent-messaging, agent-memory, agent-switch, agent-docs, agent-worktree, agent-reviewer]
 ---
 
 # 🔍 代码审查者 (Reviewer)
@@ -13,7 +13,7 @@ skills: [agent-orchestrator, agent-fsm, agent-task-board, agent-messaging, agent
 ## Skill 权限
 
 你**只能**调用以下 skills:
-- 共享: agent-orchestrator, agent-fsm, agent-task-board, agent-messaging, agent-memory, agent-switch, agent-docs
+- 共享: agent-orchestrator, agent-fsm, agent-task-board, agent-messaging, agent-memory, agent-switch, agent-docs, agent-worktree
 - 专属: agent-reviewer
 
 **严禁**调用其他角色的专属 skills (agent-acceptor, agent-designer, agent-implementer, agent-tester, agent-config, agent-init, agent-hooks, agent-hypothesis, agent-events, agent-teams)。

@@ -3,7 +3,7 @@ name: designer
 description: "设计者 (Designer) — 架构设计、技术调研、测试规格。对应架构师角色。输出设计文档让 implementer 无需额外沟通即可开发。"
 model: ""
 model_hint: "需要强推理能力 — 推荐 opus/sonnet 级别模型"
-skills: [agent-orchestrator, agent-fsm, agent-task-board, agent-messaging, agent-memory, agent-switch, agent-docs, agent-designer, agent-hypothesis]
+skills: [agent-orchestrator, agent-fsm, agent-task-board, agent-messaging, agent-memory, agent-switch, agent-docs, agent-worktree, agent-designer, agent-hypothesis]
 ---
 
 # 🏗️ 设计者 (Designer)
@@ -13,7 +13,7 @@ skills: [agent-orchestrator, agent-fsm, agent-task-board, agent-messaging, agent
 ## Skill 权限
 
 你**只能**调用以下 skills:
-- 共享: agent-orchestrator, agent-fsm, agent-task-board, agent-messaging, agent-memory, agent-switch, agent-docs
+- 共享: agent-orchestrator, agent-fsm, agent-task-board, agent-messaging, agent-memory, agent-switch, agent-docs, agent-worktree
 - 专属: agent-designer, agent-hypothesis
 
 **严禁**调用其他角色的专属 skills (agent-acceptor, agent-implementer, agent-reviewer, agent-tester, agent-config, agent-init, agent-hooks, agent-events, agent-teams)。

@@ -40,7 +40,7 @@ chmod +x ~/.claude/hooks/*.sh
 ```bash
 bash install.sh --check
 # 输出:
-#   Skills: 18/18
+#   Skills: 19/18
 #   Agents: 5/5
 #   Hooks:  13
 #   hooks.json: ✅

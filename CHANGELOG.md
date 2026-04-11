@@ -659,3 +659,18 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 ### Audit Round 11
 - 1 doc-only issue fixed (stale version in USAGE_GUIDE)
 - Executable code: ZERO issues for 3rd consecutive round
+
+## v3.3.0
+
+### Worktree-Based Parallel Tasks
+- NEW `agent-worktree` skill: create/list/merge/status commands
+- Each task gets isolated worktree + branch (task/T-XXX)
+- Shared task-board.json + events.db via symlink
+- Isolated runtime (inbox, memory, docs) per worktree
+- Auto-copy memory/docs back to main on merge
+
+### Framework Updates
+- Skill count: 18 → 19 (agent-worktree added as shared skill)
+- Shared skills: 7 → 8 (all agents get worktree access)
+- Updated all 5 agent profiles + skills-mechanism diagram
+- Design doc: `.agents/docs/T-WORKTREE/design.md`

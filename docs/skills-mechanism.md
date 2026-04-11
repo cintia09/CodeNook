@@ -10,7 +10,7 @@ sequenceDiagram
     participant LLM as 🧠 LLM
     participant Msg as Messages 数组
 
-    Note over FS: 18 个 SKILL.md 文件<br/>~/.claude/skills/ 或 ~/.copilot/skills/
+    Note over FS: 19 个 SKILL.md 文件<br/>~/.claude/skills/ 或 ~/.copilot/skills/
 
     FS->>Platform: 扫描 skills 目录
     Platform->>Platform: 提取 name + description (≤250字符)
@@ -52,7 +52,7 @@ flowchart TB
     end
 
     subgraph Agent["🤖 当前 Agent"]
-        A1["Skills 摘要列表<br/>(全部 18 个)"]
+        A1["Skills 摘要列表<br/>(全部 19 个)"]
     end
 
     CC1 & CC2 & CC3 --> A1
@@ -77,7 +77,7 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    subgraph Shared["📚 共享 Skills (7个)"]
+    subgraph Shared["📚 共享 Skills (8个)"]
         SK1["orchestrator"]
         SK2["fsm"]
         SK3["task-board"]
@@ -85,6 +85,7 @@ flowchart LR
         SK5["memory"]
         SK6["switch"]
         SK7["docs"]
+        SK8["worktree"]
     end
 
     subgraph RoleSkills["🎯 角色专属 Skills"]
@@ -97,11 +98,11 @@ flowchart LR
     end
 
     subgraph Agents["👥 Agent Profiles"]
-        A1["🎯 Acceptor<br/>skills: 共享7 + 专属4 = 11"]
-        A2["🏗️ Designer<br/>skills: 共享7 + 专属2 = 9"]
-        A3["💻 Implementer<br/>skills: 共享7 + 专属4 = 11"]
-        A4["🔍 Reviewer<br/>skills: 共享7 + 专属1 = 8"]
-        A5["🧪 Tester<br/>skills: 共享7 + 专属2 = 9"]
+        A1["🎯 Acceptor<br/>skills: 共享8 + 专属4 = 12"]
+        A2["🏗️ Designer<br/>skills: 共享8 + 专属2 = 10"]
+        A3["💻 Implementer<br/>skills: 共享8 + 专属4 = 12"]
+        A4["🔍 Reviewer<br/>skills: 共享8 + 专属1 = 9"]
+        A5["🧪 Tester<br/>skills: 共享8 + 专属2 = 10"]
     end
 
     Shared --> A1 & A2 & A3 & A4 & A5
@@ -177,7 +178,7 @@ sequenceDiagram
     participant CC as Claude Code/Copilot
     participant LLM as 🧠 大模型
 
-    Note over CC: 📂 扫描 18 Skills → 构建摘要列表 (~1% token)<br/>+ Agent Profile (含 skills: 约束)
+    Note over CC: 📂 扫描 19 Skills → 构建摘要列表 (~1% token)<br/>+ Agent Profile (含 skills: 约束)
 
     U->>CC: "请把 T-042 状态改为 testing"
 

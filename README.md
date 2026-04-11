@@ -12,7 +12,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Agents-5-6366f1?style=flat-square" alt="5 Agents">
-  <img src="https://img.shields.io/badge/Skills-18-10b981?style=flat-square" alt="18 Skills">
+  <img src="https://img.shields.io/badge/Skills-19-10b981?style=flat-square" alt="19 Skills">
   <img src="https://img.shields.io/badge/Hooks-13-f59e0b?style=flat-square" alt="13 Hooks">
   <img src="https://img.shields.io/badge/FSM_States-10+18-ef4444?style=flat-square" alt="10+18 FSM States">
   <img src="https://img.shields.io/badge/Workflow_Modes-2-8b5cf6?style=flat-square" alt="2 Workflow Modes">
@@ -205,7 +205,7 @@ curl -sL https://raw.githubusercontent.com/cintia09/multi-agent-framework/main/i
 助手会读取仓库文档并自动执行以下步骤：
 
 1. 克隆仓库到临时目录
-2. 复制 18 个 Skill 目录到目标平台 skills 目录
+2. 复制 19 个 Skill 目录到目标平台 skills 目录
 3. 复制 5 个 `.agent.md` 文件到 agents 目录
 4. 复制 13 个 Hook 脚本 + `hooks/lib/` 模块 + hooks.json 到 hooks 目录
 5. 安装 3 个模块化规则到 rules 目录
@@ -253,7 +253,7 @@ bash install.sh --check
 │   ├── agent-on-goal-verified.sh    # 目标验证进度更新
 │   └── security-scan.sh          # 🔒 密钥扫描（独立于 Agent 系统）
 ├── skills/
-│   └── agent-*/SKILL.md          # 18 个 Skill 目录（每个含 SKILL.md）
+│   └── agent-*/SKILL.md          # 19 个 Skill 目录（每个含 SKILL.md）
 └── agents/
     ├── acceptor.agent.md         # 验收者（原生 Agent Profile）
     ├── designer.agent.md         # 设计者
@@ -344,7 +344,7 @@ bash /tmp/multi-agent-framework/scripts/verify-init.sh
 
 两边全自动循环 — 无需手动 check。通过自动调度 + 收件箱实现自动重入。
 
-## 18 个 Skills
+## 19 个 Skills
 
 | # | Skill | 描述 |
 |---|-------|------|
@@ -480,7 +480,7 @@ sqlite3 .agents/events.db "SELECT * FROM events ORDER BY id DESC LIMIT 20;"
 │   ├── agent-on-goal-verified.sh      # 目标验证
 │   └── security-scan.sh              # 🔒 密钥扫描
 ├── skills/
-│   └── agent-*/SKILL.md               # 18 个 Skill 目录
+│   └── agent-*/SKILL.md               # 19 个 Skill 目录
 └── agents/
     └── *.agent.md                     # 5 个角色 Profile
 
