@@ -100,6 +100,46 @@ case "$TOOL_NAME" in
           echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"🔄 Invalid agent role: '$NEW_ROLE'. Valid: acceptor, designer, implementer, reviewer, tester.\"}"
           exit 0 ;;
       esac
+
+      # V-EVENT 1c: Switch-away guard — check HITL before allowing role switch
+      # When HITL is enabled, the outgoing agent must complete HITL approval for any
+      # task in their responsible status before they can switch away.
+      HITL_CONFIG="$AGENTS_DIR/config.json"
+      if [ -f "$HITL_CONFIG" ]; then
+        HITL_ENABLED=$(jq -r '.hitl.enabled // false' "$HITL_CONFIG" 2>/dev/null)
+        if [ "$HITL_ENABLED" = "true" ] && [ "$ACTIVE_AGENT" != "$NEW_ROLE" ]; then
+          # Map agent → responsible task status
+          case "$ACTIVE_AGENT" in
+            acceptor)   RESPONSIBLE_STATUSES="created accepting" ;;
+            designer)   RESPONSIBLE_STATUSES="designing" ;;
+            implementer) RESPONSIBLE_STATUSES="implementing fixing" ;;
+            reviewer)   RESPONSIBLE_STATUSES="reviewing" ;;
+            tester)     RESPONSIBLE_STATUSES="testing" ;;
+            *)          RESPONSIBLE_STATUSES="" ;;
+          esac
+
+          TB_FILE="$AGENTS_DIR/task-board.json"
+          if [ -f "$TB_FILE" ] && [ -n "$RESPONSIBLE_STATUSES" ]; then
+            for status in $RESPONSIBLE_STATUSES; do
+              PENDING_TASKS=$(jq -r --arg s "$status" '[.tasks[] | select(.status == $s) | .id] | join(" ")' "$TB_FILE" 2>/dev/null)
+              for tid in $PENDING_TASKS; do
+                # Check if this task has HITL approval
+                APPROVAL_FILE="$AGENTS_DIR/reviews/${tid}-${ACTIVE_AGENT}-feedback.json"
+                if [ ! -f "$APPROVAL_FILE" ]; then
+                  echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"🔄⛔ Switch blocked: Task ${tid} is in '${status}' status. ${ACTIVE_AGENT} must complete HITL review before switching. Run: bash scripts/hitl-adapters/local-html.sh publish ${tid} ${ACTIVE_AGENT} <doc_file>\"}"
+                  exit 0
+                fi
+                DECISION=$(jq -r '.decision // ""' "$APPROVAL_FILE" 2>/dev/null)
+                if [ "$DECISION" != "approved" ]; then
+                  echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"🔄⛔ Switch blocked: Task ${tid} HITL review not approved (status: ${DECISION}). ${ACTIVE_AGENT} must get approval before switching.\"}"
+                  exit 0
+                fi
+              done
+            done
+          fi
+        fi
+      fi
+
       exit 0  # valid switch — allow (bypass role-based file restrictions)
     fi
 
@@ -181,11 +221,47 @@ case "$TOOL_NAME" in
         WRITTEN_VAL=$(echo "$VE_CMD" | sed -n "s/.*echo[[:space:]]*[\"']*\([^\"'>]*\)[\"']*[[:space:]]*>.*/\1/p" | tr -d '[:space:]')
         if [ -n "$WRITTEN_VAL" ]; then
           case "$WRITTEN_VAL" in
-            acceptor|designer|implementer|reviewer|tester) ;; # valid
+            acceptor|designer|implementer|reviewer|tester) SWITCH_ROLE="$WRITTEN_VAL" ;;
             *)
               echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"🔄 Invalid agent role: '$WRITTEN_VAL'. Valid: acceptor, designer, implementer, reviewer, tester.\"}"
               exit 0 ;;
           esac
+        fi
+      fi
+
+      # V-EVENT 1c (bash): Switch-away HITL guard
+      if [ -n "$SWITCH_ROLE" ] && [ "$SWITCH_ROLE" != "$ACTIVE_AGENT" ]; then
+        HITL_CONFIG="$AGENTS_DIR/config.json"
+        if [ -f "$HITL_CONFIG" ]; then
+          HITL_ENABLED=$(jq -r '.hitl.enabled // false' "$HITL_CONFIG" 2>/dev/null)
+          if [ "$HITL_ENABLED" = "true" ]; then
+            case "$ACTIVE_AGENT" in
+              acceptor)   RESPONSIBLE_STATUSES="created accepting" ;;
+              designer)   RESPONSIBLE_STATUSES="designing" ;;
+              implementer) RESPONSIBLE_STATUSES="implementing fixing" ;;
+              reviewer)   RESPONSIBLE_STATUSES="reviewing" ;;
+              tester)     RESPONSIBLE_STATUSES="testing" ;;
+              *)          RESPONSIBLE_STATUSES="" ;;
+            esac
+            TB_FILE="$AGENTS_DIR/task-board.json"
+            if [ -f "$TB_FILE" ] && [ -n "$RESPONSIBLE_STATUSES" ]; then
+              for status in $RESPONSIBLE_STATUSES; do
+                PENDING_TASKS=$(jq -r --arg s "$status" '[.tasks[] | select(.status == $s) | .id] | join(" ")' "$TB_FILE" 2>/dev/null)
+                for tid in $PENDING_TASKS; do
+                  APPROVAL_FILE="$AGENTS_DIR/reviews/${tid}-${ACTIVE_AGENT}-feedback.json"
+                  if [ ! -f "$APPROVAL_FILE" ]; then
+                    echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"🔄⛔ Switch blocked: Task ${tid} is in '${status}' status. ${ACTIVE_AGENT} must complete HITL review before switching.\"}"
+                    exit 0
+                  fi
+                  DECISION=$(jq -r '.decision // ""' "$APPROVAL_FILE" 2>/dev/null)
+                  if [ "$DECISION" != "approved" ]; then
+                    echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"🔄⛔ Switch blocked: Task ${tid} HITL not approved. ${ACTIVE_AGENT} must get approval first.\"}"
+                    exit 0
+                  fi
+                done
+              done
+            fi
+          fi
         fi
       fi
       # Don't exit 0 — let the rest of bash checks run for chained commands
