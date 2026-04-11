@@ -129,8 +129,8 @@ flowchart LR
 flowchart TB
     subgraph Layer1["第1层: Agent Profile + Skill 约束 (定义)"]
         direction LR
-        P1["acceptor.agent.md<br/>skills: [共享7 + 专属4]<br/>不能写代码"]
-        P2["implementer.agent.md<br/>skills: [共享7 + 专属4]<br/>可以写代码"]
+        P1["acceptor.agent.md<br/>skills: [共享8 + 专属4]<br/>不能写代码"]
+        P2["implementer.agent.md<br/>skills: [共享8 + 专属4]<br/>可以写代码"]
     end
 
     subgraph Layer2["第2层: Pre-Tool-Use Hook (强制)"]

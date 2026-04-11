@@ -27,7 +27,7 @@
   <a href="#安装">安装</a> ·
   <a href="#使用方式">使用</a> ·
   <a href="#工作流模式">工作流模式</a> ·
-  <a href="#18-个-skills">18 Skills</a> ·
+  <a href="#19-个-skills">19 Skills</a> ·
   <a href="#为什么需要这个框架">为什么</a> ·
   <a href="blog/vibe-coding-and-multi-agent.md">博客</a>
 </p>
