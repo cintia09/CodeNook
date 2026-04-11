@@ -50,6 +50,14 @@ case "$cmd" in
       exit 1
     fi
 
+    # H3 fix: validate inputs
+    if ! echo "$task_id" | grep -qE '^T-[0-9]+$'; then
+      echo "ERROR: Invalid task_id format" >&2; exit 1
+    fi
+    if ! echo "$role" | grep -qE '^(acceptor|designer|implementer|reviewer|tester)$'; then
+      echo "ERROR: Invalid role" >&2; exit 1
+    fi
+
     # Convert markdown to HTML
     if command -v pandoc >/dev/null 2>&1; then
       content_html=$(pandoc -f markdown -t html "$content_file" 2>/dev/null)
@@ -59,22 +67,24 @@ case "$cmd" in
 
     title="HITL Review: ${task_id} - ${role}"
 
-    # Create Confluence page
-    page_data=$(cat <<EOF
-{
-  "type": "page",
-  "title": "$title",
-  "space": {"key": "$CONFLUENCE_SPACE_KEY"},
-  "ancestors": [{"id": "$CONFLUENCE_PARENT_PAGE_ID"}],
-  "body": {
-    "storage": {
-      "value": "<h2>Status: ⏳ Pending Review</h2><p>Comment <b>approved</b> to approve, or add feedback comments.</p><hr/>${content_html}",
-      "representation": "storage"
+    # H1 fix: use jq to construct JSON safely (no injection)
+    body_html="<h2>Status: ⏳ Pending Review</h2><p>Comment <b>approved</b> to approve, or add feedback comments.</p><hr/>${content_html}"
+    page_data=$(python3 -c "
+import json, sys
+data = {
+    'type': 'page',
+    'title': sys.argv[1],
+    'space': {'key': sys.argv[2]},
+    'ancestors': [{'id': sys.argv[3]}],
+    'body': {
+        'storage': {
+            'value': sys.argv[4],
+            'representation': 'storage'
+        }
     }
-  }
 }
-EOF
-)
+print(json.dumps(data))
+" "$title" "$CONFLUENCE_SPACE_KEY" "$CONFLUENCE_PARENT_PAGE_ID" "$body_html")
 
     response=$(curl -s -X POST \
       "${CONFLUENCE_BASE_URL}/rest/api/content" \

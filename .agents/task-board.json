@@ -1,5 +1,5 @@
 {
-  "version": 32,
+  "version": 33,
   "tasks": [
     {
       "id": "T-001",
@@ -1143,7 +1143,7 @@
       "id": "T-038",
       "title": "Inject ask-next-step rule in agent-init",
       "description": "When agent-init initializes a project, inject into the project guidance file: '你的每一次回复最后都需要询问我的下一步计划，下一步计划的内容需要和当前 agent 的角色一致'. Ensures every agent response ends with a role-appropriate next-step question.",
-      "status": "implementing",
+      "status": "reviewing",
       "priority": "high",
       "created_at": "2026-04-11T07:20:43.331226+00:00",
       "created_by": "acceptor",
@@ -1167,13 +1167,13 @@
       "artifacts": {
         "design_doc": ".agents/runtime/designer/workspace/design-docs/v3.4.0-design.md"
       },
-      "updated_at": "2026-04-11T16:17:49.038414"
+      "updated_at": "2026-04-11T16:46:53.164462"
     },
     {
       "id": "T-039",
       "title": "Unify 3-phase into agent workflow",
       "description": "Merge the existing 3-Phase Engineering Closed Loop into the unified 5-agent workflow. No separate '3-phase' process — one flow: acceptor→designer→implementer→reviewer→tester→acceptor. Remove workflow_mode choice from agent-init.",
-      "status": "implementing",
+      "status": "reviewing",
       "priority": "high",
       "created_at": "2026-04-11T07:20:43.331226+00:00",
       "created_by": "acceptor",
@@ -1202,13 +1202,13 @@
       "artifacts": {
         "design_doc": ".agents/runtime/designer/workspace/design-docs/v3.4.0-design.md"
       },
-      "updated_at": "2026-04-11T16:17:49.038414"
+      "updated_at": "2026-04-11T16:46:53.164462"
     },
     {
       "id": "T-040",
       "title": "DFMEA template + implementer integration",
       "description": "Create DFMEA (Design Failure Mode and Effects Analysis) template. Implementer must output DFMEA document before submitting to review. Fields: component, potential failure mode, effect, severity(1-10), occurrence(1-10), detection(1-10), RPN, recommended action.",
-      "status": "implementing",
+      "status": "reviewing",
       "priority": "high",
       "created_at": "2026-04-11T07:20:43.331226+00:00",
       "created_by": "acceptor",
@@ -1240,13 +1240,13 @@
       "artifacts": {
         "design_doc": ".agents/runtime/designer/workspace/design-docs/v3.4.0-design.md"
       },
-      "updated_at": "2026-04-11T16:17:49.038414"
+      "updated_at": "2026-04-11T16:46:53.164462"
     },
     {
       "id": "T-041",
       "title": "Human-in-the-loop review gate (core)",
       "description": "Each phase output requires human interaction before proceeding. Agent publishes document → human reviews/comments on interactive page → agent collects feedback → modifies → repeat until human approves. All 5 agents need this approval gate.",
-      "status": "implementing",
+      "status": "reviewing",
       "priority": "critical",
       "created_at": "2026-04-11T07:20:43.331226+00:00",
       "created_by": "acceptor",
@@ -1280,13 +1280,13 @@
       "artifacts": {
         "design_doc": ".agents/runtime/designer/workspace/design-docs/v3.4.0-design.md"
       },
-      "updated_at": "2026-04-11T16:17:49.038414"
+      "updated_at": "2026-04-11T16:46:53.164462"
     },
     {
       "id": "T-042",
       "title": "Interactive page adapters (Confluence/HTML/GitHub)",
       "description": "Platform adapters for HITL review pages. Support Confluence (API), local HTML (browser-openable), and GitHub Issues/PR as review surfaces. Platform chosen per-project during agent-init or on first task.",
-      "status": "implementing",
+      "status": "reviewing",
       "priority": "high",
       "created_at": "2026-04-11T07:20:43.331226+00:00",
       "created_by": "acceptor",
@@ -1323,13 +1323,13 @@
       "artifacts": {
         "design_doc": ".agents/runtime/designer/workspace/design-docs/v3.4.0-design.md"
       },
-      "updated_at": "2026-04-11T16:17:49.038414"
+      "updated_at": "2026-04-11T16:46:53.164462"
     },
     {
       "id": "T-043",
       "title": "Worktree prompt in acceptor workflow",
       "description": "When acceptor receives a new feature request, ask user: '是否在新的 worktree 中进行？' If yes, create worktree via agent-worktree skill before task creation.",
-      "status": "implementing",
+      "status": "reviewing",
       "priority": "medium",
       "created_at": "2026-04-11T07:20:43.331226+00:00",
       "created_by": "acceptor",
@@ -1353,13 +1353,13 @@
       "artifacts": {
         "design_doc": ".agents/runtime/designer/workspace/design-docs/v3.4.0-design.md"
       },
-      "updated_at": "2026-04-11T16:17:49.038414"
+      "updated_at": "2026-04-11T16:46:53.164462"
     },
     {
       "id": "T-044",
       "title": "Role mismatch detection + switch prompt",
       "description": "When user asks current agent to do something outside its scope, detect the mismatch and prompt: '这个任务更适合 <target-role>，是否切换？' If user confirms, auto-switch. All agents need this detection.",
-      "status": "implementing",
+      "status": "reviewing",
       "priority": "medium",
       "created_at": "2026-04-11T07:20:43.331226+00:00",
       "created_by": "acceptor",
@@ -1388,8 +1388,8 @@
       "artifacts": {
         "design_doc": ".agents/runtime/designer/workspace/design-docs/v3.4.0-design.md"
       },
-      "updated_at": "2026-04-11T16:17:49.038414"
+      "updated_at": "2026-04-11T16:46:53.164462"
     }
   ],
-  "updated_at": "2026-04-11T16:17:49.038414"
+  "updated_at": "2026-04-11T16:46:53.164462"
 }

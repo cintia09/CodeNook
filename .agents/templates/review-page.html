@@ -66,9 +66,10 @@
 </div>
 
 <script>
-  const TASK_ID = '{{TASK_ID}}';
-  const ROLE = '{{ROLE}}';
-  const FEEDBACK_FILE = '{{FEEDBACK_PATH}}';
+  // Values are pre-validated: task_id matches T-[0-9]+, role is one of 5 known values
+  const TASK_ID = '{{TASK_ID}}'.replace(/[<>'"&]/g, '');
+  const ROLE = '{{ROLE}}'.replace(/[<>'"&]/g, '');
+  const FEEDBACK_FILE = '{{FEEDBACK_PATH}}'.replace(/[<>'"&]/g, '');
 
   function submitDecision(decision) {
     const feedback = document.getElementById('feedbackInput').value.trim();

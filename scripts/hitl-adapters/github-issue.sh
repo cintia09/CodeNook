@@ -31,6 +31,14 @@ case "$cmd" in
       exit 1
     fi
 
+    # H3 fix: validate inputs
+    if ! echo "$task_id" | grep -qE '^T-[0-9]+$'; then
+      echo "ERROR: Invalid task_id format" >&2; exit 1
+    fi
+    if ! echo "$role" | grep -qE '^(acceptor|designer|implementer|reviewer|tester)$'; then
+      echo "ERROR: Invalid role" >&2; exit 1
+    fi
+
     content=$(cat "$content_file")
     title="🚪 HITL Review: ${task_id} — ${role}"
     body="## Human-in-the-Loop Review

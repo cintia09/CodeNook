@@ -29,6 +29,16 @@ case "$cmd" in
       exit 1
     fi
 
+    # H3 fix: validate task_id and role to prevent path traversal
+    if ! echo "$task_id" | grep -qE '^T-[0-9]+$'; then
+      echo "ERROR: Invalid task_id format (expected T-NNN)" >&2
+      exit 1
+    fi
+    if ! echo "$role" | grep -qE '^(acceptor|designer|implementer|reviewer|tester)$'; then
+      echo "ERROR: Invalid role" >&2
+      exit 1
+    fi
+
     # Convert markdown to HTML (basic conversion)
     content_html=""
     if command -v pandoc >/dev/null 2>&1; then
@@ -38,8 +48,8 @@ case "$cmd" in
       content_html="<pre>$(cat "$content_file" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')</pre>"
     fi
 
-    # Get role emoji
-    role_emoji=$(echo "$ROLE_EMOJI_MAP" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('$role','📋'))" 2>/dev/null || echo "📋")
+    # C1 fix: pass role as argument, not embedded in string
+    role_emoji=$(echo "$ROLE_EMOJI_MAP" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get(sys.argv[1],'📋'))" "$role" 2>/dev/null || echo "📋")
 
     # Generate HTML from template
     output_file="$REVIEWS_DIR/${task_id}-${role}.html"
@@ -52,19 +62,21 @@ case "$cmd" in
       -e "s|{{FEEDBACK_PATH}}|${feedback_path}|g" \
       "$TEMPLATE" > "$output_file.tmp"
 
-    # Insert content (sed can't handle multiline well, use python)
+    # C2 fix: write content to temp file, read in Python (no string embedding)
+    CONTENT_TMP=$(mktemp)
+    echo "$content_html" > "$CONTENT_TMP"
     python3 -c "
 import sys
-template = open('${output_file}.tmp').read()
-content = '''${content_html}'''
+template = open(sys.argv[1]).read()
+content = open(sys.argv[2]).read()
 result = template.replace('{{CONTENT}}', content)
-with open('${output_file}', 'w') as f:
+with open(sys.argv[3], 'w') as f:
     f.write(result)
-" 2>/dev/null || {
+" "$output_file.tmp" "$CONTENT_TMP" "$output_file" 2>/dev/null || {
       # Fallback if python fails
-      sed "s|{{CONTENT}}|<p>See source document: ${content_file}</p>|g" "$output_file.tmp" > "$output_file"
+      sed "s|{{CONTENT}}|<p>See source document</p>|g" "$output_file.tmp" > "$output_file"
     }
-    rm -f "$output_file.tmp"
+    rm -f "$output_file.tmp" "$CONTENT_TMP"
 
     # Open in browser
     if [ "$(uname)" = "Darwin" ]; then
