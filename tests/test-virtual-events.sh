@@ -47,9 +47,9 @@ check "invalid: switch to 'root' role" \
   '{"toolName":"create","toolArgs":{"path":"'"$PROJECT_ROOT"'/.agents/runtime/active-agent","file_text":"root"},"cwd":"'"$PROJECT_ROOT"'"}' \
   "deny"
 
-check "valid: clear active-agent (empty)" \
+check "deny: clear active-agent (empty) blocked" \
   '{"toolName":"create","toolArgs":{"path":"'"$PROJECT_ROOT"'/.agents/runtime/active-agent","file_text":""},"cwd":"'"$PROJECT_ROOT"'"}' \
-  "allow"
+  "deny"
 
 # --- V-EVENT 1b: agentSwitch (bash) ---
 echo ""
@@ -136,6 +136,40 @@ echo "tester" > .agents/runtime/active-agent
 
 check "deny: switch + destructive chained command" \
   '{"toolName":"bash","toolArgs":{"command":"echo implementer > .agents/runtime/active-agent && rm install.sh"},"cwd":"'"$PROJECT_ROOT"'"}' \
+  "deny"
+
+# --- Security: active-agent deletion bypass prevention ---
+echo ""
+echo "--- Security: active-agent protection ---"
+echo "tester" > .agents/runtime/active-agent
+
+check "deny: rm active-agent (bypass attempt)" \
+  '{"toolName":"bash","toolArgs":{"command":"rm -f .agents/runtime/active-agent"},"cwd":"'"$PROJECT_ROOT"'"}' \
+  "deny"
+
+check "deny: mv active-agent (bypass attempt)" \
+  '{"toolName":"bash","toolArgs":{"command":"mv .agents/runtime/active-agent /tmp/backup"},"cwd":"'"$PROJECT_ROOT"'"}' \
+  "deny"
+
+check "deny: empty write to active-agent via create" \
+  '{"toolName":"create","toolArgs":{"path":"'"$PROJECT_ROOT"'/.agents/runtime/active-agent","file_text":""},"cwd":"'"$PROJECT_ROOT"'"}' \
+  "deny"
+
+check "deny: whitespace-only write to active-agent" \
+  '{"toolName":"create","toolArgs":{"path":"'"$PROJECT_ROOT"'/.agents/runtime/active-agent","file_text":"  \n"},"cwd":"'"$PROJECT_ROOT"'"}' \
+  "deny"
+
+# --- Default role when active-agent missing ---
+echo ""
+echo "--- Default restrictive role when no active-agent ---"
+rm -f .agents/runtime/active-agent
+
+check "deny: edit source without active-agent (defaults to acceptor)" \
+  '{"toolName":"edit","toolArgs":{"path":"'"$PROJECT_ROOT"'/install.sh","old_str":"test","new_str":"hack"},"cwd":"'"$PROJECT_ROOT"'"}' \
+  "deny"
+
+check "deny: bash rm without active-agent (defaults to acceptor)" \
+  '{"toolName":"bash","toolArgs":{"command":"rm install.sh"},"cwd":"'"$PROJECT_ROOT"'"}' \
   "deny"
 
 # --- Reviewer can switch roles (previously bugged) ---

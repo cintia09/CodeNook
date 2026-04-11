@@ -45,11 +45,20 @@ fi
 [ -n "$PROJECT_ROOT" ] || exit 0
 AGENTS_DIR="$PROJECT_ROOT/.agents"
 
-# Only enforce if an agent is active
+# Read active agent — default to most restrictive role if missing/empty
+# This prevents bypass via `rm .agents/runtime/active-agent`
 ACTIVE_FILE="$AGENTS_DIR/runtime/active-agent"
-[ -f "$ACTIVE_FILE" ] || exit 0
-
-ACTIVE_AGENT=$(cat "$ACTIVE_FILE")
+if [ -f "$ACTIVE_FILE" ] && [ -s "$ACTIVE_FILE" ]; then
+  ACTIVE_AGENT=$(cat "$ACTIVE_FILE" | tr -d '[:space:]')
+else
+  # No active agent or empty file → check if framework was ever initialized
+  # (presence of task-board.json or any agent state indicates active framework)
+  if [ -f "$AGENTS_DIR/task-board.json" ] || ls "$AGENTS_DIR/runtime"/*/state.json >/dev/null 2>&1; then
+    ACTIVE_AGENT="acceptor"  # default to most restrictive role
+  else
+    exit 0  # framework not initialized, skip enforcement
+  fi
+fi
 [ -n "$ACTIVE_AGENT" ] || exit 0
 
 # --- Virtual Event Validation (emulate custom hook events via preToolUse) ---
@@ -65,14 +74,16 @@ case "$TOOL_NAME" in
     if [[ "$VE_REL" == ".agents/runtime/active-agent" ]]; then
       NEW_CONTENT=$(echo "$TOOL_ARGS" | jq -r '.file_text // .new_str // empty' 2>/dev/null)
       NEW_ROLE=$(echo "$NEW_CONTENT" | tr -d '[:space:]')
-      if [ -n "$NEW_ROLE" ]; then
-        case "$NEW_ROLE" in
-          acceptor|designer|implementer|reviewer|tester) ;; # valid
-          *)
-            echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"🔄 Invalid agent role: '$NEW_ROLE'. Valid: acceptor, designer, implementer, reviewer, tester.\"}"
-            exit 0 ;;
-        esac
+      if [ -z "$NEW_ROLE" ]; then
+        echo '{"permissionDecision":"deny","permissionDecisionReason":"🔄 Cannot clear agent role. Switch to a valid role: acceptor, designer, implementer, reviewer, tester."}'
+        exit 0
       fi
+      case "$NEW_ROLE" in
+        acceptor|designer|implementer|reviewer|tester) ;; # valid
+        *)
+          echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"🔄 Invalid agent role: '$NEW_ROLE'. Valid: acceptor, designer, implementer, reviewer, tester.\"}"
+          exit 0 ;;
+      esac
       exit 0  # valid switch — allow (bypass role-based file restrictions)
     fi
 
@@ -102,10 +113,18 @@ case "$TOOL_NAME" in
     ;;
   bash)
     VE_CMD=$(echo "$TOOL_ARGS" | jq -r '.command // empty' 2>/dev/null)
+    # Strip quoted strings for virtual event checks (collapse newlines first for multi-line strings)
+    VE_CMD_CHECK=$(echo "$VE_CMD" | tr '\n' ' ' | sed "s/'[^']*'/_Q_/g" | sed 's/"[^"]*"/_Q_/g')
+
+    # PROTECT: block deletion of active-agent file (prevents enforcement bypass)
+    if echo "$VE_CMD_CHECK" | grep -qE '(rm|mv)\s+.*active-agent'; then
+      echo '{"permissionDecision":"deny","permissionDecisionReason":"🛡️ Cannot delete active-agent file. Switch to a valid role instead: acceptor, designer, implementer, reviewer, tester."}'
+      exit 0
+    fi
 
     # V-EVENT 1b: agentSwitch via bash — validate role in echo/printf to active-agent
     # NOTE: do NOT early-exit on valid switch — chained commands must still be checked
-    if echo "$VE_CMD" | grep -qE '(>|>>)\s*.*active-agent'; then
+    if echo "$VE_CMD_CHECK" | grep -qE '(>|>>)\s*.*active-agent'; then
       SWITCH_ROLE=$(echo "$VE_CMD" | grep -oE '(echo|printf)\s+["\x27]?(acceptor|designer|implementer|reviewer|tester)["\x27]?' | head -1 | grep -oE '(acceptor|designer|implementer|reviewer|tester)' || true)
       if [ -z "$SWITCH_ROLE" ]; then
         WRITTEN_VAL=$(echo "$VE_CMD" | sed -n "s/.*echo[[:space:]]*[\"']*\([^\"'>]*\)[\"']*[[:space:]]*>.*/\1/p" | tr -d '[:space:]')
@@ -122,9 +141,9 @@ case "$TOOL_NAME" in
     fi
 
     # V-EVENT 2b: memoryWrite via bash — block redirects to other agents' memory
-    if echo "$VE_CMD" | grep -qE '(>|>>)\s*.*\.agents/memory/' || \
-       echo "$VE_CMD" | grep -qE 'tee\s+.*\.agents/memory/'; then
-      MEM_TARGET=$(echo "$VE_CMD" | grep -oE '\.agents/memory/[^ ]+' | head -1 || true)
+    if echo "$VE_CMD_CHECK" | grep -qE '(>|>>)\s*.*\.agents/memory/' || \
+       echo "$VE_CMD_CHECK" | grep -qE 'tee\s+.*\.agents/memory/'; then
+      MEM_TARGET=$(echo "$VE_CMD_CHECK" | grep -oE '\.agents/memory/[^ ]+' | head -1 || true)
       if [ -n "$MEM_TARGET" ]; then
         MEM_BASENAME=$(basename "$MEM_TARGET")
         if [[ ! "$MEM_BASENAME" =~ ^T- ]] && [[ ! "$MEM_BASENAME" =~ $ACTIVE_AGENT ]]; then
@@ -195,7 +214,7 @@ case "$TOOL_NAME" in
     # Strip quoted strings to avoid false positives from argument content
     # e.g., gh release --notes "mentions npm publish" should NOT trigger npm publish check
     # Direct commands like `npm publish` (unquoted) are still caught
-    BASH_CMD_CHECK=$(echo "$BASH_CMD" | sed "s/'[^']*'/_Q_/g" | sed 's/"[^"]*"/_Q_/g')
+    BASH_CMD_CHECK=$(echo "$BASH_CMD" | tr '\n' ' ' | sed "s/'[^']*'/_Q_/g" | sed 's/"[^"]*"/_Q_/g')
 
     # Helper: check if ANY segment of a chained command has a dangerous pattern
     # without matching a whitelist. Splits on &&, ||, ; for per-segment analysis.
