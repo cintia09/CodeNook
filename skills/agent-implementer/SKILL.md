@@ -49,24 +49,40 @@ description: "实现者工作流: TDD 开发、按 goals 实现、Bug 修复。U
 
 ### 流程 A: 新功能实现
 ```
-1. 更新 state.json (status: busy, current_task: T-NNN, sub_state: implementing)
+=== 阶段 1: 计划与风险分析 (coding 之前) ===
+1. 更新 state.json (status: busy, current_task: T-NNN, sub_state: planning)
 2. 读取设计文档 (designer/workspace/design-docs/T-NNN-design.md)
 3. 读取测试规格 (designer/workspace/test-specs/T-NNN-test-spec.md)
 4. **读取任务的功能目标清单** (tasks/T-NNN.json → goals 数组)
-5. 对每个 goal 执行 TDD 循环:
+5. **DFMEA 风险分析** (⚠️ 在写代码之前):
+   - 复制 `.agents/templates/dfmea-template.md` → `.agents/runtime/implementer/workspace/T-NNN-dfmea.md`
+   - 基于设计文档分析潜在风险点, 填写失效模式表
+   - RPN > 100 的项标注 `pending` (将在实现时 mitigate)
+6. **编写实现计划**:
+   - 输出 `.agents/runtime/implementer/workspace/T-NNN-impl-plan.md`:
+     - 技术方案概要、依赖分析、实现顺序
+     - 每个 Goal 的预期实现步骤
+7. **HITL 审批门禁** (如已启用):
+   - 发布 DFMEA + 实现计划供人工审批
+   - 等待审批通过后方可开始 coding
+   - 审批未通过 → 根据反馈修改 → 重新发布
+
+=== 阶段 2: TDD 实现 (审批通过后) ===
+8. 对每个 goal 执行 TDD 循环:
    a. 编写测试 (根据 goal + 测试规格)
    b. 运行测试 (应该失败 — RED)
    c. 编写最小实现代码
    d. 运行测试 (应该通过 — GREEN)
    e. 重构 (REFACTOR)
    f. **将该 goal 的 status 改为 `done`, 填写 completed_at**
-6. 确保 lint/typecheck/build 全部通过
-7. **检查: 所有 goals 是否都为 `done`** — 如果有 `pending` 的, 继续实现
-8. **DFMEA 分析**: 复制 `.agents/templates/dfmea-template.md` → `.agents/runtime/implementer/workspace/T-NNN-dfmea.md`
-   — 分析实现中的风险点, 填写失效模式表
-   — RPN > 100 的项必须标记为 `mitigated` 或 `resolved` 后方可继续
-9. git commit (commit 消息英文, 含 Change-Id + Co-authored-by trailer)
-10. **代码提交与审查路径检测**:
+   g. **更新 DFMEA**: 对已实现功能的高风险项标记 `mitigated` 并补充措施
+9. 确保 lint/typecheck/build 全部通过
+10. **检查: 所有 goals 是否都为 `done`** — 如果有 `pending` 的, 继续实现
+11. **DFMEA 最终检查**: RPN > 100 的项必须全部为 `mitigated` 或 `resolved`
+
+=== 阶段 3: 提交与交付 ===
+12. git commit (commit 消息英文, 含 Change-Id + Co-authored-by trailer)
+13. **代码提交与审查路径检测**:
     a. 检查是否有 git remote: `git remote -v`
     b. **有远端 + GitHub**:
        - `git push origin <branch>`
@@ -78,13 +94,13 @@ description: "实现者工作流: TDD 开发、按 goals 实现、Bug 修复。U
        - 审查方式: **Gerrit Code Review** (Change-Id 已在 commit 中)
     d. **无远端 / push 失败**:
        - 审查方式: **本地审查** — reviewer 使用 `git diff HEAD~N` 审查
-11. 使用 agent-fsm 将任务状态转为 reviewing (FSM 会检查 goals 全部 done + DFMEA 存在)
-12. 更新任务 artifacts (含 review_location)
-13. **消息通知 reviewer** (必须包含审查位置):
+14. 使用 agent-fsm 将任务状态转为 reviewing (FSM 会检查 goals 全部 done + DFMEA 存在)
+15. 更新任务 artifacts (含 review_location)
+16. **消息通知 reviewer** (必须包含审查位置):
     - GitHub: "T-NNN 实现完成 (N/N goals done), 请在 GitHub PR 审查: <PR_URL>"
     - Gerrit: "T-NNN 实现完成, 请在 Gerrit 审查 Change-Id: <change-id>"
     - 本地: "T-NNN 实现完成, 请本地审查: `git --no-pager diff <base_commit>..HEAD`"
-14. 更新 state.json (status: idle)
+17. 更新 state.json (status: idle)
 ```
 
 ### 目标清单操作
