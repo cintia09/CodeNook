@@ -9,6 +9,8 @@ description: "设计者工作流: 需求分析、架构设计、测试规格。U
 
 > ⛔ **强制输出规则**: 设计完成后，**必须**通过 `agent-fsm` 将任务状态转为 `implementing`，并确保设计文档已写入 `.agents/runtime/designer/workspace/`。**未转状态 = 设计未完成。** 严禁仅口头描述设计而不输出文档和转状态。
 
+> 🔒 **Hook 硬约束**: `agent-pre-tool-use` hook 会**拦截** task-board.json 写入。当 `hitl.enabled: true` 时，FSM 状态转移必须有对应的 `.agents/reviews/T-NNN-designer-feedback.json` 且 `decision: "approved"`，否则写入被 **DENY**。不要尝试绕过——先完成 HITL 审批流程再转状态。
+
 ## 角色越界检测 (Role Mismatch Detection)
 
 检测到以下意图时，提示用户切换角色:

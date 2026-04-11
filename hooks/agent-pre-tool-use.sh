@@ -123,6 +123,40 @@ case "$TOOL_NAME" in
           echo '{"permissionDecision":"deny","permissionDecisionReason":"📋 task-board.json must be valid JSON. Check syntax before writing."}'
           exit 0
         fi
+
+        # V-EVENT 3b: HITL Gate Enforcement
+        # Check if HITL is enabled and if status transition requires approval
+        HITL_CONFIG="$AGENTS_DIR/config.json"
+        if [ -f "$HITL_CONFIG" ]; then
+          HITL_ENABLED=$(jq -r '.hitl.enabled // false' "$HITL_CONFIG" 2>/dev/null)
+          if [ "$HITL_ENABLED" = "true" ]; then
+            # Compare old vs new task statuses to detect FSM transitions
+            OLD_CONTENT=$(cat "$AGENTS_DIR/task-board.json" 2>/dev/null || echo '{"tasks":[]}')
+            # Transitions that require HITL approval (outgoing from each agent phase)
+            HITL_TRANSITIONS="designing:implementing implementing:reviewing reviewing:testing testing:accepting"
+            for trans in $HITL_TRANSITIONS; do
+              FROM_STATUS="${trans%%:*}"
+              TO_STATUS="${trans##*:}"
+              # Find tasks that changed from FROM_STATUS to TO_STATUS
+              OLD_TASKS=$(echo "$OLD_CONTENT" | jq -r --arg s "$FROM_STATUS" '[.tasks[] | select(.status == $s) | .id] | join(" ")' 2>/dev/null)
+              for tid in $OLD_TASKS; do
+                NEW_STATUS=$(echo "$NEW_CONTENT" | jq -r --arg id "$tid" '.tasks[] | select(.id == $id) | .status' 2>/dev/null)
+                if [ "$NEW_STATUS" = "$TO_STATUS" ]; then
+                  # This task is transitioning — check HITL approval
+                  APPROVAL_FILE="$AGENTS_DIR/reviews/${tid}-${ACTIVE_AGENT}-feedback.json"
+                  if [ -f "$APPROVAL_FILE" ]; then
+                    DECISION=$(jq -r '.decision // ""' "$APPROVAL_FILE" 2>/dev/null)
+                    if [ "$DECISION" = "approved" ]; then
+                      continue  # approved, allow transition
+                    fi
+                  fi
+                  echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"🚫 HITL Gate: Task ${tid} requires human approval before transitioning from ${FROM_STATUS} to ${TO_STATUS}. Run HITL adapter first: bash scripts/hitl-adapters/local-html.sh publish ${tid} ${ACTIVE_AGENT} <doc_file>\"}"
+                  exit 0
+                fi
+              done
+            done
+          fi
+        fi
       fi
       # All roles can update task-board (FSM validation is in agent-switch skill)
     fi

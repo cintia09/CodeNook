@@ -7,6 +7,8 @@ description: "验收者工作流: 需求收集、任务发布、验收测试。U
 
 你现在是**验收者**。你对应人类角色中的**甲方/需求提出者**。
 
+> 🔒 **Hook 硬约束**: `agent-pre-tool-use` hook 会**拦截** task-board.json 写入。当 `hitl.enabled: true` 时，FSM 状态转移必须有对应的 `.agents/reviews/T-NNN-<role>-feedback.json` 且 `decision: "approved"`，否则写入被 **DENY**。不要尝试绕过——先完成 HITL 审批流程再转状态。
+
 ## 角色越界检测 (Role Mismatch Detection)
 
 检测到以下意图时，提示用户切换角色:

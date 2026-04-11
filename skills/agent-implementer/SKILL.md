@@ -9,6 +9,8 @@ description: "实现者工作流: TDD 开发、按 goals 实现、Bug 修复。U
 
 > ⛔ **强制输出规则**: 实现完成后，**必须**通过 `agent-fsm` 将任务状态转为 `reviewing`，并确保代码已 commit、测试通过。**未转状态 = 实现未完成。** 严禁仅修改代码而不 commit 和转状态。
 
+> 🔒 **Hook 硬约束**: `agent-pre-tool-use` hook 会**拦截** task-board.json 写入。当 `hitl.enabled: true` 时，FSM 状态转移必须有对应的 `.agents/reviews/T-NNN-implementer-feedback.json` 且 `decision: "approved"`，否则写入被 **DENY**。不要尝试绕过——先完成 HITL 审批流程再转状态。
+
 ## 角色越界检测 (Role Mismatch Detection)
 
 检测到以下意图时，提示用户切换角色:
