@@ -137,9 +137,35 @@ case "$TOOL_NAME" in
         fi
         ;;
       tester)
-        # Tester: can run tests, but not publish/deploy
-        if echo "$BASH_CMD" | grep -qE '(^|\s)(git\s+push|npm\s+publish|docker\s+run)(\s|$)'; then
-          echo '{"permissionDecision":"deny","permissionDecisionReason":"🧪 Tester cannot run publish/deploy commands. Use test runners only."}'
+        # Tester: can run tests, read code, but not modify source or deploy
+        if echo "$BASH_CMD" | grep -qE '(^|\s)(git\s+push|git\s+commit|npm\s+publish|docker\s+run|chmod|chown)(\s|$)'; then
+          echo '{"permissionDecision":"deny","permissionDecisionReason":"🧪 Tester cannot run commit/publish/deploy commands. Use test runners only."}'
+          exit 0
+        fi
+        # Block destructive commands on non-test files
+        if echo "$BASH_CMD" | grep -qE '(^|\s)(rm|mv|cp)(\s)' && \
+           ! echo "$BASH_CMD" | grep -qE '(tests?/|\.test\.|\.spec\.|\.agents/|/tmp/)'; then
+          echo '{"permissionDecision":"deny","permissionDecisionReason":"🧪 Tester cannot modify non-test files via rm/mv/cp."}'
+          exit 0
+        fi
+        # Block bash file-write patterns outside .agents/ and test dirs
+        if echo "$BASH_CMD" | grep -qE '(>[^&]|>>|tee\s|sed\s+-i|patch\s|dd\s)' && \
+           ! echo "$BASH_CMD" | grep -qE '(\.agents/|tests?/|\.test\.|\.spec\.)'; then
+          echo '{"permissionDecision":"deny","permissionDecisionReason":"🧪 Tester cannot write to non-test files via bash redirects."}'
+          exit 0
+        fi
+        ;;
+      implementer)
+        # Implementer: broadest access but cannot touch other agents' workspaces or deploy
+        # Block editing other agents' runtime directories via redirects
+        if echo "$BASH_CMD" | grep -qE '(>[^&]|>>|tee\s|sed\s+-i)' && \
+           echo "$BASH_CMD" | grep -qE '\.agents/runtime/(acceptor|designer|reviewer|tester)/'; then
+          echo '{"permissionDecision":"deny","permissionDecisionReason":"💻 Implementer cannot write to other agents workspaces via bash. Use messaging."}'
+          exit 0
+        fi
+        # Block direct deploy without going through review pipeline
+        if echo "$BASH_CMD" | grep -qE '(^|\s)(npm\s+publish|docker\s+push)(\s|$)'; then
+          echo '{"permissionDecision":"deny","permissionDecisionReason":"💻 Implementer cannot publish/deploy directly. Code must go through review first."}'
           exit 0
         fi
         ;;
