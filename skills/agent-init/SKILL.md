@@ -228,12 +228,19 @@ orchestrator/daemon.pid
 # Agent Framework Configuration
 
 ## 框架信息
-- Multi-Agent Framework v3.2.x
-- 5 Agent 角色 | 18 Skills | 13 Hooks | 双模式 FSM
+- Multi-Agent Framework v3.3.x
+- 5 Agent 角色 | 19 Skills | 13 Hooks | 双模式 FSM
+
+## ⚡ 角色切换触发规则 (MANDATORY)
+当用户消息包含以下模式时，必须立即执行角色切换（调用 agent-switch skill）：
+- `/agent <name>` | `切换到<角色>` | `switch to <role>`
+- `当<角色>` | `做<角色>` | `我是<角色>` | `act as <role>`
+角色名: 验收者=acceptor, 设计者=designer, 实现者=implementer, 审查者=reviewer, 测试者=tester
+不要询问确认，直接执行切换流程。
 
 ## 全局资源
 - Agent Profiles: ~/.claude/agents/*.agent.md (含 skills: Per-Agent 隔离)
-- Skills: ~/.claude/skills/agent-*/ (18 个, 两级加载: 摘要列表 + 按需全文)
+- Skills: ~/.claude/skills/agent-*/ (19 个, 两级加载: 摘要列表 + 按需全文)
 - Hooks: ~/.claude/hooks/ (13 个 Shell 脚本)
 - Rules: ~/.claude/rules/ (agent-workflow, commit-standards, security)
 
@@ -244,6 +251,7 @@ orchestrator/daemon.pid
 | 命令 | 说明 |
 |------|------|
 | /agent acceptor | 切换到验收者角色 |
+| 切换到验收者 | 同上 (自然语言触发) |
 | /agent-init | 初始化 Agent 系统 |
 | /agent-task-board | 查看任务看板 |
 | /agent-fsm | 查看 FSM 状态机 |

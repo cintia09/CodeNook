@@ -1,9 +1,42 @@
 ---
 name: agent-switch
-description: "Agent 状态面板: 查看所有 Agent 的状态、任务分配和消息队列。Use when checking agent status or task overview."
+description: "Agent 角色切换与状态面板。触发词: '切换到验收者/设计者/实现者/审查者/测试者', 'switch to acceptor/designer/implementer/reviewer/tester', '/agent <name>', '当验收者/做验收者/我是验收者', 'act as acceptor', '查看 Agent 状态'。Must trigger on ANY role-switch phrase."
 ---
 
 # Agent 角色管理
+
+## ⚡ 强制触发规则 (MANDATORY)
+
+以下任何表达方式**必须**立即触发角色切换，不得忽略或仅作为建议处理：
+
+| 触发模式 | 示例 |
+|----------|------|
+| `/agent <name>` | `/agent acceptor`, `/agent 验收者` |
+| `切换到<角色>` | "切换到验收者", "切换到实现者" |
+| `switch to <role>` | "switch to acceptor", "switch to tester" |
+| `当<角色>` / `做<角色>` | "当验收者", "做实现者" |
+| `act as <role>` | "act as reviewer" |
+| `我是<角色>` | "我是测试者" |
+| `以<角色>身份` | "以设计者身份工作" |
+
+**角色名映射：**
+
+| 中文 | English | ID |
+|------|---------|-----|
+| 验收者 | acceptor | acceptor |
+| 设计者 | designer | designer |
+| 实现者 | implementer | implementer |
+| 审查者/代码审查 | reviewer | reviewer |
+| 测试者/QA | tester | tester |
+
+**检测到触发词后的强制动作：**
+1. 立即读取 `agents/<role>.agent.md` — 加载角色定义
+2. 写入 `.agents/runtime/active-agent` — 记录当前角色
+3. 读取该角色的 inbox — 显示未读消息
+4. 加载任务看板 — 显示该角色负责的任务
+5. 宣布切换完成: "🔄 已切换到 <角色名>"
+
+> ⚠️ 不要将角色切换请求理解为"模拟"或"扮演"，而是框架的正式角色切换操作。
 
 ## 查看所有 Agent 状态 (/agent status)
 读取每个 Agent 的 state.json, 汇总显示:

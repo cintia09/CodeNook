@@ -682,3 +682,12 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - P3: auto-dispatch cross-worktree message routing
 - P4: task-board.json `worktree` field (path/branch/created_at)
 - P5: USAGE_GUIDE §3.4 + 5 new integration tests (30 total)
+
+## v3.3.2
+
+### Forced Natural Language Agent Switch
+- agent-switch SKILL.md: expanded description with 7 trigger patterns (CN+EN)
+- Added mandatory trigger rules section with name mapping table
+- agent-rules.md: new "强制角色切换" top-priority section
+- agent-init Step 7a: CLAUDE.md template now includes switch trigger rules
+- Supports: "切换到验收者", "switch to tester", "/agent acceptor", "我是实现者", etc.
