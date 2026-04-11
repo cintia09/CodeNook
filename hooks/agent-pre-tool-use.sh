@@ -328,10 +328,19 @@ case "$TOOL_NAME" in
       implementer)
         # Implementer: broadest access but cannot touch other agents' workspaces or deploy
         # Block editing other agents' runtime directories via redirects (per-segment)
-        if [ -n "$(has_dangerous_segment "$BASH_CMD_CHECK" '(>[^&]|>>|tee\s|sed\s+-i)' '')" ] && \
-           echo "$BASH_CMD_CHECK" | grep -qE '\.agents/runtime/(acceptor|designer|reviewer|tester)/'; then
-          echo '{"permissionDecision":"deny","permissionDecisionReason":"💻 Implementer cannot write to other agents workspaces via bash. Use messaging."}'
-          exit 0
+        # Exclude active-agent (role switch file is shared, not agent-specific)
+        if [ -n "$(has_dangerous_segment "$BASH_CMD_CHECK" '(>[^&]|>>|tee\s|sed\s+-i)' '')" ]; then
+          # Check if any redirect target is another agent's workspace (not active-agent)
+          REDIRECT_TARGETS=$(echo "$BASH_CMD_CHECK" | grep -oE '>{1,2}\s*[^ |&;]+' | sed 's/^>*\s*//' || true)
+          for target in $REDIRECT_TARGETS; do
+            # Skip active-agent (legitimate for role switching)
+            echo "$target" | grep -q 'active-agent' && continue
+            # Block writes to other agents' runtime directories
+            if echo "$target" | grep -qE '\.agents/runtime/(acceptor|designer|reviewer|tester)/'; then
+              echo '{"permissionDecision":"deny","permissionDecisionReason":"💻 Implementer cannot write to other agents workspaces via bash. Use messaging."}'
+              exit 0
+            fi
+          done
         fi
         # Block direct deploy without going through review pipeline
         if echo "$BASH_CMD_CHECK" | grep -qE '(^|\s)(npm\s+publish|docker\s+push)(\s|$)'; then

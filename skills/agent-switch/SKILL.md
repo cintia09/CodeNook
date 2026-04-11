@@ -84,7 +84,20 @@ cat "$AGENTS_DIR/task-board.json"
    | implementer | `implementing` / `fixing` | — |
    | reviewer | `reviewing` | — |
    | tester | `testing` | — |
-   - 无匹配 → 警告 + 询问是否仍要切换
+   - 无匹配 → **检查是否可以自动转移** (见下方 FSM Auto-Transition)
+   - 仍无匹配 → 警告 + 询问是否仍要切换
+2a. **FSM Auto-Transition on Switch** (切换时自动状态转移):
+   当目标角色没有匹配状态的任务，但**前一角色的任务已完成**时，自动执行 FSM 转移:
+   | 切换方向 | 检测条件 | 自动转移 |
+   |---------|---------|---------|
+   | → designer | 有 `created` 任务 | 无需转移 (已匹配) |
+   | → implementer | 有 `designing` 任务 (设计已完成) | `designing` → `implementing` |
+   | → reviewer | 有 `implementing` 任务 (实现已完成) | `implementing` → `reviewing` |
+   | → tester | 有 `reviewing` 任务 (审查已通过) | `reviewing` → `testing` |
+   | → acceptor | 有 `testing` 任务 (测试已通过) | `testing` → `accepting` |
+   - 转移前提示: "📋 发现 N 个任务在前一阶段已完成，是否自动转移到 <目标状态>？"
+   - 用户确认 → 批量执行 FSM 转移 → 继续切换
+   - 用户拒绝 → 仅切换角色，不改变任务状态
 3. **保存并检查当前 Agent 状态**
    - 保存 state.json
    - **⛔ 切出守卫** (switch-away guard): 检查当前角色是否有未完成的关键输出:
