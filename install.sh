@@ -171,7 +171,8 @@ install() {
     else
         mkdir -p "${CLAUDE_DIR}/skills"
         cp -r "${TMP_DIR}/skills/agent-"* "${CLAUDE_DIR}/skills/"
-        info "18 Skills installed (includes orchestrator + config + docs + hypothesis)"
+        local installed_skills=$(ls -d "${CLAUDE_DIR}/skills/agent-"*/ 2>/dev/null | wc -l | tr -d ' ')
+        info "${installed_skills} Skills installed (includes orchestrator + config + docs + hypothesis + worktree)"
     fi
     
     # Step 4: Install Agents
