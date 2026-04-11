@@ -109,10 +109,17 @@ case "$TOOL_NAME" in
     [ -n "$BASH_CMD" ] || exit 0
     case "$ACTIVE_AGENT" in
       acceptor|designer)
-        # Read-only roles: block destructive commands
+        # Read-only roles: block destructive commands and file writes
         if echo "$BASH_CMD" | grep -qE '(^|\s)(rm|mv|cp|git\s+push|git\s+commit|npm\s+publish|docker\s+run|chmod|chown)(\s|$)'; then
           AGENT_JSON_ESC=$(echo "$ACTIVE_AGENT" | sed 's/"/\\"/g')
           echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"${AGENT_JSON_ESC} cannot run write/destructive commands via bash.\"}"
+          exit 0
+        fi
+        # Block bash file-write patterns (redirects, in-place edits) outside .agents/
+        if echo "$BASH_CMD" | grep -qE '(>[^&]|>>|tee\s|sed\s+-i|patch\s|dd\s)' && \
+           ! echo "$BASH_CMD" | grep -qE '\.agents/'; then
+          AGENT_JSON_ESC=$(echo "$ACTIVE_AGENT" | sed 's/"/\\"/g')
+          echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"${AGENT_JSON_ESC} cannot write to files via bash redirects. Use task-board or messaging instead.\"}"
           exit 0
         fi
         ;;
@@ -120,6 +127,12 @@ case "$TOOL_NAME" in
         # Reviewer: read + git diff/log allowed, no writes
         if echo "$BASH_CMD" | grep -qE '(^|\s)(rm|mv|cp|git\s+push|git\s+commit|npm\s+publish|docker\s+run|chmod|chown)(\s|$)'; then
           echo '{"permissionDecision":"deny","permissionDecisionReason":"🔍 Reviewer cannot run write/destructive commands via bash."}'
+          exit 0
+        fi
+        # Block bash file-write patterns outside .agents/
+        if echo "$BASH_CMD" | grep -qE '(>[^&]|>>|tee\s|sed\s+-i|patch\s|dd\s)' && \
+           ! echo "$BASH_CMD" | grep -qE '\.agents/'; then
+          echo '{"permissionDecision":"deny","permissionDecisionReason":"🔍 Reviewer cannot write to files via bash redirects."}'
           exit 0
         fi
         ;;
