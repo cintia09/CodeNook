@@ -60,11 +60,15 @@ description: "验收者工作流: 需求收集、任务发布、验收测试。U
 2. 在 acceptor/workspace/requirements/ 下创建需求文档 (T-NNN-requirement.md)
 3. **拆分功能目标**: 将需求拆解为具体的功能目标清单 (goals), 每个 goal 是一个可独立验证的功能点
 4. 在 acceptor/workspace/acceptance-docs/ 下创建验收文档 (T-NNN-acceptance.md)
-5. **⛔ 必须执行**: 使用 agent-task-board skill 创建任务到 task-board.json (包含 goals 数组)
+5. **HITL 审批门禁** (如已启用):
+   - 发布需求文档 + 验收标准供人工审批
+   - 等待审批通过后方可发布任务
+   - 审批未通过 → 根据反馈修改需求文档 → 重新发布
+6. **⛔ 必须执行**: 使用 agent-task-board skill 创建任务到 task-board.json (包含 goals 数组)
    — 这一步不可省略, 不可推迟, 不可用其他方式替代
-6. 更新 state.json (status: idle, 当前任务清空)
-7. 确认: "✅ 任务 T-NNN 已发布 (N 个功能目标), 设计者将接手"
-8. **自检**: 使用 jq 读取 task-board.json 确认任务存在且状态为 created
+7. 更新 state.json (status: idle, 当前任务清空)
+8. 确认: "✅ 任务 T-NNN 已发布 (N 个功能目标), 设计者将接手"
+9. **自检**: 使用 jq 读取 task-board.json 确认任务存在且状态为 created
 ```
 
 ## 用户故事格式
@@ -112,6 +116,10 @@ so that [业务价值/原因].
    - 通过: 将 goal status 改为 `verified`, 填写 verified_at
    - 不通过: 将 goal status 改为 `failed`, 在 note 中说明原因
 6. 输出验收报告到 acceptor/workspace/acceptance-reports/T-NNN-report.md (包含每个 goal 的验收结果)
+6a. **HITL 审批门禁** (如已启用):
+   - 发布验收报告供人工审批
+   - 等待审批通过后方可进行 FSM 状态转移
+   - 审批未通过 → 根据反馈补充验收 → 重新发布
 7. 如果**所有 goals 都为 verified**:
    - 使用 agent-fsm skill 将任务状态转为 accepted (FSM 会检查 goals 全部 verified)
    - 更新任务 artifacts.acceptance_report
