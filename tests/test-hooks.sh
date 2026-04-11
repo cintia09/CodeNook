@@ -69,12 +69,20 @@ elif ! jq empty "${REPO_DIR}/hooks/hooks-copilot.json" 2>/dev/null; then
     ERRORS=$((ERRORS + 1))
 fi
 
-# Check both JSON files register the same number of event types
+# Check both JSON files have valid structure
+# Note: Copilot CLI only supports 3 events (sessionStart, preToolUse, postToolUse)
+# while Claude Code supports 9 events (includes custom events: agentSwitch, taskCreate, etc.)
 if [ -f "${REPO_DIR}/hooks/hooks.json" ] && [ -f "${REPO_DIR}/hooks/hooks-copilot.json" ]; then
     CLAUDE_EVENTS=$(jq '.hooks | keys | length' "${REPO_DIR}/hooks/hooks.json")
     COPILOT_EVENTS=$(jq '.hooks | keys | length' "${REPO_DIR}/hooks/hooks-copilot.json")
-    if [ "$CLAUDE_EVENTS" != "$COPILOT_EVENTS" ]; then
-        echo "  ❌ Event count mismatch: hooks.json=${CLAUDE_EVENTS} vs hooks-copilot.json=${COPILOT_EVENTS}"
+    # Copilot must have at least sessionStart + preToolUse + postToolUse
+    if [ "$COPILOT_EVENTS" -lt 3 ]; then
+        echo "  ❌ hooks-copilot.json has only ${COPILOT_EVENTS} events (minimum 3 required)"
+        ERRORS=$((ERRORS + 1))
+    fi
+    # Copilot events must be a subset of Claude events
+    if [ "$COPILOT_EVENTS" -gt "$CLAUDE_EVENTS" ]; then
+        echo "  ❌ hooks-copilot.json has more events (${COPILOT_EVENTS}) than hooks.json (${CLAUDE_EVENTS})"
         ERRORS=$((ERRORS + 1))
     fi
 fi

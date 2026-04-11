@@ -52,6 +52,90 @@ ACTIVE_FILE="$AGENTS_DIR/runtime/active-agent"
 ACTIVE_AGENT=$(cat "$ACTIVE_FILE")
 [ -n "$ACTIVE_AGENT" ] || exit 0
 
+# --- Virtual Event Validation (emulate custom hook events via preToolUse) ---
+# Copilot CLI only supports 6 events; these checks emulate agentSwitch, memoryWrite,
+# taskCreate, and taskStatusChange using file-path detection in preToolUse.
+
+case "$TOOL_NAME" in
+  edit|create)
+    VE_PATH=$(echo "$TOOL_ARGS" | jq -r '.path // empty' 2>/dev/null)
+    VE_REL="${VE_PATH#"$PROJECT_ROOT"/}"
+
+    # V-EVENT 1: agentSwitch — validate role name when writing active-agent
+    if [[ "$VE_REL" == ".agents/runtime/active-agent" ]]; then
+      NEW_CONTENT=$(echo "$TOOL_ARGS" | jq -r '.file_text // .new_str // empty' 2>/dev/null)
+      NEW_ROLE=$(echo "$NEW_CONTENT" | tr -d '[:space:]')
+      if [ -n "$NEW_ROLE" ]; then
+        case "$NEW_ROLE" in
+          acceptor|designer|implementer|reviewer|tester) ;; # valid
+          *)
+            echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"🔄 Invalid agent role: '$NEW_ROLE'. Valid: acceptor, designer, implementer, reviewer, tester.\"}"
+            exit 0 ;;
+        esac
+      fi
+      exit 0  # valid switch — allow (bypass role-based file restrictions)
+    fi
+
+    # V-EVENT 2: memoryWrite — namespace isolation
+    if [[ "$VE_REL" =~ ^\.agents/memory/ ]]; then
+      MEMFILE=$(basename "$VE_REL")
+      # Task memory (T-NNN-*) is shared across all roles
+      if [[ ! "$MEMFILE" =~ ^T- ]] && [[ ! "$MEMFILE" =~ $ACTIVE_AGENT ]]; then
+        echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"🧠 ${ACTIVE_AGENT} cannot write to other agents' memory files. File: $MEMFILE\"}"
+        exit 0
+      fi
+      exit 0  # own memory or task memory — allow
+    fi
+
+    # V-EVENT 3: taskCreate/StatusChange — validate task-board.json format
+    if [[ "$VE_REL" == ".agents/task-board.json" ]]; then
+      NEW_CONTENT=$(echo "$TOOL_ARGS" | jq -r '.file_text // .new_str // empty' 2>/dev/null)
+      # Validate JSON syntax if writing complete file
+      if [ -n "$NEW_CONTENT" ] && echo "$TOOL_ARGS" | jq -e '.file_text' >/dev/null 2>&1; then
+        if ! echo "$NEW_CONTENT" | jq empty 2>/dev/null; then
+          echo '{"permissionDecision":"deny","permissionDecisionReason":"📋 task-board.json must be valid JSON. Check syntax before writing."}'
+          exit 0
+        fi
+      fi
+      # All roles can update task-board (FSM validation is in agent-switch skill)
+    fi
+    ;;
+  bash)
+    VE_CMD=$(echo "$TOOL_ARGS" | jq -r '.command // empty' 2>/dev/null)
+
+    # V-EVENT 1b: agentSwitch via bash — validate role in echo/printf to active-agent
+    # NOTE: do NOT early-exit on valid switch — chained commands must still be checked
+    if echo "$VE_CMD" | grep -qE '(>|>>)\s*.*active-agent'; then
+      SWITCH_ROLE=$(echo "$VE_CMD" | grep -oE '(echo|printf)\s+["\x27]?(acceptor|designer|implementer|reviewer|tester)["\x27]?' | head -1 | grep -oE '(acceptor|designer|implementer|reviewer|tester)' || true)
+      if [ -z "$SWITCH_ROLE" ]; then
+        WRITTEN_VAL=$(echo "$VE_CMD" | sed -n "s/.*echo[[:space:]]*[\"']*\([^\"'>]*\)[\"']*[[:space:]]*>.*/\1/p" | tr -d '[:space:]')
+        if [ -n "$WRITTEN_VAL" ]; then
+          case "$WRITTEN_VAL" in
+            acceptor|designer|implementer|reviewer|tester) ;; # valid
+            *)
+              echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"🔄 Invalid agent role: '$WRITTEN_VAL'. Valid: acceptor, designer, implementer, reviewer, tester.\"}"
+              exit 0 ;;
+          esac
+        fi
+      fi
+      # Don't exit 0 — let the rest of bash checks run for chained commands
+    fi
+
+    # V-EVENT 2b: memoryWrite via bash — block redirects to other agents' memory
+    if echo "$VE_CMD" | grep -qE '(>|>>)\s*.*\.agents/memory/' || \
+       echo "$VE_CMD" | grep -qE 'tee\s+.*\.agents/memory/'; then
+      MEM_TARGET=$(echo "$VE_CMD" | grep -oE '\.agents/memory/[^ ]+' | head -1 || true)
+      if [ -n "$MEM_TARGET" ]; then
+        MEM_BASENAME=$(basename "$MEM_TARGET")
+        if [[ ! "$MEM_BASENAME" =~ ^T- ]] && [[ ! "$MEM_BASENAME" =~ $ACTIVE_AGENT ]]; then
+          echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"🧠 ${ACTIVE_AGENT} cannot write to other agents' memory via bash. File: $MEM_BASENAME\"}"
+          exit 0
+        fi
+      fi
+    fi
+    ;;
+esac
+
 # --- Boundary Rules ---
 case "$TOOL_NAME" in
   edit|create)
@@ -113,6 +197,22 @@ case "$TOOL_NAME" in
     # Direct commands like `npm publish` (unquoted) are still caught
     BASH_CMD_CHECK=$(echo "$BASH_CMD" | sed "s/'[^']*'/_Q_/g" | sed 's/"[^"]*"/_Q_/g')
 
+    # Helper: check if ANY segment of a chained command has a dangerous pattern
+    # without matching a whitelist. Splits on &&, ||, ; for per-segment analysis.
+    has_dangerous_segment() {
+      local cmd="$1" pattern="$2" whitelist="$3"
+      echo "$cmd" | sed 's/&&/\n/g; s/||/\n/g; s/;/\n/g' | while IFS= read -r seg; do
+        seg=$(echo "$seg" | sed 's/^[[:space:]]*//')
+        [ -z "$seg" ] && continue
+        if echo "$seg" | grep -qE "$pattern"; then
+          if [ -z "$whitelist" ] || ! echo "$seg" | grep -qE "$whitelist"; then
+            echo "DENY"
+            break
+          fi
+        fi
+      done
+    }
+
     case "$ACTIVE_AGENT" in
       acceptor|designer)
         # Read-only roles: block destructive commands and file writes
@@ -122,8 +222,7 @@ case "$TOOL_NAME" in
           exit 0
         fi
         # Block bash file-write patterns (redirects, in-place edits) outside .agents/
-        if echo "$BASH_CMD_CHECK" | grep -qE '(>[^&]|>>|tee\s|sed\s+-i|patch\s|dd\s)' && \
-           ! echo "$BASH_CMD_CHECK" | grep -qE '\.agents/'; then
+        if [ -n "$(has_dangerous_segment "$BASH_CMD_CHECK" '(>[^&]|>>|tee\s|sed\s+-i|patch\s|dd\s)' '\.agents/')" ]; then
           AGENT_JSON_ESC=$(echo "$ACTIVE_AGENT" | sed 's/"/\\"/g')
           echo "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"${AGENT_JSON_ESC} cannot write to files via bash redirects. Use task-board or messaging instead.\"}"
           exit 0
@@ -136,8 +235,7 @@ case "$TOOL_NAME" in
           exit 0
         fi
         # Block bash file-write patterns outside .agents/
-        if echo "$BASH_CMD_CHECK" | grep -qE '(>[^&]|>>|tee\s|sed\s+-i|patch\s|dd\s)' && \
-           ! echo "$BASH_CMD_CHECK" | grep -qE '\.agents/'; then
+        if [ -n "$(has_dangerous_segment "$BASH_CMD_CHECK" '(>[^&]|>>|tee\s|sed\s+-i|patch\s|dd\s)' '\.agents/')" ]; then
           echo '{"permissionDecision":"deny","permissionDecisionReason":"🔍 Reviewer cannot write to files via bash redirects."}'
           exit 0
         fi
@@ -148,23 +246,21 @@ case "$TOOL_NAME" in
           echo '{"permissionDecision":"deny","permissionDecisionReason":"🧪 Tester cannot run commit/publish/deploy commands. Use test runners only."}'
           exit 0
         fi
-        # Block destructive commands on non-test files
-        if echo "$BASH_CMD_CHECK" | grep -qE '(^|\s)(rm|mv|cp)(\s)' && \
-           ! echo "$BASH_CMD_CHECK" | grep -qE '(tests?/|\.test\.|\.spec\.|\.agents/|/tmp/)'; then
+        # Block destructive commands on non-test files (per-segment to prevent chain bypass)
+        if [ -n "$(has_dangerous_segment "$BASH_CMD_CHECK" '(^|\s)(rm|mv|cp)(\s)' '(tests?/|\.test\.|\.spec\.|\.agents/|/tmp/)')" ]; then
           echo '{"permissionDecision":"deny","permissionDecisionReason":"🧪 Tester cannot modify non-test files via rm/mv/cp."}'
           exit 0
         fi
-        # Block bash file-write patterns outside .agents/ and test dirs
-        if echo "$BASH_CMD_CHECK" | grep -qE '(>[^&]|>>|tee\s|sed\s+-i|patch\s|dd\s)' && \
-           ! echo "$BASH_CMD_CHECK" | grep -qE '(\.agents/|tests?/|\.test\.|\.spec\.)'; then
+        # Block bash file-write patterns outside .agents/ and test dirs (per-segment)
+        if [ -n "$(has_dangerous_segment "$BASH_CMD_CHECK" '(>[^&]|>>|tee\s|sed\s+-i|patch\s|dd\s)' '(\.agents/|tests?/|\.test\.|\.spec\.)')" ]; then
           echo '{"permissionDecision":"deny","permissionDecisionReason":"🧪 Tester cannot write to non-test files via bash redirects."}'
           exit 0
         fi
         ;;
       implementer)
         # Implementer: broadest access but cannot touch other agents' workspaces or deploy
-        # Block editing other agents' runtime directories via redirects
-        if echo "$BASH_CMD_CHECK" | grep -qE '(>[^&]|>>|tee\s|sed\s+-i)' && \
+        # Block editing other agents' runtime directories via redirects (per-segment)
+        if [ -n "$(has_dangerous_segment "$BASH_CMD_CHECK" '(>[^&]|>>|tee\s|sed\s+-i)' '')" ] && \
            echo "$BASH_CMD_CHECK" | grep -qE '\.agents/runtime/(acceptor|designer|reviewer|tester)/'; then
           echo '{"permissionDecision":"deny","permissionDecisionReason":"💻 Implementer cannot write to other agents workspaces via bash. Use messaging."}'
           exit 0
