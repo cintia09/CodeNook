@@ -23,22 +23,10 @@ BRANCH_NAME="task/${TASK_ID}"
 # 1. 创建 worktree + 分支
 git worktree add "$WORKTREE_DIR" -b "$BRANCH_NAME"
 
-# 2. 初始化 .agents/ (隔离部分)
-mkdir -p "$WORKTREE_DIR/.agents/runtime"/{acceptor,designer,implementer,reviewer,tester}/workspace
-mkdir -p "$WORKTREE_DIR/.agents/memory"
-mkdir -p "$WORKTREE_DIR/.agents/docs/${TASK_ID}"
+# 2. Symlink 共享 .agents/ → 主 worktree (不在 worktree 中初始化独立的 agents 系统)
+ln -sf "$PROJECT_DIR/.agents" "$WORKTREE_DIR/.agents"
 
-# 3. 初始化 inbox.json
-for agent in acceptor designer implementer reviewer tester; do
-  echo '{"messages":[]}' > "$WORKTREE_DIR/.agents/runtime/${agent}/inbox.json"
-done
-
-# 4. Symlink 共享资源 → 主 worktree
-ln -sf "$PROJECT_DIR/.agents/task-board.json" "$WORKTREE_DIR/.agents/task-board.json"
-ln -sf "$PROJECT_DIR/.agents/task-board.md" "$WORKTREE_DIR/.agents/task-board.md" 2>/dev/null
-ln -sf "$PROJECT_DIR/.agents/events.db" "$WORKTREE_DIR/.agents/events.db"
-
-# 5. 更新 task-board.json — 添加 worktree 字段
+# 3. 更新 task-board.json — 添加 worktree 字段
 jq --arg id "$TASK_ID" --arg path "$WORKTREE_DIR" --arg branch "$BRANCH_NAME" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   '.tasks = [.tasks[] | if .id == $id then . + {"worktree": {"path": $path, "branch": $branch, "created_at": $ts}} else . end]' \
   "$PROJECT_DIR/.agents/task-board.json" > "$PROJECT_DIR/.agents/task-board.json.tmp" \
@@ -51,8 +39,7 @@ jq --arg id "$TASK_ID" --arg path "$WORKTREE_DIR" --arg branch "$BRANCH_NAME" --
 ━━━━━━━━━━━━━━━━━━
 任务: T-042 | 分支: task/T-042
 目录: ../project--T-042
-共享: task-board.json ✅ | events.db ✅
-隔离: runtime/ ✅ | memory/ ✅ | docs/ ✅
+.agents/: symlink → 主 worktree ✅
 下一步: cd ../project--T-042 && /agent implementer
 ```
 
@@ -118,14 +105,8 @@ fi
 # 1. 回到主 worktree
 cd "$PROJECT_DIR"
 
-# 2. 复制 worktree 中的记忆和文档回主 worktree
-if [ -d "$WORKTREE_DIR/.agents/memory" ]; then
-  cp -r "$WORKTREE_DIR/.agents/memory/"* "$PROJECT_DIR/.agents/memory/" 2>/dev/null || true
-fi
-if [ -d "$WORKTREE_DIR/.agents/docs/$TASK_ID" ]; then
-  mkdir -p "$PROJECT_DIR/.agents/docs/$TASK_ID"
-  cp -r "$WORKTREE_DIR/.agents/docs/$TASK_ID/"* "$PROJECT_DIR/.agents/docs/$TASK_ID/" 2>/dev/null || true
-fi
+# 2. 删除 worktree 中的 .agents symlink (避免合并冲突)
+[ -L "$WORKTREE_DIR/.agents" ] && rm "$WORKTREE_DIR/.agents"
 
 # 3. 合并分支
 git merge "$BRANCH_NAME" --no-ff -m "Merge task/$TASK_ID: $(jq -r --arg id "$TASK_ID" '.tasks[] | select(.id == $id) | .title' "$PROJECT_DIR/.agents/task-board.json")"
@@ -146,8 +127,6 @@ jq --arg id "$TASK_ID" \
 ✅ 合并完成
 ━━━━━━━━━━━━
 任务: T-042 | 分支: task/T-042 → main
-记忆: 已复制回主 worktree ✅
-文档: 已复制回主 worktree ✅
 Worktree: 已清理 ✅
 ```
 
