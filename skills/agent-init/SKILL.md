@@ -54,13 +54,26 @@ cat .github/copilot-instructions.md 2>/dev/null
 
 在 Step 5a 的 project-agents-context 中记录: `project_type: "<类型>"`
 
-#### 1d. HITL 配置
-询问用户: 是否启用 Human-in-the-Loop 审批门禁？
+#### 1d. HITL 配置 (⛔ 必须执行)
+
+> ⛔ **强制步骤**: 初始化时**必须**询问用户是否启用 HITL，并将结果持久化到 `.agents/config.json`。
+> 不可跳过此步骤。没有 config.json 的项目无法正确使用 HITL 门禁。
+
+询问用户: "是否启用 Human-in-the-Loop 审批门禁？(推荐启用，确保每个阶段产出经过人工审批)"
 - 启用 → 选择平台: local-html (默认) / terminal (无浏览器) / github-issue / confluence
   - Docker/SSH 无头环境建议选择 `terminal`
   - Docker 有端口映射建议选择 `local-html` (自动绑定 0.0.0.0)
 - 不启用 → `hitl.enabled: false`
-写入 `.agents/config.json` 中的 `hitl` 配置块。
+
+**立即写入** `.agents/config.json`:
+```json
+{
+  "hitl": {
+    "enabled": true,
+    "platform": "local-html"
+  }
+}
+```
 
 #### 1e. 读取全局 agent profiles, skills & rules
 
