@@ -213,7 +213,7 @@ install() {
         echo "  [DRY RUN] Would install rules"
     else
         # Append to CLAUDE.md (legacy, for backward compatibility)
-        if ! grep -q "## Agent Collaboration Rules" "${CLAUDE_DIR}/CLAUDE.md" 2>/dev/null; then
+        if ! grep -q "Multi-Agent" "${CLAUDE_DIR}/CLAUDE.md" 2>/dev/null; then
             echo "" >> "${CLAUDE_DIR}/CLAUDE.md"
             cat "${TMP_DIR}/docs/agent-rules.md" >> "${CLAUDE_DIR}/CLAUDE.md"
             info "Rules appended to CLAUDE.md"
@@ -258,7 +258,7 @@ install() {
             fi
             cp "${TMP_DIR}/hooks/hooks-copilot.json" "${COPILOT_DIR}/hooks/hooks.json"
             # Rules → copilot-instructions.md
-            if ! grep -q "## Agent Collaboration Rules" "${COPILOT_DIR}/copilot-instructions.md" 2>/dev/null; then
+            if ! grep -q "Multi-Agent" "${COPILOT_DIR}/copilot-instructions.md" 2>/dev/null; then
                 mkdir -p "${COPILOT_DIR}"
                 if ! { echo "" >> "${COPILOT_DIR}/copilot-instructions.md" && \
                        cat "${TMP_DIR}/docs/agent-rules.md" >> "${COPILOT_DIR}/copilot-instructions.md"; }; then
