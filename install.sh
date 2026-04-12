@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# CodeNook v4.0 Installer
+# CodeNook v4.1 Installer
 # Usage: curl -sL https://raw.githubusercontent.com/cintia09/CodeNook/main/install.sh | bash
 
 VERSION="latest"
@@ -149,6 +149,7 @@ install() {
     echo '    "Initialize agent system"  → generates .github/agents/'
     echo '    "Create task <title>"      → add a task'
     echo '    "Run task T-001"           → start orchestration'
+    echo '    Each phase: document → HITL approve → execute → report → HITL approve'
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 }
 
