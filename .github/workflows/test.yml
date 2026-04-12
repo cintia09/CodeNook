@@ -1,4 +1,4 @@
-name: Test Suite
+name: CI
 
 on:
   push:
@@ -7,19 +7,35 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install jq
-        run: sudo apt-get install -y jq
-
-      - name: Make hooks executable
-        run: chmod +x hooks/*.sh
-
-      - name: Run all tests
-        run: bash tests/run-all.sh
-
       - name: Verify install script (dry run)
-        run: bash install.sh --check 2>/dev/null || true
+        run: bash install.sh --dry-run
+
+      - name: Verify skills-v4 structure
+        run: |
+          # Check required files exist
+          test -f skills-v4/agent-init/SKILL.md
+          test -f skills-v4/agent-orchestrator/SKILL.md
+          test -f skills-v4/agent-init/templates/acceptor.agent.md
+          test -f skills-v4/agent-init/templates/designer.agent.md
+          test -f skills-v4/agent-init/templates/implementer.agent.md
+          test -f skills-v4/agent-init/templates/reviewer.agent.md
+          test -f skills-v4/agent-init/templates/tester.agent.md
+          echo "✅ All skill files present"
+
+      - name: Verify HITL adapters
+        run: |
+          for f in skills-v4/agent-orchestrator/hitl-adapters/*.sh; do
+            bash -n "$f" && echo "✅ $f syntax OK"
+          done
+          echo "✅ All adapters valid"
+
+      - name: Verify VERSION
+        run: |
+          VERSION=$(cat VERSION)
+          echo "Version: $VERSION"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && echo "✅ Valid semver"

@@ -43,7 +43,7 @@ download() {
     # Method 1: Tarball (faster)
     local TARBALL_URL="https://github.com/cintia09/multi-agent-framework/archive/refs/heads/main.tar.gz"
     if curl -sL --connect-timeout 10 --max-time 60 "$TARBALL_URL" | tar xz -C "$TMP_DIR" --strip-components=1 2>/dev/null; then
-        [ -f "$TMP_DIR/install.sh" ] && [ -d "$TMP_DIR/skills-v4" ] && success=true
+        [ -f "$TMP_DIR/install.sh" ] && [ -d "$TMP_DIR/skills" ] && success=true
     fi
 
     # Method 2: Git clone fallback
@@ -61,7 +61,7 @@ download() {
 # ── Install v4.0 ─────────────────────────────────────────
 
 install_platform() {
-    local dir="$1" name="$2" src="$TMP_DIR/skills-v4"
+    local dir="$1" name="$2" src="$TMP_DIR/skills"
 
     echo -e "  ${CYAN}${name}${NC} → ${dir}/skills/"
 
