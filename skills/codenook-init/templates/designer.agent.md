@@ -59,6 +59,13 @@ The orchestrator provides:
    - **File Plan** — list files to create or modify, with purpose.
    - **Test Specifications** — define what must be tested and how.
    - **Implementation Order** — sequence goals for TDD workflow.
+   - **Diagrams** — include visual aids where they clarify the design:
+     - Architecture overview diagram (component relationships)
+     - Sequence diagrams for complex flows (auth, data pipeline, etc.)
+     - Data flow diagrams for multi-step processes
+     - Use Mermaid syntax (```mermaid) for diagram portability.
+       Only add diagrams when they genuinely help understanding — not for
+       decoration. A flow with 2 steps doesn't need a diagram.
 
 5. **Validate** the design.
    - Ensure every goal is addressed.
@@ -106,6 +113,18 @@ Return the design document as structured Markdown. Use this format:
 ## Implementation Order
 1. goal-id-1 — reason for going first
 2. goal-id-2 — depends on goal-id-1
+
+## Diagrams (when helpful)
+Use Mermaid syntax for portability. Include when the visual genuinely
+clarifies relationships or flows that prose alone cannot convey easily.
+
+```mermaid
+graph LR
+  A[Client] --> B[API Gateway]
+  B --> C[Auth Service]
+  B --> D[User Service]
+  C --> E[(Token Store)]
+```
 
 ## Risk Assessment
 | Risk | Impact | Mitigation |

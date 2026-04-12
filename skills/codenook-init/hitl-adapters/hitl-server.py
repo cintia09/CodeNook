@@ -72,9 +72,19 @@ def md_to_html(md_text):
     # Code blocks FIRST — protect contents from further processing
     code_blocks = []
     def stash_code(m):
-        code_blocks.append(m.group(2))
+        lang = m.group(1)
+        content = m.group(2)
+        if lang == "mermaid":
+            # Mermaid diagrams: render as interactive diagram via CDN
+            code_blocks.append(f'<div class="mermaid">{content}</div>')
+        else:
+            code_blocks.append(f"<pre><code>{content}</code></pre>")
         return f"$$CODE_BLOCK_{len(code_blocks) - 1}$$"
     html = re.sub(r"```(\w*)\n(.*?)```", stash_code, html, flags=re.S)
+    # Images: ![alt](url)
+    html = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)",
+                  r'<img src="\2" alt="\1" style="max-width:100%;border-radius:4px;margin:1rem 0;">',
+                  html)
     # Headers (h6 → h1 order to avoid ### matching before ######)
     html = re.sub(r"^###### (.+)$", r"<h6>\1</h6>", html, flags=re.M)
     html = re.sub(r"^##### (.+)$", r"<h5>\1</h5>", html, flags=re.M)
@@ -109,9 +119,9 @@ def md_to_html(md_text):
     if in_table:
         result.append("</table>")
     html = "\n".join(result)
-    # Restore code blocks
+    # Restore code blocks (includes mermaid divs and regular pre/code)
     for i, block in enumerate(code_blocks):
-        html = html.replace(f"$$CODE_BLOCK_{i}$$", f"<pre><code>{block}</code></pre>")
+        html = html.replace(f"$$CODE_BLOCK_{i}$$", block)
     # Paragraphs
     html = re.sub(r"\n\n", r"</p><p>", html)
     html = f"<p>{html}</p>"
@@ -192,6 +202,8 @@ def generate_page():
   .content th {{ background:var(--accent); }}
   .content code {{ background:rgba(255,255,255,.1); padding:.15rem .4rem; border-radius:3px; font-size:.9rem; }}
   .content pre {{ background:rgba(0,0,0,.3); padding:1rem; border-radius:4px; overflow-x:auto; }}
+  .content .mermaid {{ background:rgba(255,255,255,.05); padding:1rem; border-radius:4px; margin:1rem 0; text-align:center; }}
+  .content img {{ max-width:100%; border-radius:4px; margin:1rem 0; }}
   .feedback-form {{ background:var(--card); padding:2rem; border-radius:8px; margin-bottom:2rem; }}
   .feedback-form h2 {{ color:#7ec8e3; margin-bottom:1rem; }}
   textarea {{ width:100%; min-height:150px; background:rgba(0,0,0,.3); color:var(--text); border:1px solid var(--accent); border-radius:4px; padding:.8rem; font-family:inherit; font-size:.95rem; resize:vertical; }}
@@ -253,6 +265,8 @@ def generate_page():
     <br>Or click 🔄 Refresh above.
   </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({{startOnLoad:true, theme:'dark'}});</script>
 </body>
 </html>'''
 

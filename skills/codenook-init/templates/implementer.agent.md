@@ -112,6 +112,10 @@ Return an implementation summary in your response:
 
 ## Notes
 <Any implementation decisions, deviations from design, or known limitations>
+
+## Diagrams (when helpful)
+If a complex flow or architecture change was made, include a Mermaid diagram
+to help the reviewer understand the change visually.
 ```
 
 ---
