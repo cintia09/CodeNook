@@ -26,11 +26,12 @@ usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "  --install     Install framework (default)"
-    echo "  --check       Check installation status"
-    echo "  --uninstall   Remove framework files"
-    echo "  --dry-run     Preview changes without applying"
-    echo "  -h, --help    Show this help"
+    echo "  --install        Install framework (default)"
+    echo "  --check          Check installation status"
+    echo "  --uninstall      Remove global skills"
+    echo "  --project-clean  Remove agent system from current project"
+    echo "  --dry-run        Preview changes without applying"
+    echo "  -h, --help       Show this help"
 }
 
 # ── Download ──────────────────────────────────────────────
@@ -199,18 +200,47 @@ uninstall() {
     done
 
     echo ""
-    echo "  ℹ️  Project-level files (.github/codenook/, .claude/codenook/) are not removed."
-    echo "      Delete them manually per project if needed."
+    echo "  ℹ️  Use --project-clean to remove agent system from a project."
     info "Uninstall complete"
+}
+
+# ── Project Clean ────────────────────────────────────────
+
+project_clean() {
+    echo "🗑️ Removing CodeNook from current project..."
+
+    local removed=0
+    for root in .github .claude; do
+        if [ -d "${root}/agents" ] || [ -d "${root}/codenook" ]; then
+            echo "  Cleaning ${root}/..."
+            rm -rf "${root}/agents" && removed=$((removed + 1))
+            rm -rf "${root}/codenook" && removed=$((removed + 1))
+            # Remove instructions file if it exists
+            rm -f "${root}/instructions/codenook.instructions.md" 2>/dev/null
+            rmdir "${root}/instructions" 2>/dev/null || true
+        fi
+    done
+
+    # Clean CLAUDE.md framework block if present
+    if [ -f "CLAUDE.md" ] && grep -q "Multi-Agent Framework" CLAUDE.md 2>/dev/null; then
+        warn "CLAUDE.md may contain framework instructions — review manually."
+    fi
+
+    if [ "$removed" -gt 0 ]; then
+        info "Agent system removed from project."
+    else
+        warn "No agent system found in current directory."
+    fi
 }
 
 # ── Main ──────────────────────────────────────────────────
 
 case "${1:-}" in
-    --install|"")  install false ;;
-    --check)       check_install ;;
-    --uninstall)   uninstall ;;
-    --dry-run)     install true ;;
-    -h|--help)     usage ;;
-    *)             echo "Unknown option: $1"; usage; exit 1 ;;
+    --install|"")      install false ;;
+    --check)           check_install ;;
+    --uninstall)       uninstall ;;
+    --project-clean)   project_clean ;;
+    --dry-run)         install true ;;
+    -h|--help)         usage ;;
+    *)                 echo "Unknown option: $1"; usage; exit 1 ;;
 esac
