@@ -1,30 +1,30 @@
-# 设计审查报告: T-011
+# Design Review Report: T-011
 
-## 审查范围
-- 设计文档: T-011-implementer-tdd.md
-- Goals 数量: 3
+## Review Scope
+- Design Document: T-011-implementer-tdd.md
+- Number of Goals: 3
 
-## 结论: ✅ 设计通过
+## Conclusion: ✅ Design Approved
 
-## Goals 覆盖检查
-| Goal | 描述 | 覆盖状态 |
-|------|------|----------|
-| G1 | TDD 严格模式：RED/GREEN/REFACTOR git checkpoint + 80% 覆盖率门槛 | ✅ 已覆盖 — "TDD 严格模式"章节定义了三阶段步骤、git commit 格式和 80% 覆盖率门槛 |
-| G2 | Build Fix 工作流：逐个修复 + 重新构建 + 进度跟踪 | ✅ 已覆盖 — "Build Fix 工作流"章节定义了完整的逐个修复流程和 `[BUILD FIX] N/M` 进度格式 |
-| G3 | Pre-Review Verification：typecheck → build → lint → test → security scan | ✅ 已覆盖 — "Pre-Review Verification 清单"定义了 5 步检查链，含命令示例和通过标准 |
+## Goals Coverage Check
+| Goal | Description | Coverage Status |
+|------|-------------|-----------------|
+| G1 | TDD Strict Mode: RED/GREEN/REFACTOR git checkpoint + 80% coverage threshold | ✅ Covered — "TDD Strict Mode" section defines three-phase steps, git commit format, and 80% coverage threshold |
+| G2 | Build Fix Workflow: fix one at a time + rebuild + progress tracking | ✅ Covered — "Build Fix Workflow" section defines the complete fix-one-at-a-time process and `[BUILD FIX] N/M` progress format |
+| G3 | Pre-Review Verification: typecheck → build → lint → test → security scan | ✅ Covered — "Pre-Review Verification Checklist" defines a 5-step check chain with command examples and pass criteria |
 
-## 问题列表
-| # | 严重性 | 描述 | 建议 |
-|---|--------|------|------|
-| 1 | LOW | 80% 覆盖率门槛对某些项目类型（如 CLI 工具、基础设施脚本）可能偏高 | 可在 SKILL.md 中增加备注：项目可在 `.agents/config` 中自定义覆盖率阈值，默认 80% |
-| 2 | LOW | 安全扫描（第 5 步）的"无 HIGH/CRITICAL"标准依赖具体工具输出格式 | 已通过提供多种工具示例（npm audit / pip audit）缓解，可接受 |
+## Issues
+| # | Severity | Description | Recommendation |
+|---|----------|-------------|----------------|
+| 1 | LOW | 80% coverage threshold may be too high for certain project types (e.g., CLI tools, infrastructure scripts) | Consider adding a note in SKILL.md: projects can customize the coverage threshold in `.agents/config`, default 80% |
+| 2 | LOW | The "no HIGH/CRITICAL" standard for security scan (step 5) depends on specific tool output formats | Mitigated by providing multiple tool examples (npm audit / pip audit), acceptable |
 
-## 优点
-- 三大章节（TDD/Build Fix/Verification）层次分明，形成了完整的实现质量保障链
-- Git checkpoint 纪律设计合理——RED/GREEN/REFACTOR 每步都有标准化的 commit message 格式
-- Build Fix 的"一次只修一个错误"原则是工程最佳实践
-- Pre-Review Verification 的 5 步检查链形成了 FSM 转移的硬性门禁（配合 agent-fsm guard 规则）
-- 验证报告模板提供了标准化的输出格式，方便后续审查
+## Strengths
+- Three main sections (TDD/Build Fix/Verification) are well-structured, forming a complete implementation quality assurance chain
+- Git checkpoint discipline is well-designed — each RED/GREEN/REFACTOR step has a standardized commit message format
+- Build Fix's "fix one error at a time" principle is an engineering best practice
+- Pre-Review Verification's 5-step check chain serves as a hard gate for FSM transitions (in conjunction with agent-fsm guard rules)
+- Verification report template provides a standardized output format, facilitating subsequent reviews
 
-## 总体评价
-ECC 最佳实践与 Agent 框架的融合设计优秀。TDD 纪律 + Build Fix + Pre-Review Verification 三层防护体系完整且实用。每个章节都有具体的命令示例和模板，实现者可直接执行。
+## Overall Assessment
+Excellent integration of ECC best practices with the Agent framework. The three-layer protection system of TDD discipline + Build Fix + Pre-Review Verification is complete and practical. Each section includes specific command examples and templates, enabling implementers to execute directly.

@@ -1,30 +1,30 @@
-# 设计审查报告: T-013
+# Design Review Report: T-013
 
-## 审查范围
-- 设计文档: T-013-tester-coverage.md
-- Goals 数量: 3
+## Review Scope
+- Design Document: T-013-tester-coverage.md
+- Number of Goals: 3
 
-## 结论: ✅ 设计通过
+## Conclusion: ✅ Design Approved
 
-## Goals 覆盖检查
-| Goal | 描述 | 覆盖状态 |
-|------|------|----------|
-| G1 | 覆盖率分析工作流：框架检测 → 运行 → 解析 → 高优区域识别 | ✅ 已覆盖 — "覆盖率分析工作流"章节定义了 5 步流程，4 种主流框架的命令，高优先级区域排序规则 |
-| G2 | Flaky 检测：3-5 次重跑 + 判定 + test.fixme() 隔离 | ✅ 已覆盖 — "Flaky 测试检测与隔离"章节定义了完整流程、通过率判定阈值和隔离操作 |
-| G3 | E2E 测试：POM 模式 + data-testid + Playwright + 失败截图 | ✅ 已覆盖 — "E2E 测试最佳实践"章节包含 POM 代码示例、选择器优先级、Playwright 配置和证据收集规则 |
+## Goals Coverage Check
+| Goal | Description | Coverage Status |
+|------|-------------|-----------------|
+| G1 | Coverage analysis workflow: framework detection → run → parse → high-priority area identification | ✅ Covered — "Coverage Analysis Workflow" section defines a 5-step process, commands for 4 mainstream frameworks, and high-priority area sorting rules |
+| G2 | Flaky detection: 3-5 reruns + determination + test.fixme() isolation | ✅ Covered — "Flaky Test Detection and Isolation" section defines the complete process, pass rate determination thresholds, and isolation operations |
+| G3 | E2E testing: POM pattern + data-testid + Playwright + failure screenshots | ✅ Covered — "E2E Testing Best Practices" section includes POM code examples, selector priority, Playwright configuration, and evidence collection rules |
 
-## 问题列表
-| # | 严重性 | 描述 | 建议 |
-|---|--------|------|------|
-| 1 | LOW | Flaky 重跑 3-5 次增加测试执行时间，对于 E2E 测试尤为明显 | 可区分单元测试和 E2E 测试的重跑策略：单元测试 5 次，E2E 测试 3 次 |
-| 2 | LOW | E2E 最佳实践章节以 Playwright 为主，对其他框架（Cypress, Selenium）的支持未提及 | 当前以 Playwright 为推荐框架的定位合理，后续可扩展。不影响通过 |
+## Issues
+| # | Severity | Description | Recommendation |
+|---|----------|-------------|----------------|
+| 1 | LOW | Flaky reruns 3-5 times increase test execution time, especially noticeable for E2E tests | Consider differentiating rerun strategies for unit tests and E2E tests: unit tests 5 times, E2E tests 3 times |
+| 2 | LOW | E2E best practices section focuses on Playwright, with no mention of support for other frameworks (Cypress, Selenium) | Current positioning of Playwright as the recommended framework is reasonable and can be extended later. Does not affect approval |
 
-## 优点
-- 覆盖率分析的 5 步流程完整，从框架检测到高优区域识别形成闭环
-- Flaky 检测的通过率判定机制设计精妙——区分了"偶发失败（100% 通过）"、"真实失败（0% 通过）"和"确认 Flaky（1-99%）"三种情况
-- Flaky 根因分析提示实用，帮助 Agent 定位根本原因而非仅隔离
-- E2E 章节的选择器优先级策略（data-testid > role > text > ❌CSS）是业界最佳实践
-- 数据模型（覆盖率报告 JSON + Flaky 记录 JSON）结构清晰，便于后续分析
+## Strengths
+- The 5-step coverage analysis process is complete, forming a closed loop from framework detection to high-priority area identification
+- The flaky detection pass rate determination mechanism is elegantly designed — distinguishes between "sporadic failure (100% pass)", "real failure (0% pass)", and "confirmed flaky (1-99%)" scenarios
+- Flaky root cause analysis tips are practical, helping the Agent locate root causes rather than just isolating
+- The E2E section's selector priority strategy (data-testid > role > text > ❌CSS) is an industry best practice
+- Data models (coverage report JSON + flaky record JSON) have clear structure, facilitating subsequent analysis
 
-## 总体评价
-三大增强能力（覆盖率/Flaky/E2E）形成了全面的测试质量保障体系。每个章节都有具体的命令、代码示例和文件输出路径。与 T-011 的覆盖率门槛和 T-012 的审查报告形成上下游协同。设计质量高，可直接实施。
+## Overall Assessment
+The three enhancements (coverage / flaky / E2E) form a comprehensive test quality assurance system. Each section includes specific commands, code examples, and file output paths. Synergizes with T-011's coverage threshold and T-012's review reports in an upstream-downstream relationship. High design quality, ready for direct implementation.

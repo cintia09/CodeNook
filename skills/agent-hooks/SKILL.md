@@ -126,11 +126,11 @@ All hooks are registered in `hooks/hooks.json`. Each entry specifies:
 
 ---
 
-## 3-Phase Dispatch Logic (已废弃 — Legacy)
+## 3-Phase Dispatch Logic (Deprecated — Legacy)
 
-> ⚠️ **v3.4.0 起已废弃**: 3-Phase 工作流已合并到统一 FSM (11 状态)。以下代码仅供参考和向后兼容。
-> 新项目应使用统一 FSM 模式 (参见 `agent-fsm/SKILL.md`)。
-> 旧任务的 3-Phase 状态会自动映射到统一 FSM 状态 (参见 FSM Legacy 迁移表)。
+> ⚠️ **Deprecated since v3.4.0**: The 3-Phase workflow has been merged into the unified FSM (11 states). The code below is for reference and backward compatibility only.
+> New projects should use the unified FSM mode (see `agent-fsm/SKILL.md`).
+> Legacy 3-Phase task states are automatically mapped to unified FSM states (see FSM Legacy migration table).
 
 ### Step → Agent Mapping (3-Phase)
 

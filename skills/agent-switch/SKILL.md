@@ -11,12 +11,12 @@ description: "Agent role switching and status panel. Trigger patterns: 'switch t
 
 | Intent Keywords | Routes To | Note |
 |----------------|-----------|------|
-| "new feature", "develop", "build", "新功能", "新需求" | 🎯 **acceptor** | New features start with acceptor |
-| "design", "architecture", "设计", "架构" | 🏗️ **designer** | Design intent |
-| "implement", "fix", "code", "实现", "修bug" | 💻 **implementer** | Coding intent |
-| "review", "code review", "审查" | 🔍 **reviewer** | Review intent |
-| "test", "QA", "verify", "测试", "验证" | 🧪 **tester** | Testing intent |
-| "accept", "release", "deploy", "验收" | 🎯 **acceptor** | Acceptance intent |
+| "new feature", "develop", "build" | 🎯 **acceptor** | New features start with acceptor |
+| "design", "architecture" | 🏗️ **designer** | Design intent |
+| "implement", "fix", "code" | 💻 **implementer** | Coding intent |
+| "review", "code review" | 🔍 **reviewer** | Review intent |
+| "test", "QA", "verify" | 🧪 **tester** | Testing intent |
+| "accept", "release", "deploy" | 🎯 **acceptor** | Acceptance intent |
 
 **Routing flow:**
 1. Check `.agents/runtime/active-agent` — if missing/empty, enter intent detection
@@ -34,22 +34,22 @@ Any of these expressions **must** immediately trigger a role switch — never ig
 | Trigger Pattern | Example |
 |----------------|---------|
 | `/agent <name>` | `/agent acceptor`, `/agent designer` |
-| `切换到<role>` | "切换到验收者", "切换到实现者" |
-| `switch to <role>` | "switch to acceptor", "switch to tester" |
-| `当<role>` / `做<role>` | "当验收者", "做实现者" |
-| `act as <role>` | "act as reviewer" |
-| `我是<role>` | "我是测试者" |
-| `以<role>身份` | "以设计者身份工作" |
+| `switch to <role>` (EN) | "switch to acceptor", "switch to tester" |
+| `act as <role>` (EN) | "act as reviewer" |
+| `switch to <role>` (ZH) | "switch to acceptor", "switch to implementer" |
+| `be <role>` (ZH) | "be acceptor", "be implementer" |
+| `I am <role>` (ZH) | "I am tester" |
+| `as <role>` (ZH) | "work as designer" |
 
 **Role name mapping:**
 
-| Chinese | English | ID |
-|---------|---------|-----|
-| 验收者 | acceptor | acceptor |
-| 设计者 | designer | designer |
-| 实现者 | implementer | implementer |
-| 审查者 | reviewer | reviewer |
-| 测试者/QA | tester | tester |
+| Chinese (ZH) | English (EN) | ID |
+|--------------|--------------|-----|
+| Acceptor | acceptor | acceptor |
+| Designer | designer | designer |
+| Implementer | implementer | implementer |
+| Reviewer | reviewer | reviewer |
+| Tester/QA | tester | tester |
 
 **Mandatory actions on trigger detection:**
 1. Read `agents/<role>.agent.md` — load role definition
@@ -155,7 +155,7 @@ rm -f .agents/runtime/active-agent
 
 ## Batch Processing Mode
 
-Triggered by "process tasks" / "start working" / "处理任务":
+Triggered by "process tasks" / "start working":
 
 1. Check inbox — read unread messages, mark as read
 2. Scan task-board — filter tasks in current role's responsible statuses, sort by priority

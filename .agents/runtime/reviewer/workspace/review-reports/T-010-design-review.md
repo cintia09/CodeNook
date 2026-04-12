@@ -1,31 +1,31 @@
-# 设计审查报告: T-010
+# Design Review Report: T-010
 
-## 审查范围
-- 设计文档: T-010-ascii-pipeline.md
-- Goals 数量: 4
+## Review Scope
+- Design Doc: T-010-ascii-pipeline.md
+- Goals Count: 4
 
-## 结论: ✅ 设计通过
+## Conclusion: ✅ Design Passed
 
-## Goals 覆盖检查
-| Goal | 描述 | 覆盖状态 |
-|------|------|----------|
-| G1 | agent-switch status 包含 ASCII 流水线图，5 阶段 + 当前位置标记 | ✅ 已覆盖 — Architecture 提供了完整的 ASCII 图示例，状态映射表定义了 5 阶段 |
-| G2 | 每个任务显示阶段名、emoji、状态图标 | ✅ 已覆盖 — 定义了 5 种阶段 emoji 和 5 种状态图标（✅⏳⏸️🚫❌） |
-| G3 | 多个活跃任务各有独立流水线行 | ✅ 已覆盖 — 标准模式每任务 4 行，紧凑模式每任务 1 行，Test Spec #6 验证多任务场景 |
-| G4 | agent-switch SKILL.md 包含流水线可视化规范 | ✅ 已覆盖 — API/Interface 章节提供了完整的 SKILL.md 新增内容 |
+## Goals Coverage Check
+| Goal | Description | Coverage Status |
+|------|-------------|-----------------|
+| G1 | agent-switch status includes ASCII pipeline diagram, 5 phases + current position marker | ✅ Covered -- Architecture provides complete ASCII diagram example, state mapping table defines 5 phases |
+| G2 | Each task displays phase name, emoji, status icon | ✅ Covered -- Defines 5 phase emojis and 5 status icons (✅⏳⏸️🚫❌) |
+| G3 | Multiple active tasks each have independent pipeline row | ✅ Covered -- Standard mode uses 4 lines per task, compact mode uses 1 line per task, Test Spec #6 verifies multi-task scenario |
+| G4 | agent-switch SKILL.md includes pipeline visualization spec | ✅ Covered -- API/Interface section provides complete SKILL.md additions |
 
-## 问题列表
-| # | 严重性 | 描述 | 建议 |
-|---|--------|------|------|
-| 1 | LOW | Emoji 在不同终端的显示宽度不一致（有的占 1 格，有的占 2 格），可能导致对齐错位 | 可在 SKILL.md 中注明"以终端实际效果为准，轻微错位可接受"，或提供纯 ASCII 回退方案 |
-| 2 | LOW | 紧凑模式的自动切换阈值（>5 个任务）是硬编码值，未考虑终端宽度适配 | 5 个任务作为默认值合理，后续可优化为动态检测终端宽度 |
+## Issue List
+| # | Severity | Description | Recommendation |
+|---|----------|-------------|----------------|
+| 1 | LOW | Emoji display width is inconsistent across different terminals (some occupy 1 column, some 2), which may cause alignment issues | Can note in SKILL.md "actual terminal rendering prevails, minor misalignment is acceptable", or provide pure ASCII fallback |
+| 2 | LOW | Compact mode auto-switch threshold (>5 tasks) is a hardcoded value, does not adapt to terminal width | 5 tasks as default value is reasonable, can be optimized to dynamically detect terminal width in future |
 
-## 优点
-- 双模式设计（标准 + 紧凑）考虑了不同任务数量的展示需求，自动切换机制体贴
-- 状态映射逻辑清晰——"当前阶段之前全部 ✅"的推断规则简单可靠
-- `blocked` 和 `accepted` 的特殊处理考虑周全
-- 已完成任务默认折叠的策略有效减少信息噪声
-- Architecture 中的 ASCII 示例图直观展示了最终效果
+## Strengths
+- Dual-mode design (standard + compact) accounts for display needs with varying task counts, auto-switch mechanism is thoughtful
+- State mapping logic is clear -- "all phases before current phase are ✅" inference rule is simple and reliable
+- Special handling for `blocked` and `accepted` states is well considered
+- Completed tasks default to collapsed strategy effectively reduces information noise
+- ASCII example diagram in Architecture intuitively demonstrates the final result
 
-## 总体评价
-视觉化设计出色，将 5 阶段流水线映射为 ASCII 图形的方案直观且终端友好。双模式自动切换和特殊状态处理体现了对用户体验的深入思考。Implementation Steps 可执行，Test Spec 覆盖全面。
+## Overall Assessment
+Excellent visualization design, the approach of mapping 5-phase pipeline to ASCII graphics is intuitive and terminal-friendly. Dual-mode auto-switching and special state handling demonstrate deep consideration of user experience. Implementation Steps are executable, Test Spec coverage is comprehensive.

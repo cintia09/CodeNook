@@ -101,12 +101,12 @@ You: "Implement login" → Agent codes → you test manually → broken → you 
 ```
                     User
                      │
-              "创建一个登录任务"
+              "Create a login task"
                      │
                      ▼
      🎯 Acceptor ── Create task ──→ 📋 T-001: User Login
      (Define requirements & criteria)    │
-                           自动通知 ▼
+                        Auto-notify ▼
      🏗️ Designer ◄── 📥 Received    Designing
      │                          │
      ├── Output: API design doc        │
@@ -237,6 +237,6 @@ And the interesting part? This framework itself was built by Agents.
 
 ---
 
-> 🔗 项目地址: [github.com/cintia09/multi-agent-framework](https://github.com/cintia09/multi-agent-framework)
+> 🔗 Project: [github.com/cintia09/multi-agent-framework](https://github.com/cintia09/multi-agent-framework)
 > 
 > Zero dependencies, pure Markdown + JSON, works out of the box.

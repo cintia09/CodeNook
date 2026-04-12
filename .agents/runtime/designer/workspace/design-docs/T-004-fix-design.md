@@ -1,38 +1,38 @@
-# T-004 Fix Design: AGENTS.md 引用验证脚本
+# T-004 Fix Design: AGENTS.md Verification Script References
 
-## 问题
-G3 验收失败：AGENTS.md Step 7 使用内联 bash 命令做安装验证，未引用 `scripts/verify-install.sh` 和 `scripts/verify-init.sh`。
+## Problem
+G3 acceptance failed: AGENTS.md Step 7 uses inline bash commands for install verification without referencing `scripts/verify-install.sh` and `scripts/verify-init.sh`.
 
-## 修改方案
+## Proposed Changes
 
-### 文件: `AGENTS.md`
+### File: `AGENTS.md`
 
-在 Step 7 (验证安装结果) 之后，添加 **Step 7.1: 深度验证 (可选)**:
+After Step 7 (Verify installation results), add **Step 7.1: Deep Verification (Optional)**:
 
 ```markdown
-### Step 7.1: 深度验证 (可选)
-如果仓库中有验证脚本，可以运行完整验证：
+### Step 7.1: Deep Verification (Optional)
+If verification scripts exist in the repository, run the full verification:
 \```bash
-# 验证安装完整性（Skill 格式、YAML frontmatter、文件权限）
+# Verify installation completeness (Skill format, YAML frontmatter, file permissions)
 bash /tmp/multi-agent-framework/scripts/verify-install.sh
 
-# 在项目初始化后，验证 .agents/ 目录结构
+# After project initialization, verify .agents/ directory structure
 bash /tmp/multi-agent-framework/scripts/verify-init.sh
 \```
-> 注意：需要在 Step 6 清理之前运行，或者单独 clone 仓库。
+> Note: Must be run before Step 6 cleanup, or clone the repository separately.
 ```
 
-### 替代方案（推荐）
-将 Step 6 和 Step 7 的顺序调整 — 先验证再清理：
+### Alternative Approach (Recommended)
+Adjust the order of Step 6 and Step 7 — verify before cleanup:
 
-1. Step 6: 验证安装结果（保留现有内联检查）
-2. Step 7: 深度验证（可选，引用脚本）
-3. Step 8: 清理 `/tmp/multi-agent-framework`
-4. Step 9: 输出结果
+1. Step 6: Verify installation results (keep existing inline checks)
+2. Step 7: Deep verification (optional, reference scripts)
+3. Step 8: Clean up `/tmp/multi-agent-framework`
+4. Step 9: Output results
 
-这样用户可以在清理前运行验证脚本。
+This way users can run verification scripts before cleanup.
 
-## Implementer 注意事项
-- 只改 AGENTS.md，不动其他文件
-- 保持步骤编号连续
-- 脚本路径使用 `/tmp/multi-agent-framework/scripts/`（安装流程中的临时目录）
+## Implementer Notes
+- Only modify AGENTS.md, do not touch other files
+- Keep step numbering sequential
+- Script paths use `/tmp/multi-agent-framework/scripts/` (temporary directory during install flow)

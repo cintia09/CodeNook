@@ -53,7 +53,7 @@ AGENTS_DIR="${1:-.agents}"
 
 Add after Step 7:
 ```markdown
-### Step 8: 验证安装 (可选)
+### Step 8: Verify Installation (Optional)
 \```bash
 bash /tmp/multi-agent-framework/scripts/verify-install.sh
 \```

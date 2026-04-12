@@ -1,81 +1,81 @@
 ---
 name: agent-events
-description: "审计日志查询: 查看 Agent 活动历史、工具使用统计、事件分析。Use when querying events.db, checking activity history, or analyzing agent behavior."
+description: "Audit log query: View agent activity history, tool usage statistics, event analysis. Use when querying events.db, checking activity history, or analyzing agent behavior."
 ---
 
-# 审计日志查询 (events.db)
+# Audit Log Query (events.db)
 
-## 前置条件
-- `.agents/events.db` 存在 (由 agent-init 或 session-start hook 创建)
+## Prerequisites
+- `.agents/events.db` exists (created by agent-init or session-start hook)
 
-## 常用查询
+## Common Queries
 
-### 最近事件
+### Recent Events
 ```bash
 sqlite3 .agents/events.db "SELECT id, event_type, agent, tool_name, created_at FROM events ORDER BY id DESC LIMIT 20;"
 ```
 
-### 按 Agent 查询
+### Query by Agent
 ```bash
 sqlite3 .agents/events.db "SELECT event_type, count(*) FROM events WHERE agent='<agent_name>' GROUP BY event_type;"
 ```
 
-### 按任务查询
+### Query by Task
 ```bash
 sqlite3 .agents/events.db "SELECT event_type, agent, detail, created_at FROM events WHERE task_id='<task_id>' ORDER BY id;"
 ```
 
-### 工具使用统计
+### Tool Usage Statistics
 ```bash
 sqlite3 .agents/events.db "SELECT tool_name, count(*) as uses FROM events WHERE event_type='tool_use' GROUP BY tool_name ORDER BY uses DESC;"
 ```
 
-### Auto-dispatch 历史
+### Auto-dispatch History
 ```bash
 sqlite3 .agents/events.db "SELECT agent, task_id, detail, created_at FROM events WHERE event_type='auto_dispatch' ORDER BY id DESC;"
 ```
 
-### Agent 活跃度 (过去 24 小时)
+### Agent Activity (Past 24 Hours)
 ```bash
 sqlite3 .agents/events.db "SELECT agent, count(*) as actions FROM events WHERE created_at > datetime('now', '-24 hours') GROUP BY agent ORDER BY actions DESC;"
 ```
 
-### 状态变更时间线
+### State Change Timeline
 ```bash
 sqlite3 .agents/events.db "SELECT agent, detail, created_at FROM events WHERE event_type='state_change' ORDER BY id;"
 ```
 
-## 事件类型说明
+## Event Type Reference
 
-| event_type | 来源 | 说明 |
-|-----------|------|------|
-| `session_start` | session-start hook | 会话启动 |
-| `tool_use` | post-tool-use hook | 工具调用 (含 result 和 args) |
-| `task_board_write` | post-tool-use hook | 任务表被修改 |
-| `state_change` | post-tool-use hook | Agent state.json 被修改 |
-| `auto_dispatch` | post-tool-use hook | 自动派发消息到下游 Agent |
+| event_type | Source | Description |
+|-----------|--------|-------------|
+| `session_start` | session-start hook | Session started |
+| `tool_use` | post-tool-use hook | Tool invocation (includes result and args) |
+| `task_board_write` | post-tool-use hook | Task board modified |
+| `state_change` | post-tool-use hook | Agent state.json modified |
+| `auto_dispatch` | post-tool-use hook | Auto-dispatched message to downstream agent |
 
-## 清理旧事件
+## Clean Up Old Events
 
-删除 N 天前的事件:
+Delete events older than N days:
 ```bash
 sqlite3 .agents/events.db "DELETE FROM events WHERE created_at < datetime('now', '-30 days');"
 ```
 
-删除所有事件 (重置):
+Delete all events (reset):
 ```bash
 sqlite3 .agents/events.db "DELETE FROM events;"
 sqlite3 .agents/events.db "DELETE FROM sqlite_sequence WHERE name='events';"
 ```
 
-## 导出
+## Export
 
-导出为 CSV:
+Export as CSV:
 ```bash
 sqlite3 -header -csv .agents/events.db "SELECT * FROM events;" > events-export.csv
 ```
 
-导出为 JSON Lines:
+Export as JSON Lines:
 ```bash
 sqlite3 .agents/events.db "SELECT json_object('id',id,'type',event_type,'agent',agent,'task',task_id,'tool',tool_name,'detail',detail,'time',created_at) FROM events;" > events-export.jsonl
 ```

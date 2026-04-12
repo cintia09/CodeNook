@@ -1,42 +1,42 @@
-# T-011: 增强 Implementer 的 TDD 纪律和验证循环
+# T-011: Enhance Implementer TDD Discipline and Verification Loop
 
 ## Context
 
-当前 `agent-implementer SKILL.md` 包含基本的 TDD 流程（Flow A），但缺乏：
-1. **严格的 git checkpoint 纪律**：没有要求在 RED/GREEN/REFACTOR 每步做 git 提交，导致代码回滚困难
-2. **覆盖率门槛**：没有明确的覆盖率要求，实现者可能写不够测试
-3. **增量构建修复流程**：遇到构建错误时缺乏系统化的逐个修复策略
-4. **提交前验证清单**：没有在 FSM 转移前强制执行完整的质量检查
+The current `agent-implementer SKILL.md` contains a basic TDD workflow (Flow A), but lacks:
+1. **Strict git checkpoint discipline**: No requirement to git commit at each RED/GREEN/REFACTOR step, making rollback difficult
+2. **Coverage threshold**: No explicit coverage requirement; implementer may write insufficient tests
+3. **Incremental build fix workflow**: No systematic strategy for fixing build errors one at a time
+4. **Pre-commit verification checklist**: No mandatory quality checks before FSM transition
 
-借鉴 ECC（Effective Copilot Coding）最佳实践，需要将这些纪律融入 Implementer 工作流。
+Borrowing from ECC (Effective Copilot Coding) best practices, these disciplines need to be integrated into the Implementer workflow.
 
 ## Decision
 
-增强 `agent-implementer SKILL.md`，新增三个核心章节：
-1. **TDD 严格模式**：RED/GREEN/REFACTOR 每步 git checkpoint + 80% 覆盖率门槛
-2. **Build Fix 工作流**：逐个错误修复 + 重新构建 + 进度跟踪
-3. **Pre-Review Verification 清单**：5 步质量检查链
+Enhance `agent-implementer SKILL.md` with three core sections:
+1. **TDD Strict Mode**: RED/GREEN/REFACTOR with git checkpoint at each step + 80% coverage threshold
+2. **Build Fix Workflow**: Fix errors one at a time + rebuild + progress tracking
+3. **Pre-Review Verification Checklist**: 5-step quality check chain
 
 ## Alternatives Considered
 
-| 方案 | 优点 | 缺点 | 决定 |
-|------|------|------|------|
-| **A: SKILL.md 增强（选中）** | 无需额外工具，与现有框架一致 | 依赖 Agent 遵守 | ✅ 选中 |
-| **B: Hook 强制执行** | 硬性约束 | Hook 是 shell 脚本，无法运行测试/lint | ❌ 技术限制 |
-| **C: 外部 CI 集成** | 真正自动化 | 增加外部依赖，超出框架范围 | ❌ 范围溢出 |
-| **D: 独立验证 Agent** | 职责分离 | Agent 数量膨胀，流程变长 | ❌ 过度设计 |
+| Option | Pros | Cons | Decision |
+|--------|------|------|----------|
+| **A: SKILL.md enhancement (selected)** | No extra tools needed, consistent with existing framework | Relies on Agent compliance | ✅ Selected |
+| **B: Hook enforcement** | Hard constraint | Hooks are shell scripts, cannot run tests/lint | ❌ Technical limitation |
+| **C: External CI integration** | True automation | Adds external dependency, out of framework scope | ❌ Scope creep |
+| **D: Separate verification Agent** | Separation of concerns | Agent count bloat, longer workflow | ❌ Over-engineering |
 
 ## Design
 
 ### Architecture
 
 ```
-Implementer 增强后的工作流：
+Enhanced Implementer Workflow:
 
 ┌─────────────────────────────────────────────┐
-│  Flow A: TDD 严格模式                         │
+│  Flow A: TDD Strict Mode                     │
 │  ┌─────┐   ┌─────┐   ┌─────────┐            │
-│  │ RED │──→│GREEN│──→│REFACTOR │──→ 循环     │
+│  │ RED │──→│GREEN│──→│REFACTOR │──→ loop     │
 │  │ 🔴  │   │ 🟢  │   │ 🔵      │            │
 │  └──┬──┘   └──┬──┘   └────┬────┘            │
 │     │git      │git        │git              │
@@ -44,185 +44,185 @@ Implementer 增强后的工作流：
 │     ▼         ▼           ▼                 │
 │  checkpoint  checkpoint  checkpoint          │
 │                                              │
-│  覆盖率 >= 80%? ──否──→ 补充测试 ──→ 循环      │
-│       │是                                    │
+│  Coverage >= 80%? ──no──→ Add tests ──→ loop │
+│       │yes                                   │
 │       ▼                                      │
 │  ┌──────────────────────────────────────┐    │
 │  │  Pre-Review Verification             │    │
 │  │  typecheck → build → lint → test     │    │
 │  │  → security scan                     │    │
-│  │  全部 ✅ → FSM: implementing→reviewing│    │
+│  │  All ✅ → FSM: implementing→reviewing │    │
 │  └──────────────────────────────────────┘    │
 └─────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────┐
-│  Build Fix 工作流（构建失败时）                  │
-│  ┌──────┐   ┌──────────┐   ┌─────────┐      │
-│  │读取错误│──→│修复第1个  │──→│重新构建   │     │
-│  │列表   │   │错误      │   │         │      │
-│  └──────┘   └──────────┘   └────┬────┘      │
+│  Build Fix Workflow (on build failure)        │
+│  ┌────────┐  ┌──────────┐  ┌─────────┐      │
+│  │Read err│──→│Fix 1st   │──→│Rebuild  │      │
+│  │list    │  │error     │  │         │      │
+│  └────────┘  └──────────┘  └────┬────┘      │
 │                                  │           │
-│                    还有错误? ──是──→ 循环      │
-│                         │否                  │
+│                  More errors? ──yes──→ loop   │
+│                         │no                  │
 │                         ▼                    │
-│                    构建成功 ✅                 │
+│                    Build success ✅           │
 └─────────────────────────────────────────────┘
 ```
 
 ### API / Interface
 
-**agent-implementer SKILL.md 新增章节**：
+**New sections in agent-implementer SKILL.md**:
 
-#### 1. TDD 严格模式
+#### 1. TDD Strict Mode
 
 ```markdown
-### TDD 严格模式
+### TDD Strict Mode
 
-#### RED 阶段 🔴
-1. 根据设计文档编写**失败的测试**
-2. 运行测试，确认测试失败（预期失败）
-3. `git add -A && git commit -m "test: RED - <测试描述>"`
+#### RED Phase 🔴
+1. Write **failing tests** based on the design document
+2. Run tests, confirm test failure (expected failure)
+3. `git add -A && git commit -m "test: RED - <test description>"`
 
-#### GREEN 阶段 🟢
-1. 编写**最少量的代码**使测试通过
-2. 运行测试，确认全部通过
-3. `git add -A && git commit -m "feat: GREEN - <功能描述>"`
+#### GREEN Phase 🟢
+1. Write **minimum code** to make tests pass
+2. Run tests, confirm all pass
+3. `git add -A && git commit -m "feat: GREEN - <feature description>"`
 
-#### REFACTOR 阶段 🔵
-1. 优化代码结构，消除重复
-2. 运行测试，确认仍全部通过
-3. `git add -A && git commit -m "refactor: REFACTOR - <重构描述>"`
+#### REFACTOR Phase 🔵
+1. Optimize code structure, eliminate duplication
+2. Run tests, confirm all still pass
+3. `git add -A && git commit -m "refactor: REFACTOR - <refactor description>"`
 
-#### 覆盖率门槛
-- 目标：**80% 以上**行覆盖率
-- 检查方式：运行测试覆盖率工具（jest --coverage / pytest --cov / go test -cover）
-- 未达标时：补充测试用例，重复 RED-GREEN 循环
-- 覆盖率报告保存到 `.agents/runtime/implementer/workspace/coverage-report.txt`
+#### Coverage Threshold
+- Target: **80%+** line coverage
+- Check method: Run coverage tool (jest --coverage / pytest --cov / go test -cover)
+- Below threshold: Add more test cases, repeat RED-GREEN cycle
+- Coverage report saved to `.agents/runtime/implementer/workspace/coverage-report.txt`
 ```
 
 #### 2. Build Fix 工作流
 
 ```markdown
-### Build Fix 工作流
+### Build Fix Workflow
 
-当构建/编译失败时，执行以下流程：
+When build/compilation fails, follow this process:
 
-1. **收集错误**：运行构建命令，捕获所有错误输出
-2. **错误排序**：按文件和行号排序，从第一个开始
-3. **逐个修复**：
-   - 只修复当前第一个错误
-   - 修复后立即重新构建
-   - 记录: `错误 N/M 已修复`
-4. **循环直到成功**：重复步骤 3 直到构建通过
-5. **进度跟踪**：在 stderr 输出进度 `[BUILD FIX] 3/7 errors fixed`
+1. **Collect errors**: Run build command, capture all error output
+2. **Sort errors**: Sort by file and line number, start from the first
+3. **Fix one at a time**:
+   - Fix only the current first error
+   - Rebuild immediately after fix
+   - Log: `Error N/M fixed`
+4. **Loop until success**: Repeat step 3 until build passes
+5. **Progress tracking**: Output progress to stderr `[BUILD FIX] 3/7 errors fixed`
 
-⚠️ 禁止一次修复多个不相关错误——逐个修复可避免引入新问题。
+⚠️ Never fix multiple unrelated errors at once — fixing one at a time avoids introducing new issues.
 ```
 
 #### 3. Pre-Review Verification 清单
 
 ```markdown
-### Pre-Review Verification 清单
+### Pre-Review Verification Checklist
 
-在将任务状态从 `implementing` 转移到 `reviewing` 之前，**必须**按顺序通过以下 5 项检查：
+Before transitioning task status from `implementing` to `reviewing`, the following 5 checks **must** pass in order:
 
-| # | 检查项 | 命令示例 | 通过标准 |
-|---|--------|---------|---------|
-| 1 | 类型检查 | `tsc --noEmit` / `mypy` | 0 errors |
-| 2 | 构建 | `npm run build` / `go build` | exit 0 |
+| # | Check Item | Example Command | Pass Criteria |
+|---|-----------|----------------|---------------|
+| 1 | Type check | `tsc --noEmit` / `mypy` | 0 errors |
+| 2 | Build | `npm run build` / `go build` | exit 0 |
 | 3 | Lint | `eslint .` / `flake8` | 0 errors (warnings OK) |
-| 4 | 测试 | `npm test` / `pytest` | 全部通过 + 覆盖率 >= 80% |
-| 5 | 安全扫描 | `npm audit` / `pip audit` | 无 HIGH/CRITICAL |
+| 4 | Test | `npm test` / `pytest` | All pass + coverage >= 80% |
+| 5 | Security scan | `npm audit` / `pip audit` | No HIGH/CRITICAL |
 
-任何一项未通过，**禁止**转移 FSM 状态。修复后重新运行对应检查。
+If any check fails, FSM state transition is **prohibited**. Fix and re-run the failing check.
 
-验证结果记录到 `.agents/runtime/implementer/workspace/verification-report.md`：
+Verification results saved to `.agents/runtime/implementer/workspace/verification-report.md`:
 ```
 
-**验证报告模板**：
+**Verification report template**:
 
 ```markdown
 # Pre-Review Verification Report — T-NNN
 
-| 检查项 | 状态 | 详情 |
-|--------|------|------|
-| 类型检查 | ✅ | 0 errors |
-| 构建 | ✅ | Build succeeded in 12s |
+| Check Item | Status | Details |
+|-----------|--------|---------|
+| Type check | ✅ | 0 errors |
+| Build | ✅ | Build succeeded in 12s |
 | Lint | ✅ | 0 errors, 3 warnings |
-| 测试 | ✅ | 47/47 passed, 83% coverage |
-| 安全扫描 | ✅ | No vulnerabilities found |
+| Test | ✅ | 47/47 passed, 83% coverage |
+| Security scan | ✅ | No vulnerabilities found |
 
-**结论**: 全部通过，可以转移到 reviewing 阶段。
+**Conclusion**: All passed, ready to transition to reviewing phase.
 ```
 
 ### Implementation Steps
 
-1. **更新 `skills/agent-implementer/SKILL.md`**：
-   - 在现有 "Flow A: 新功能实现" 之后，新增"TDD 严格模式"章节
-   - 定义 RED/GREEN/REFACTOR 三阶段的具体步骤和 git commit 格式
-   - 定义 80% 覆盖率门槛和检查方法
+1. **Update `skills/agent-implementer/SKILL.md`**:
+   - After existing "Flow A: New Feature Implementation", add "TDD Strict Mode" section
+   - Define specific steps and git commit format for RED/GREEN/REFACTOR phases
+   - Define 80% coverage threshold and verification method
 
-2. **新增"Build Fix 工作流"章节**：
-   - 在 SKILL.md 中现有流程之后添加
-   - 定义逐个修复策略、进度跟踪格式
-   - 强调"一次只修一个错误"原则
+2. **Add "Build Fix Workflow" section**:
+   - Add after existing workflow in SKILL.md
+   - Define one-at-a-time fix strategy, progress tracking format
+   - Emphasize "fix only one error at a time" principle
 
-3. **新增"Pre-Review Verification 清单"章节**：
-   - 定义 5 步检查链（typecheck → build → lint → test → security）
-   - 提供各语言/框架的命令示例
-   - 定义验证报告模板和存放路径
+3. **Add "Pre-Review Verification Checklist" section**:
+   - Define 5-step check chain (typecheck → build → lint → test → security)
+   - Provide command examples for various languages/frameworks
+   - Define verification report template and storage path
 
-4. **更新现有 Flow A 和 Flow B**：
-   - Flow A 中引用"TDD 严格模式"章节
-   - Flow B（Bug 修复）中引用"Build Fix 工作流"
-   - 两个 Flow 在最后一步都引用"Pre-Review Verification"
+4. **Update existing Flow A and Flow B**:
+   - Flow A references "TDD Strict Mode" section
+   - Flow B (Bug Fix) references "Build Fix Workflow"
+   - Both flows reference "Pre-Review Verification" as final step
 
-5. **定义验证报告存放位置**：
-   - 路径：`.agents/runtime/implementer/workspace/verification-report.md`
-   - 覆盖率报告：`.agents/runtime/implementer/workspace/coverage-report.txt`
+5. **Define verification report storage locations**:
+   - Path: `.agents/runtime/implementer/workspace/verification-report.md`
+   - Coverage report: `.agents/runtime/implementer/workspace/coverage-report.txt`
 
-6. **更新 FSM Guard 规则**：
-   - 在 `skills/agent-fsm/SKILL.md` 的 guard 规则中补充：
-     `implementing → reviewing` 需要 verification report 存在且全部 ✅
+6. **Update FSM Guard rules**:
+   - In `skills/agent-fsm/SKILL.md` guard rules, add:
+     `implementing → reviewing` requires verification report to exist with all ✅
 
 ## Test Spec
 
-### 单元测试
+### Unit Tests
 
-| # | 测试场景 | 预期结果 |
-|---|---------|---------|
-| 1 | SKILL.md 包含"TDD 严格模式"章节 | 章节存在且包含 RED/GREEN/REFACTOR 步骤 |
-| 2 | SKILL.md 包含"Build Fix 工作流"章节 | 章节存在且包含逐个修复流程 |
-| 3 | SKILL.md 包含"Pre-Review Verification"章节 | 章节存在且包含 5 项检查 |
-| 4 | git commit 格式定义 | 包含 `test: RED -`, `feat: GREEN -`, `refactor: REFACTOR -` 模板 |
+| # | Test Scenario | Expected Result |
+|---|--------------|-----------------|
+| 1 | SKILL.md contains "TDD Strict Mode" section | Section exists with RED/GREEN/REFACTOR steps |
+| 2 | SKILL.md contains "Build Fix Workflow" section | Section exists with one-at-a-time fix process |
+| 3 | SKILL.md contains "Pre-Review Verification" section | Section exists with 5 checks |
+| 4 | Git commit format defined | Contains `test: RED -`, `feat: GREEN -`, `refactor: REFACTOR -` templates |
 
-### 集成测试
+### Integration Tests
 
-| # | 测试场景 | 预期结果 |
-|---|---------|---------|
-| 5 | Implementer 执行完整 TDD 循环 | 产出 RED/GREEN/REFACTOR 三次 git commit |
-| 6 | 构建失败后执行 Build Fix | 逐个修复，每次修复后重新构建 |
-| 7 | Pre-Review 验证失败 | 禁止转移到 reviewing，修复后重试 |
-| 8 | 覆盖率 < 80% | 阻止提交，提示补充测试 |
+| # | Test Scenario | Expected Result |
+|---|--------------|-----------------|
+| 5 | Implementer executes full TDD cycle | Produces RED/GREEN/REFACTOR three git commits |
+| 6 | Build Fix after build failure | Fixes one at a time, rebuilds after each fix |
+| 7 | Pre-Review verification fails | Blocked from transitioning to reviewing, retry after fix |
+| 8 | Coverage < 80% | Blocked from submission, prompted to add tests |
 
-### 验收标准
+### Acceptance Criteria
 
-- [ ] G1: TDD 章节包含 RED/GREEN/REFACTOR git checkpoint + 80% 覆盖率门槛
-- [ ] G2: Build Fix 工作流包含逐个修复 + 重新构建 + 进度跟踪
-- [ ] G3: Pre-Review Verification 包含 typecheck → build → lint → test → security scan 五步检查
+- [ ] G1: TDD section includes RED/GREEN/REFACTOR git checkpoints + 80% coverage threshold
+- [ ] G2: Build Fix Workflow includes one-at-a-time fix + rebuild + progress tracking
+- [ ] G3: Pre-Review Verification includes typecheck → build → lint → test → security scan 5-step check
 
 ## Consequences
 
-**正面**：
-- 代码质量显著提升，有完整的质量门控
-- Git 历史清晰，每步可追溯、可回滚
-- 构建问题系统化解决，避免混乱修复
+**Positive**:
+- Significantly improved code quality with comprehensive quality gates
+- Clear git history, each step traceable and rollback-friendly
+- Build issues resolved systematically, avoiding chaotic fixes
 
-**负面/风险**：
-- TDD 严格模式增加开发时间（但减少后期修复时间）
-- 覆盖率门槛可能对某些项目过高（但 80% 是业界共识）
-- 需要 Implementer Agent 严格遵守流程
+**Negative/Risks**:
+- TDD strict mode increases development time (but reduces later fix time)
+- Coverage threshold may be too high for some projects (but 80% is industry consensus)
+- Requires strict Implementer Agent compliance
 
-**后续影响**：
-- T-012 Reviewer 增强可以检查是否遵守了 TDD 纪律（查看 git log）
-- T-013 Tester 增强可以利用覆盖率报告
+**Future Impact**:
+- T-012 Reviewer can verify TDD discipline compliance (by checking git log)
+- T-013 Tester can leverage coverage reports

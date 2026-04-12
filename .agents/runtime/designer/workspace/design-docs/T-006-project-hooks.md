@@ -24,8 +24,8 @@ Copy from global hooks as templates, adjust paths:
 
 Add new step between Step 5 and Step 6:
 ```markdown
-### 5b. 生成项目级 Hooks (可选)
-如果全局 hooks 已安装, 复制并调整为项目级:
+### 5b. Generate Project-Level Hooks (Optional)
+If global hooks are installed, copy and adjust to project-level:
 \```bash
 mkdir -p .agents/hooks
 cp ~/.claude/hooks/agent-*.sh .agents/hooks/

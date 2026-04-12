@@ -1,26 +1,26 @@
-# 代码审查报告: T-009
+# Code Review Report: T-009
 
-## 审查范围
-变更文件: 2 个 (`skills/agent-memory/SKILL.md`, `skills/agent-switch/SKILL.md`), +50 / -0 行 (估算)
+## Review Scope
+Changed Files: 2 (`skills/agent-memory/SKILL.md`, `skills/agent-switch/SKILL.md`), +50 / -0 Lines (Estimated)
 
-## 结论: ✅ 通过
+## Conclusion: ✅ Passed
 
-## Goals 实现检查
-| Goal | 描述 | 实现状态 | 备注 |
-|------|------|----------|------|
-| G1 | agent-switch 在切换时自动加载分配任务的记忆 | ✅ | agent-switch 步骤 9 (L116) 明确: "智能加载任务记忆...根据当前角色过滤字段" |
-| G2 | 按角色差异化加载字段 | ✅ | agent-memory "按角色差异化加载" 表格 (L100-111) 完整定义了 5 个角色的加载/省略字段及理由 |
-| G3 | 以可读文本格式展示，非 JSON dump | ✅ | 加载格式示例 (L117-128) 展示了结构化可读文本: 带 emoji、缩进、关键信息提取 |
-| G4 | agent-memory 和 agent-switch 两个 SKILL.md 都已更新 | ✅ | 两文件均有对应章节更新 |
+## Goals Implementation Check
+| Goal | Description | Status | Notes |
+|------|-------------|--------|-------|
+| G1 | agent-switch automatically loads assigned task memory on switch | ✅ | agent-switch step 9 (L116) states: "Smart load task memory...filter fields by current role" |
+| G2 | Differentiated field loading by role | ✅ | agent-memory "Differentiated Loading by Role" table (L100-111) fully defines loaded/omitted fields and rationale for all 5 roles |
+| G3 | Display in readable text format, not JSON dump | ✅ | Loading format example (L117-128) shows structured readable text: with emoji, indentation, key information extraction |
+| G4 | Both agent-memory and agent-switch SKILL.md updated | ✅ | Both files have corresponding section updates |
 
-## 问题列表
-无实质性问题。
+## Issue List
+No substantive issues.
 
-## 优点
-- 角色→字段映射表清晰实用，每行都附有省略理由
-- 加载格式示例信息密度高: 阶段、完成时间、决策、产出、交接要点一目了然
-- 与 agent-switch 流程的集成点 (L130-135) 步骤明确
-- Acceptor 特殊处理 (加载全部 stages 的 summary) 体现了验收者需要全局视角的合理设计
+## Strengths
+- Role-to-field mapping table is clear and practical, each row includes omission rationale
+- Loading format example has high information density: phase, completion time, decisions, artifacts, handoff notes at a glance
+- Integration points with agent-switch flow (L130-135) have clear steps
+- Acceptor special handling (loads summary from all stages) reflects sound design for acceptor needing global perspective
 
-## 总体评价
-实现完整且质量高。角色差异化加载是本轮最有实用价值的功能之一，能显著减少下游 Agent 的上下文噪音。无需修改，直接通过。
+## Overall Assessment
+Implementation is complete and high quality. Differentiated loading by role is one of the most practically valuable features in this round, significantly reducing context noise for downstream Agents. No modifications needed, approved directly.

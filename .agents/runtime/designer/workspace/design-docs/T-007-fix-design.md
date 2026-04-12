@@ -1,72 +1,72 @@
-# T-007 Fix Design: agent-switch 事件摘要集成 + 清理命令
+# T-007 Fix Design: agent-switch Event Summary Integration + Cleanup Command
 
-## 问题
-- G2: agent-switch 状态面板缺少事件摘要（每个 Agent 的最近活动统计）
-- G3: 事件清理命令未在 agent-switch 中暴露
+## Problem
+- G2: agent-switch status panel is missing event summary (recent activity statistics per Agent)
+- G3: Event cleanup command is not exposed in agent-switch
 
-## 修改方案
+## Fix Plan
 
-### 文件 1: `skills/agent-switch/SKILL.md`
+### File 1: `skills/agent-switch/SKILL.md`
 
-#### G2 修复：在状态面板中添加事件摘要
+#### G2 Fix: Add event summary to the status panel
 
-在 "查看所有 Agent 状态 (/agent status)" 部分的输出模板末尾，添加事件摘要区块：
+At the end of the output template in the "View all Agent status (/agent status)" section, add an event summary block:
 
 ```
-🤖 Agent 状态面板
+🤖 Agent Status Panel
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-角色       状态     当前任务    队列        最后活动
+Role        Status   Current Task  Queue       Last Active
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎯 验收者   idle     —          —          10:00
-🏗️ 设计者   busy     T-002      —          10:30
-💻 实现者   idle     —          [T-003]    09:45
-🔍 审查者   idle     —          —          09:00
-🧪 测试者   busy     T-001      —          10:15
+🎯 Acceptor  idle     —            —           10:00
+🏗️ Designer  busy     T-002        —           10:30
+💻 Implementer idle   —            [T-003]     09:45
+🔍 Reviewer  idle     —            —           09:00
+🧪 Tester    busy     T-001        —           10:15
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📋 任务表摘要: 3 个任务 (1 完成, 1 进行中, 1 待处理)
+📋 Task Board Summary: 3 tasks (1 done, 1 in progress, 1 pending)
 
-📊 近 24h 活动 (来自 events.db):
-  💻 实现者: 42 次操作 | 🔍 审查者: 15 次 | 🧪 测试者: 8 次
+📊 Last 24h Activity (from events.db):
+  💻 Implementer: 42 actions | 🔍 Reviewer: 15 actions | 🧪 Tester: 8 actions
 
-🚨 阻塞任务 (如有):
-  ⛔ T-004: blocked — "依赖的 API 尚未就绪"
+🚨 Blocked Tasks (if any):
+  ⛔ T-004: blocked — "Dependent API not ready yet"
 ```
 
-实现步骤中添加 events.db 查询：
+Add events.db query in the implementation steps:
 ```bash
-# 查询每个 Agent 的近 24h 活动数
+# Query each Agent's activity count in the last 24h
 if [ -f "$AGENTS_DIR/events.db" ]; then
   sqlite3 "$AGENTS_DIR/events.db" \
     "SELECT agent, count(*) FROM events WHERE created_at > datetime('now', '-24 hours') GROUP BY agent ORDER BY count(*) DESC;"
 fi
 ```
 
-#### G3 修复：添加事件管理命令
+#### G3 Fix: Add event management commands
 
-在 SKILL.md 末尾、"可用角色" 表格之前，添加新章节：
+Add a new section at the end of SKILL.md, before the "Available Roles" table:
 
 ```markdown
-## 事件管理
+## Event Management
 
-### 查看活动摘要
+### View Activity Summary
 ```bash
 sqlite3 .agents/events.db "SELECT agent, count(*) as actions FROM events WHERE created_at > datetime('now', '-24 hours') GROUP BY agent ORDER BY actions DESC;"
 ```
 
-### 清理旧事件
+### Clean Up Old Events
 ```bash
-# 清理 30 天前的事件
+# Clean up events older than 30 days
 sqlite3 .agents/events.db "DELETE FROM events WHERE created_at < datetime('now', '-30 days');"
-# 清理所有事件（重置）
+# Clean up all events (reset)
 sqlite3 .agents/events.db "DELETE FROM events; DELETE FROM sqlite_sequence WHERE name='events';"
 ```
 
-参考 `agent-events` skill 了解更多查询方式。
+Refer to the `agent-events` skill for more query options.
 ```
 
-## Implementer 注意事项
-- 只改 `skills/agent-switch/SKILL.md`
-- 事件摘要是在 `/agent status` 输出中追加，不影响现有内容
-- 清理命令是新增章节，放在"可用角色"表格之前
-- events.db 查询需要检查文件是否存在（可能未初始化）
+## Implementer Notes
+- Only modify `skills/agent-switch/SKILL.md`
+- The event summary is appended to the `/agent status` output, without affecting existing content
+- The cleanup command is a new section, placed before the "Available Roles" table
+- The events.db query needs to check if the file exists (it may not be initialized)

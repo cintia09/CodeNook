@@ -1,28 +1,28 @@
-# 代码审查报告: T-012
+# Code Review Report: T-012
 
-## 审查范围
-变更文件: 1 个 (`skills/agent-reviewer/SKILL.md`), +72 / -0 行 (估算)
+## Review Scope
+Changed Files: 1 (`skills/agent-reviewer/SKILL.md`), +72 / -0 lines (estimated)
 
-## 结论: ✅ 通过
+## Conclusion: ✅ Approved
 
-## Goals 实现检查
-| Goal | 描述 | 实现状态 | 备注 |
-|------|------|----------|------|
-| G1 | 严重级别 CRITICAL/HIGH/MEDIUM/LOW + 审批规则 | ✅ | L86-99: 4 级定义含标志、含义、审批影响，审批决策 (BLOCK/REQUEST_CHANGES/APPROVE) 清晰 |
-| G2 | 安全审查清单 (8+ 项) | ✅ | L105-121: OWASP Top 10 为基础的 10 项检查清单，超出要求的 8 项，含查找模式列 |
-| G3 | 代码质量阈值 | ✅ | L123-135: 7 项指标 (函数行数>50, 文件>800, 嵌套>4 等) 含阈值和严重级别 |
-| G4 | 置信度过滤 ≥80% | ✅ | L100-103: "只报告 ≥ 80% 确信的问题", 不确定的标注 `[?]` |
+## Goals Implementation Check
+| Goal | Description | Implementation Status | Notes |
+|------|-------------|-----------------------|-------|
+| G1 | Severity levels CRITICAL/HIGH/MEDIUM/LOW + approval rules | ✅ | L86-99: 4-level definitions with flags, meanings, and approval impact; approval decisions (BLOCK/REQUEST_CHANGES/APPROVE) are clear |
+| G2 | Security review checklist (8+ items) | ✅ | L105-121: OWASP Top 10-based 10-item checklist, exceeding the required 8 items, with detection pattern column |
+| G3 | Code quality thresholds | ✅ | L123-135: 7 metrics (function lines>50, file>800, nesting>4, etc.) with thresholds and severity levels |
+| G4 | Confidence filtering ≥80% | ✅ | L100-103: "only report issues with ≥80% confidence", uncertain ones marked with `[?]` |
 
-## 问题列表
-无实质性问题。
+## Issues
+No substantive issues.
 
-## 优点
-- 安全清单增加了设计要求之外的 2 项 (#9 不安全反序列化, #10 错误信息泄露)，更全面
-- 每个安全检查项附有 "查找模式" 列，提供具体的检查方法而非抽象要求
-- 严重级别标志 (`[C]`, `[H]`, `[M]`, `[L]`) 简洁，适合在报告中标注
-- 审批决策规则简单清晰: 有 CRITICAL → BLOCK，无例外
-- 与审查报告模板 (L57-77) 的问题列表格式兼容，新增了严重性列
-- 文档更新章节 (L143-151) 要求记录发现数统计，与 T-015 对接
+## Strengths
+- Security checklist added 2 items beyond design requirements (#9 insecure deserialization, #10 error message disclosure), more comprehensive
+- Each security check item includes a "detection pattern" column, providing specific inspection methods rather than abstract requirements
+- Severity level flags (`[C]`, `[H]`, `[M]`, `[L]`) are concise and suitable for report annotations
+- Approval decision rules are simple and clear: CRITICAL → BLOCK, no exceptions
+- Compatible with the review report template (L57-77) issue list format, with a new severity column added
+- Documentation update section (L143-151) requires recording finding statistics, interfacing with T-015
 
-## 总体评价
-实现超出设计要求，安全清单从 8 项扩展到 10 项 (OWASP Top 10 完整覆盖)。置信度过滤和严重级别分层是高信噪比审查的关键机制。无需修改。
+## Overall Assessment
+Implementation exceeds design requirements — security checklist expanded from 8 to 10 items (full OWASP Top 10 coverage). Confidence filtering and severity-level stratification are key mechanisms for high signal-to-noise ratio reviews. No modifications needed.

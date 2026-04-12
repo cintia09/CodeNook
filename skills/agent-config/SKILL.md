@@ -1,117 +1,117 @@
 ---
 name: agent-config
-description: "Agent 配置管理 — 查看/设置 agent 模型、工具权限、平台状态。当用户说「配置 agent」「设置模型」「配置工具」「agent config」「/agent-config」时激活。"
+description: "Agent Config Management — View/set agent model, tool permissions, platform status. Activated when user says 'configure agent', 'set model', 'configure tools', 'agent config', or '/agent-config'."
 ---
 
-# Agent 配置管理
+# Agent Config Management
 
-管理 Multi-Agent Framework 的 agent 配置。支持 model 和 tools 两个维度，同时应用到所有平台。
+Manage agent configuration for the Multi-Agent Framework. Supports model and tools dimensions, applied simultaneously across all platforms.
 
-## 配置脚本
+## Config Script
 
-脚本路径: `~/.claude/skills/agent-config/config.sh`（Claude Code）或 `~/.copilot/skills/agent-config/config.sh`（Copilot）
+Script path: `~/.claude/skills/agent-config/config.sh` (Claude Code) or `~/.copilot/skills/agent-config/config.sh` (Copilot)
 
-### 查看配置
+### View Config
 
 ```bash
-# 查看全部 agent 配置（model + tools）
+# View all agent config (model + tools)
 bash ~/.claude/skills/agent-config/config.sh list
 
-# 查看单个 agent 详细配置
+# View single agent detailed config
 bash ~/.claude/skills/agent-config/config.sh get implementer
 
-# 查看检测到的平台
+# View detected platforms
 bash ~/.claude/skills/agent-config/config.sh platforms
 ```
 
-### 模型配置
+### Model Config
 
 ```bash
-# 查看可用模型列表
+# View available model list
 bash ~/.claude/skills/agent-config/config.sh models
 
-# 设置单个 agent 的模型
+# Set model for a single agent
 bash ~/.claude/skills/agent-config/config.sh model set implementer claude-sonnet-4
 
-# 设置所有 agent 使用同一模型
+# Set all agents to the same model
 bash ~/.claude/skills/agent-config/config.sh model set-all claude-sonnet-4
 
-# 重置单个 agent 为系统默认
+# Reset a single agent to system default
 bash ~/.claude/skills/agent-config/config.sh model reset implementer
 
-# 重置所有 agent 模型
+# Reset all agent models
 bash ~/.claude/skills/agent-config/config.sh model reset-all
 ```
 
-### 工具配置
+### Tool Config
 
-控制每个 agent 可使用的工具。在 Copilot CLI 中，`tools` 字段由平台原生执行；在 Claude Code 中作为指导性约束。
+Control which tools each agent can use. In Copilot CLI, the `tools` field is enforced natively by the platform; in Claude Code it serves as a guiding constraint.
 
 ```bash
-# 查看 agent 的工具列表
+# View agent's tool list
 bash ~/.claude/skills/agent-config/config.sh tools get reviewer
 
-# 设置工具（逗号分隔）— 限制 reviewer 只能读和搜索
+# Set tools (comma-separated) — restrict reviewer to read and search only
 bash ~/.claude/skills/agent-config/config.sh tools set reviewer read,search,grep,glob
 
-# 添加单个工具
+# Add a single tool
 bash ~/.claude/skills/agent-config/config.sh tools add reviewer view
 
-# 移除单个工具
+# Remove a single tool
 bash ~/.claude/skills/agent-config/config.sh tools rm reviewer edit
 
-# 重置（移除限制，允许所有工具）
+# Reset (remove restrictions, allow all tools)
 bash ~/.claude/skills/agent-config/config.sh tools reset reviewer
 ```
 
-### 推荐工具配置（内置 agent 参考）
+### Recommended Tool Config (Built-in Agent Reference)
 
-| Agent | 推荐 tools 设置 | 说明 |
-|-------|-----------------|------|
-| acceptor | (all) | 需要完整访问来验收功能 |
-| designer | read,search,grep,glob,view | 只读 — 设计阶段不修改代码 |
-| implementer | (all) | 需要完整读写+执行能力 |
-| reviewer | read,search,grep,glob,view | 只读 — 审查不修改 |
-| tester | read,search,grep,glob,view,bash | 可读可执行测试，不直接编辑 src |
+| Agent | Recommended Tools | Description |
+|-------|-------------------|-------------|
+| acceptor | (all) | Requires full access for acceptance |
+| designer | read,search,grep,glob,view | Read-only — no code changes during design |
+| implementer | (all) | Requires full read/write + execute capability |
+| reviewer | read,search,grep,glob,view | Read-only — review without modification |
+| tester | read,search,grep,glob,view,bash | Can read and run tests, no direct src editing |
 
-> 自定义 agent 的工具配置由用户自行决定。使用 `config.sh tools set <agent> <tools>` 配置。
+> Custom agent tool config is up to the user. Use `config.sh tools set <agent> <tools>` to configure.
 
-## 模型解析优先级
+## Model Resolution Priority
 
-当 agent 执行任务时，模型按以下优先级解析（高→低）：
+When an agent executes a task, the model is resolved in the following priority (high → low):
 
-1. **任务级** — `task-board.json` 中的 `model_override` 字段
-2. **Agent 级** — `.agent.md` frontmatter 的 `model` 字段（本 Skill 管理的）
-3. **项目级** — `.agents/project-agents-context/SKILL.md` 中的 `default_model`
-4. **系统级** — 平台默认模型（Claude Code 或 Copilot CLI 的全局设置）
+1. **Task-level** — `model_override` field in `task-board.json`
+2. **Agent-level** — `model` field in `.agent.md` frontmatter (managed by this Skill)
+3. **Project-level** — `default_model` in `.agents/project-agents-context/SKILL.md`
+4. **System-level** — Platform default model (Claude Code or Copilot CLI global setting)
 
-## 交互式配置
+## Interactive Config
 
-当用户要求配置 agent 时:
+When the user requests agent configuration:
 
-1. **发现 agent 和模型** — 运行以下两个命令:
+1. **Discover agents and models** — Run the following two commands:
    ```bash
    bash ~/.claude/skills/agent-config/config.sh list
    bash ~/.claude/skills/agent-config/config.sh models
    ```
-   > ⚠️ 不要假设只有 5 个 agent。不要假设只有几个固定模型。始终从命令输出中获取实际列表。
+   > ⚠️ Do not assume only 5 agents exist. Do not assume only a few fixed models. Always get the actual list from command output.
 
-2. 向用户展示**完整的当前配置**（所有 agent + 当前 model + tools）
-3. 询问用户要配置什么（模型/工具/两者都配）
-4. 如果配置模型:
-   - 展示从 `config.sh models` 获取的**实际可用模型列表**
-   - 让用户选择 agent 和目标模型
-5. 如果配置工具:
-   - 展示从 `config.sh list` 获取的当前工具配置
-   - 让用户选择要配置的 agent 和工具列表
-6. 执行对应命令
-7. 再次运行 `config.sh list` 确认更改
+2. Show the user the **complete current config** (all agents + current model + tools)
+3. Ask the user what to configure (model / tools / both)
+4. If configuring model:
+   - Show the **actual available model list** from `config.sh models`
+   - Let the user choose agent and target model
+5. If configuring tools:
+   - Show current tool config from `config.sh list`
+   - Let the user choose the agent and tool list to configure
+6. Execute the corresponding command
+7. Run `config.sh list` again to confirm changes
 
-## 注意事项
+## Notes
 
-- Agent 列表是**动态发现**的 — config.sh 扫描所有平台目录中的 `*.agent.md` 文件
-- 所有更改同时应用到 `~/.claude/agents/` 和 `~/.copilot/agents/`
-- `model: ""` = 使用系统默认模型
-- `tools` 字段省略 = 不限制工具（agent 可使用所有工具）
-- Copilot CLI 原生执行 `tools` 限制；Claude Code 通过 hooks 辅助执行
-- 使用 `/model` 命令（两个平台都支持）查看当前可用模型列表
+- Agent list is **dynamically discovered** — config.sh scans all platform directories for `*.agent.md` files
+- All changes are applied simultaneously to `~/.claude/agents/` and `~/.copilot/agents/`
+- `model: ""` = use system default model
+- `tools` field omitted = no tool restrictions (agent can use all tools)
+- Copilot CLI enforces `tools` restrictions natively; Claude Code enforces via hooks
+- Use the `/model` command (supported on both platforms) to view the current available model list

@@ -1,12 +1,12 @@
 ---
 name: agent-messaging
-description: "Agent 间消息: 发送消息给其他 Agent 或查看收件箱。调用时说 '发消息给测试者' 或 '查看收件箱'。"
+description: "Inter-agent messaging: Send messages to other Agents or view inbox. Invoke by saying 'send message to tester' or 'view inbox'."
 ---
 
-# Agent 间消息
+# Inter-Agent Messaging
 
-## 收件箱格式
-文件: `<project>/.agents/runtime/<agent>/inbox.json`
+## Inbox Format
+File: `<project>/.agents/runtime/<agent>/inbox.json`
 
 ```json
 {
@@ -17,7 +17,7 @@ description: "Agent 间消息: 发送消息给其他 Agent 或查看收件箱。
       "to": "tester",
       "type": "task_update",
       "task_id": "T-001",
-      "content": "T-001 修复完成, 请重新验证",
+      "content": "T-001 fix completed, please re-verify",
       "timestamp": "2026-04-05T10:00:00Z",
       "read": false
     }
@@ -25,52 +25,52 @@ description: "Agent 间消息: 发送消息给其他 Agent 或查看收件箱。
 }
 ```
 
-## 消息类型 (自动派发)
+## Message Types (Auto-Dispatch)
 
-> 以下类型用于 **auto-dispatch 自动生成** 的消息。Agent 手动发送消息时，使用下方"双向消息类型"。
+> The following types are used for **auto-dispatch generated** messages. For manually sent messages, use the "Bidirectional Message Types" below.
 
-| type | 说明 | 触发场景 |
-|------|------|---------|
-| `task_created` | 新任务发布 | acceptor 创建任务 |
-| `task_update` | 任务状态变更 | 任何状态转移 |
-| `review_result` | 审查结果 | reviewer 完成审查 |
-| `test_result` | 测试结果 | tester 完成测试 |
-| `accept_result` | 验收结果 | acceptor 完成验收 |
-| `info` | 一般通知 | 任何需要通知的场景 |
-| `blocked` | 阻塞通知 | Agent 遇到无法解决的问题 |
+| type | Description | Trigger Scenario |
+|------|-------------|-----------------|
+| `task_created` | New task published | Acceptor creates task |
+| `task_update` | Task status changed | Any state transition |
+| `review_result` | Review result | Reviewer completes review |
+| `test_result` | Test result | Tester completes testing |
+| `accept_result` | Acceptance result | Acceptor completes acceptance |
+| `info` | General notification | Any scenario requiring notification |
+| `blocked` | Blocked notification | Agent encounters unresolvable problem |
 
-## 操作
+## Operations
 
-### 发送消息
-1. 读取目标 Agent 的 inbox.json
-2. 生成消息 ID: `msg-{timestamp-ms}`
-3. 追加新消息到 messages 数组
-4. 写入 inbox.json
+### Send Message
+1. Read target Agent's inbox.json
+2. Generate message ID: `msg-{timestamp-ms}`
+3. Append new message to messages array
+4. Write inbox.json
 
-### 查看收件箱
-1. 读取当前 Agent 的 inbox.json
-2. 列出未读消息 (read: false)
-3. 格式化输出:
+### View Inbox
+1. Read current Agent's inbox.json
+2. List unread messages (read: false)
+3. Formatted output:
 ```
-📬 收件箱 (3 条未读)
-[msg-001] 来自 implementer (10:00): T-001 修复完成, 请重新验证
-[msg-002] 来自 acceptor (11:00): 新任务 T-003: 主题系统
-[msg-003] 来自 reviewer (11:30): T-002 审查通过
+📬 Inbox (3 unread)
+[msg-001] From implementer (10:00): T-001 fix completed, please re-verify
+[msg-002] From acceptor (11:00): New task T-003: Theme System
+[msg-003] From reviewer (11:30): T-002 review passed
 ```
 
-### 标记已读
-将指定消息的 read 改为 true。
+### Mark as Read
+Set the specified message's read to true.
 
-### 清理旧消息
-消息默认保留 30 天。Agent 启动时可清理超过 30 天的已读消息。
+### Clean Up Old Messages
+Messages are retained for 30 days by default. Agent can clean up read messages older than 30 days on startup.
 
 ---
 
-## 结构化消息模式 (Structured Message Schema)
+## Structured Message Schema
 
-所有 Agent 间消息**必须**遵循以下结构化模式。这确保消息语义明确、可机器解析、可追溯。
+All inter-agent messages **must** follow this structured schema. This ensures messages are semantically clear, machine-parsable, and traceable.
 
-### 完整消息结构
+### Full Message Structure
 
 ```json
 {
@@ -94,199 +94,199 @@ description: "Agent 间消息: 发送消息给其他 Agent 或查看收件箱。
     "function": "validateToken"
   },
 
-  "content": "Token 验证逻辑有竞态条件，请审查 validateToken 函数",
+  "content": "Token validation logic has a race condition, please review the validateToken function",
   "references": ["msg-1717599000000"]
 }
 ```
 
-### 字段说明
+### Field Descriptions
 
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `id` | string | ✅ | `msg-{timestamp-ms}` 格式 |
-| `from` | string | ✅ | 发送者角色 |
-| `to` | string | ✅ | 接收者角色 |
-| `task_id` | string | ✅ | 关联任务 ID |
-| `timestamp` | ISO 8601 | ✅ | 发送时间 |
-| `read` | boolean | ✅ | 是否已读 |
-| `type` | enum | ✅ | 消息类型 (见下表) |
-| `severity` | enum | ✅ | 严重程度 |
-| `priority` | enum | ✅ | 优先级 |
-| `context` | object | ❌ | 代码定位上下文 (有代码相关时填写) |
-| `context.file` | string | ❌ | 相关文件路径 |
-| `context.line` | number | ❌ | 相关行号 |
-| `context.function` | string | ❌ | 相关函数/方法名 |
-| `content` | string | ✅ | 消息正文 |
-| `thread_id` | string | ❌ | 会话线程 ID (首条消息的 id) |
-| `reply_to` | string | ❌ | 回复的消息 ID |
-| `references` | string[] | ❌ | 引用的相关消息 ID 列表 |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | ✅ | `msg-{timestamp-ms}` format |
+| `from` | string | ✅ | Sender role |
+| `to` | string | ✅ | Receiver role |
+| `task_id` | string | ✅ | Associated task ID |
+| `timestamp` | ISO 8601 | ✅ | Send time |
+| `read` | boolean | ✅ | Whether read |
+| `type` | enum | ✅ | Message type (see table below) |
+| `severity` | enum | ✅ | Severity level |
+| `priority` | enum | ✅ | Priority level |
+| `context` | object | ❌ | Code location context (fill when code-related) |
+| `context.file` | string | ❌ | Related file path |
+| `context.line` | number | ❌ | Related line number |
+| `context.function` | string | ❌ | Related function/method name |
+| `content` | string | ✅ | Message body |
+| `thread_id` | string | ❌ | Conversation thread ID (first message's id) |
+| `reply_to` | string | ❌ | ID of message being replied to |
+| `references` | string[] | ❌ | List of related message IDs |
 
-### 双向消息类型 (type)
+### Bidirectional Message Types (type)
 
-> Agent 手动发送消息时使用以下类型。与上方"自动派发类型"互不冲突。
+> Used when Agents manually send messages. These do not conflict with the "auto-dispatch types" above.
 
-| type | 说明 | 典型场景 |
-|------|------|---------|
-| `request` | 请求对方执行操作 | implementer → reviewer: "请审查 T-001" |
-| `response` | 对 request 的回复 | reviewer → implementer: "审查完成, 3 个问题" |
-| `notification` | 单向通知, 不需回复 | acceptor → all: "新任务 T-005 已创建" |
-| `escalation` | 升级/上报问题 | tester → acceptor: "T-001 测试持续失败, 需介入" |
-| `broadcast` | 广播给所有 Agent | acceptor → all: "T-001 优先级提升为 critical" |
+| type | Description | Typical Scenario |
+|------|-------------|-----------------|
+| `request` | Request the other party to perform an action | implementer → reviewer: "Please review T-001" |
+| `response` | Reply to a request | reviewer → implementer: "Review complete, 3 issues" |
+| `notification` | One-way notification, no reply needed | acceptor → all: "New task T-005 created" |
+| `escalation` | Escalate/report a problem | tester → acceptor: "T-001 tests keep failing, intervention needed" |
+| `broadcast` | Broadcast to all Agents | acceptor → all: "T-001 priority elevated to critical" |
 
-### 严重程度 (severity)
+### Severity Levels
 
-| severity | 说明 | 示例 |
-|----------|------|------|
-| `critical` | 阻塞流水线, 需立即处理 | 构建失败、安全漏洞、数据丢失风险 |
-| `high` | 严重问题, 当前阶段必须解决 | 逻辑错误、未处理边界条件 |
-| `medium` | 需关注但不阻塞 | 代码风格问题、缺少单元测试 |
-| `low` | 建议性信息 | 优化建议、文档改进 |
+| severity | Description | Example |
+|----------|-------------|---------|
+| `critical` | Blocks pipeline, requires immediate attention | Build failure, security vulnerability, data loss risk |
+| `high` | Serious issue, must be resolved in current phase | Logic error, unhandled boundary condition |
+| `medium` | Needs attention but non-blocking | Code style issues, missing unit tests |
+| `low` | Advisory information | Optimization suggestions, documentation improvements |
 
-### 优先级 (priority)
+### Priority Levels
 
-| priority | 说明 | 处理规则 |
-|----------|------|---------|
-| `urgent` | 阻塞流水线 | **立即处理** — Agent 切换后第一件事处理 urgent 消息; 在状态面板标红显示 🔴 |
-| `normal` | 标准流程 | 按顺序处理 — 在当前任务处理完毕后按时间排序处理 |
-| `info` | 仅供参考 (FYI) | 不需回复 — 标记已读即可; 不出现在待处理队列中 |
+| priority | Description | Handling Rule |
+|----------|-------------|---------------|
+| `urgent` | Blocks pipeline | **Handle immediately** — First thing after Agent switch; shown in red on status panel 🔴 |
+| `normal` | Standard process | Handle in order — Process by time order after current task completes |
+| `info` | FYI only | No reply needed — Mark as read; does not appear in pending queue |
 
-### 优先级处理规则
+### Priority Handling Rules
 
-Agent 查看收件箱时, 按以下顺序排序:
-1. **urgent** 消息置顶 (🔴 标记)
-2. **normal** 消息按时间排序
-3. **info** 消息折叠显示 (仅显示数量, 展开查看)
+When Agent views inbox, sort in this order:
+1. **urgent** messages pinned to top (🔴 marker)
+2. **normal** messages sorted by time
+3. **info** messages collapsed (show count only, expand to view)
 
 ```
-📬 收件箱 (5 条未读)
-🔴 [msg-001] URGENT 来自 tester (10:00): T-001 测试全部失败, 构建阻塞
+📬 Inbox (5 unread)
+🔴 [msg-001] URGENT From tester (10:00): T-001 all tests failed, build blocked
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[msg-002] 来自 reviewer (11:00): T-003 审查完成, 2 个 medium 问题
-[msg-003] 来自 acceptor (11:30): 请处理 T-005 实现
+[msg-002] From reviewer (11:00): T-003 review complete, 2 medium issues
+[msg-003] From acceptor (11:30): Please implement T-005
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ℹ️ 2 条 info 消息 (展开查看: /inbox --info)
+ℹ️ 2 info messages (expand: /inbox --info)
 ```
 
 ---
 
-## 消息路由规则 (Routing Rules)
+## Message Routing Rules
 
-### 谁发什么类型给谁
+### Who Sends What Type to Whom
 
-消息路由遵循 SDLC 流水线顺序。每个 Agent 只向**直接上下游**和 **acceptor (升级通道)** 发送消息。
+Message routing follows the SDLC pipeline order. Each Agent only sends messages to **direct upstream/downstream** and **acceptor (escalation channel)**.
 
 ```
-   acceptor ←──── 所有 Agent 可 escalation
+   acceptor ←──── All Agents can escalate
       │
       ▼ notification (task_created)
    designer
       │
-      ▼ request (请求实现)
+      ▼ request (request implementation)
    implementer
       │
-      ▼ request (请求审查)
-   reviewer ────► implementer (response: 退回修复)
+      ▼ request (request review)
+   reviewer ────► implementer (response: rejected for fix)
       │
-      ▼ request (请求测试)
-   tester ──────► implementer (response: 退回修复)
+      ▼ request (request testing)
+   tester ──────► implementer (response: rejected for fix)
       │
-      ▼ request (请求验收)
+      ▼ request (request acceptance)
    acceptor
 ```
 
-### 路由矩阵
+### Routing Matrix
 
-| 发送者 → 接收者 | type | severity | priority | 触发场景 |
-|----------------|------|----------|----------|---------|
-| acceptor → designer | notification | medium | normal | 新任务创建, 分配设计 |
-| acceptor → 任何 | notification | high | urgent | 验收失败, 任务退回 |
-| designer → implementer | request | medium | normal | 设计完成, 请求实现 |
-| implementer → reviewer | request | medium | normal | 实现完成, 请求审查 |
-| reviewer → implementer | response | high/medium | normal | 审查反馈 (通过/退回) |
-| reviewer → tester | request | medium | normal | 审查通过, 请求测试 |
-| tester → implementer | response | high | normal | 测试失败, 退回修复 |
-| tester → acceptor | request | medium | normal | 测试通过, 请求验收 |
-| 任何 → acceptor | escalation | critical/high | urgent | 遇到无法解决的阻塞问题 |
-| 任何 → 任何 | notification | low | info | 一般信息共享 (FYI) |
+| Sender → Receiver | type | severity | priority | Trigger Scenario |
+|-------------------|------|----------|----------|-----------------|
+| acceptor → designer | notification | medium | normal | New task created, assigned for design |
+| acceptor → any | notification | high | urgent | Acceptance failed, task rejected |
+| designer → implementer | request | medium | normal | Design complete, request implementation |
+| implementer → reviewer | request | medium | normal | Implementation complete, request review |
+| reviewer → implementer | response | high/medium | normal | Review feedback (passed/rejected) |
+| reviewer → tester | request | medium | normal | Review passed, request testing |
+| tester → implementer | response | high | normal | Test failed, rejected for fix |
+| tester → acceptor | request | medium | normal | Tests passed, request acceptance |
+| any → acceptor | escalation | critical/high | urgent | Encountered unresolvable blocking issue |
+| any → any | notification | low | info | General information sharing (FYI) |
 
-### 路由规则
+### Routing Rules
 
-1. **直接通知**: 状态转移时, 自动向下游 Agent 发送 `request` 类型消息
-2. **退回通知**: reviewer/tester 退回时, 向 implementer 发送 `response` 类型消息, severity 至少 `high`
-3. **升级通道**: 任何 Agent 遇到阻塞问题, 向 acceptor 发送 `escalation`, priority = `urgent`
-4. **广播消息**: `type: broadcast` 时, 将消息写入**所有 5 个** Agent 的 inbox.json (`to` 设为 `"all"`)
-5. **会话线程**: 回复消息时设置 `reply_to` 指向原消息 ID, `thread_id` 指向线程首条消息 ID
-6. **关联引用**: 如果消息是对某条消息的回复, 填写 `references` 字段指向原消息 ID
+1. **Direct notification**: On state transition, automatically send `request` type message to downstream Agent
+2. **Rejection notification**: When reviewer/tester rejects, send `response` type message to implementer, severity at least `high`
+3. **Escalation channel**: Any Agent encountering a blocking issue sends `escalation` to acceptor, priority = `urgent`
+4. **Broadcast message**: When `type: broadcast`, write message to **all 5** Agents' inbox.json (`to` set to `"all"`)
+5. **Conversation thread**: When replying, set `reply_to` to original message ID, `thread_id` to first message ID in thread
+6. **Reference links**: If message is a reply to another message, fill `references` field with original message ID
 
 ---
 
-## 消息回放 (Message Replay)
+## Message Replay
 
-### 功能说明
+### Description
 
-查看某个任务的完整协作时间线 — 所有 Agent 围绕该任务发送的消息按时间排序。
+View the complete collaboration timeline for a task — all messages sent by all Agents for that task, sorted chronologically.
 
-### 触发方式
+### Trigger
 
-用户说 `/inbox --history T-NNN` 或 "查看 T-NNN 消息历史" 时执行。
+Execute when user says `/inbox --history T-NNN` or "view T-NNN message history".
 
-### 实现步骤
+### Implementation Steps
 
-1. 扫描**所有 Agent** 的 inbox.json:
+1. Scan **all Agents'** inbox.json:
    ```bash
    AGENTS_DIR="$(git rev-parse --show-toplevel 2>/dev/null)/.agents"
    for agent in acceptor designer implementer reviewer tester; do
      cat "$AGENTS_DIR/runtime/$agent/inbox.json"
    done
    ```
-2. 过滤 `task_id == T-NNN` 的消息
-3. 按 `timestamp` 升序排列
-4. 格式化输出完整时间线
+2. Filter messages where `task_id == T-NNN`
+3. Sort by `timestamp` ascending
+4. Format and output the complete timeline
 
-### 输出格式
+### Output Format
 
 ```
-📜 消息历史 — T-001: 用户认证系统
+📜 Message History — T-001: User Authentication System
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 08:00  🎯 acceptor → 🏗️ designer  [notification/medium/normal]
-       "新任务 T-001: 用户认证系统, 请开始设计"
+       "New task T-001: User Authentication System, please start designing"
 
 10:00  🏗️ designer → 💻 implementer  [request/medium/normal]
-       "T-001 设计完成, 请按 design-docs/T-001-design.md 实现"
+       "T-001 design complete, please implement per design-docs/T-001-design.md"
 
 14:00  💻 implementer → 🔍 reviewer  [request/medium/normal]
-       "T-001 实现完成, 请审查 src/auth/*.ts"
+       "T-001 implementation complete, please review src/auth/*.ts"
        📎 context: src/auth/jwt.ts
 
 14:30  🔍 reviewer → 💻 implementer  [response/high/normal]
-       "T-001 审查发现 2 个问题: token 刷新竞态 + 缺少错误处理"
+       "T-001 review found 2 issues: token refresh race condition + missing error handling"
        📎 context: src/auth/jwt.ts:42 validateToken()
 
 15:00  💻 implementer → 🔍 reviewer  [request/medium/normal]
-       "T-001 修复完成, 请重新审查"
+       "T-001 fix complete, please re-review"
 
 15:30  🔍 reviewer → 🧪 tester  [request/medium/normal]
-       "T-001 审查通过, 请执行测试"
+       "T-001 review passed, please execute tests"
 
 16:00  🧪 tester → 🎯 acceptor  [request/medium/normal]
-       "T-001 全部测试通过 (12/12), 请验收"
+       "T-001 all tests passed (12/12), please accept"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-共 7 条消息 | 时间跨度: 08:00 → 16:00 (8h)
+Total 7 messages | Time span: 08:00 → 16:00 (8h)
 ```
 
-### 回放过滤选项
+### Replay Filter Options
 
-| 命令 | 说明 |
-|------|------|
-| `/inbox --history T-001` | 查看 T-001 完整消息历史 |
-| `/inbox --history T-001 --type escalation` | 只看升级消息 |
-| `/inbox --history T-001 --from reviewer` | 只看 reviewer 发出的消息 |
-| `/inbox --history T-001 --severity critical,high` | 只看高严重度消息 |
-| `/inbox --history T-001 --priority urgent` | 只看紧急消息 |
+| Command | Description |
+|---------|-------------|
+| `/inbox --history T-001` | View T-001 complete message history |
+| `/inbox --history T-001 --type escalation` | View only escalation messages |
+| `/inbox --history T-001 --from reviewer` | View only messages from reviewer |
+| `/inbox --history T-001 --severity critical,high` | View only high-severity messages |
+| `/inbox --history T-001 --priority urgent` | View only urgent messages |
 
-### 注意事项
-- 回放只读取已有消息, 不修改 read 状态
-- 如果某个 Agent 的 inbox.json 不存在, 跳过 (不报错)
-- 消息 context 信息在时间线中以 📎 标记显示
+### Notes
+- Replay only reads existing messages, does not modify read status
+- If an Agent's inbox.json does not exist, skip (no error)
+- Message context info is displayed with 📎 marker in the timeline

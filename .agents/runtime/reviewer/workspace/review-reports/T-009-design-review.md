@@ -1,31 +1,31 @@
-# 设计审查报告: T-009
+# Design Review Report: T-009
 
-## 审查范围
-- 设计文档: T-009-smart-memory-loading.md
-- Goals 数量: 4
+## Review Scope
+- Design Doc: T-009-smart-memory-loading.md
+- Goals Count: 4
 
-## 结论: ✅ 设计通过
+## Conclusion: ✅ Design Passed
 
-## Goals 覆盖检查
-| Goal | 描述 | 覆盖状态 |
-|------|------|----------|
-| G1 | agent-switch 切换时自动加载任务记忆 | ✅ 已覆盖 — Architecture 和 Implementation Steps 2 详细定义了切换后自动加载的流程 |
-| G2 | 角色差异化字段选择（5 种转换路径） | ✅ 已覆盖 — Data Model 中的角色-字段映射表定义了 5 种路径及各自加载的字段 |
-| G3 | Markdown 摘要格式（非 JSON dump） | ✅ 已覆盖 — 格式化输出模板提供了完整的 Markdown 摘要示例 |
-| G4 | agent-memory 和 agent-switch SKILL.md 均更新 | ✅ 已覆盖 — Implementation Steps 5/6 分别说明了两个 SKILL.md 的更新内容 |
+## Goals Coverage Check
+| Goal | Description | Coverage Status |
+|------|-------------|-----------------|
+| G1 | agent-switch automatically loads task memory on switch | ✅ Covered -- Architecture and Implementation Steps 2 define the post-switch auto-loading flow in detail |
+| G2 | Differentiated field selection by role (5 transition paths) | ✅ Covered -- Data Model role-field mapping table defines 5 paths with their respective loaded fields |
+| G3 | Markdown summary format (not JSON dump) | ✅ Covered -- Formatted output template provides complete Markdown summary example |
+| G4 | Both agent-memory and agent-switch SKILL.md updated | ✅ Covered -- Implementation Steps 5/6 describe the updates to both SKILL.md files respectively |
 
-## 问题列表
-| # | 严重性 | 描述 | 建议 |
-|---|--------|------|------|
-| 1 | LOW | 映射表中 Implementer → Reviewer 加载 `issues_encountered`，但 Test Spec #2 预期"不含 issues_encountered"——需确认映射表中 Implementer → Reviewer 行是否包含此字段 | 核对映射表与测试用例的一致性。当前映射表包含 `issues_encountered`，测试用例 #2 的"不含"描述可能是指不含 `artifacts` 字段 |
-| 2 | LOW | 多任务分配场景未说明——如果一个 Agent 同时分配了多个任务，应加载哪个任务的记忆 | 建议明确规则：加载最近分配的活跃任务记忆，或全部加载并分别展示 |
+## Issue List
+| # | Severity | Description | Recommendation |
+|---|----------|-------------|----------------|
+| 1 | LOW | Mapping table shows Implementer to Reviewer loads `issues_encountered`, but Test Spec #2 expects "does not contain issues_encountered" -- need to verify whether the Implementer to Reviewer row in mapping table includes this field | Cross-check mapping table with test case consistency. Current mapping table includes `issues_encountered`, test case #2 "does not contain" description may refer to not containing `artifacts` field |
+| 2 | LOW | Multi-task assignment scenario not addressed -- if an Agent is assigned multiple tasks simultaneously, which task memory should be loaded | Recommend defining explicit rule: load the most recently assigned active task memory, or load all and display separately |
 
-## 优点
-- 角色-字段映射表设计精炼，5 种转换路径覆盖了框架中所有主要交接场景
-- Markdown 格式化模板可读性好，token 效率远高于原始 JSON
-- 边界情况处理全面：无记忆文件、无分配任务、字段缺失
-- 与 T-008 的标准化记忆格式形成了清晰的上下游依赖
-- Token 效率测试（智能加载 < 全量加载 50%）提供了可量化的验收标准
+## Strengths
+- Role-field mapping table is elegantly designed, 5 transition paths cover all major handoff scenarios in the framework
+- Markdown formatting template has good readability, token efficiency far exceeds raw JSON
+- Edge case handling is comprehensive: no memory file, no assigned task, missing fields
+- Clear upstream/downstream dependency with T-008 standardized memory format
+- Token efficiency test (smart loading < full loading 50%) provides quantifiable acceptance criteria
 
-## 总体评价
-设计简洁有效，角色-字段映射是核心创新点。与 T-008 的依赖关系明确。Implementation Steps 足够具体，实现者可直接执行。两个 LOW 级问题为细节对齐项，不影响整体设计质量。
+## Overall Assessment
+Design is concise and effective, role-field mapping is the core innovation. Dependency relationship with T-008 is clear. Implementation Steps are specific enough for implementer to execute directly. Two LOW-level issues are detail alignment items that do not affect overall design quality.

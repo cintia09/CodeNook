@@ -1,31 +1,31 @@
-# 设计审查报告: T-012
+# Design Review Report: T-012
 
-## 审查范围
-- 设计文档: T-012-reviewer-severity.md
-- Goals 数量: 4
+## Review Scope
+- Design Document: T-012-reviewer-severity.md
+- Number of Goals: 4
 
-## 结论: ✅ 设计通过
+## Conclusion: ✅ Design Approved
 
-## Goals 覆盖检查
-| Goal | 描述 | 覆盖状态 |
-|------|------|----------|
-| G1 | 严重级别 CRITICAL/HIGH/MEDIUM/LOW + 审批规则 | ✅ 已覆盖 — Data Model 定义了四级分类、每级审批动作（BLOCK/REQUEST_CHANGES/APPROVE with notes）和聚合决策逻辑 |
-| G2 | 安全审查清单（8 项） | ✅ 已覆盖 — 定义了 8 项安全检查，每项含风险级别和检查方法 |
-| G3 | 代码质量阈值（7 项） | ✅ 已覆盖 — 定义了 7 项量化指标（函数行数、文件行数、嵌套深度、圈复杂度、调试语句、TODO、重复代码） |
-| G4 | 置信度过滤（>=80%） | ✅ 已覆盖 — Implementation Steps 4 明确定义了 80% 阈值和排除风格/格式问题的规则 |
+## Goals Coverage Check
+| Goal | Description | Coverage Status |
+|------|-------------|-----------------|
+| G1 | Severity levels CRITICAL/HIGH/MEDIUM/LOW + approval rules | ✅ Covered — Data Model defines four-level classification, approval actions per level (BLOCK/REQUEST_CHANGES/APPROVE with notes), and aggregate decision logic |
+| G2 | Security review checklist (8 items) | ✅ Covered — Defines 8 security checks, each with risk level and inspection method |
+| G3 | Code quality thresholds (7 items) | ✅ Covered — Defines 7 quantitative metrics (function line count, file line count, nesting depth, cyclomatic complexity, debug statements, TODOs, duplicate code) |
+| G4 | Confidence filtering (>=80%) | ✅ Covered — Implementation Steps 4 explicitly defines the 80% threshold and rules for excluding style/formatting issues |
 
-## 问题列表
-| # | 严重性 | 描述 | 建议 |
-|---|--------|------|------|
-| 1 | LOW | 置信度是 Agent 的主观评估，不同 LLM 对"80% 置信度"的理解可能不一致 | 可增加置信度校准示例：如"明确的 SQL 拼接 = 95%"，"可能的性能问题 = 70%"等参考锚点 |
-| 2 | LOW | 代码质量阈值中"圈复杂度 > 15"需要 Agent 具备计算圈复杂度的能力，这对 LLM 来说有一定挑战 | 可建议 Agent 使用工具辅助（如 eslint-plugin-complexity），或降低该指标的强制性 |
+## Issues
+| # | Severity | Description | Recommendation |
+|---|----------|-------------|----------------|
+| 1 | LOW | Confidence is a subjective assessment by the Agent; different LLMs may interpret "80% confidence" inconsistently | Consider adding confidence calibration examples: e.g., "obvious SQL concatenation = 95%", "possible performance issue = 70%" as reference anchors |
+| 2 | LOW | The "cyclomatic complexity > 15" code quality threshold requires the Agent to compute cyclomatic complexity, which is challenging for LLMs | Consider recommending tool-assisted analysis (e.g., eslint-plugin-complexity), or reducing the enforcement level of this metric |
 
-## 优点
-- 审查流程架构设计出色——5 步流水线（安全 → 质量 → 逻辑 → 过滤 → 分级）逻辑清晰
-- 严重级别与审批动作的映射关系简明有力：CRITICAL=BLOCK, HIGH=REQUEST_CHANGES
-- 安全审查清单覆盖了 OWASP Top 10 中最常见的 Web 安全问题
-- 增强后的审查报告模板信息密度高，按严重级别分组展示一目了然
-- 置信度过滤机制有效减少审查噪声，提升信噪比
+## Strengths
+- Excellent review process architecture — 5-step pipeline (security → quality → logic → filtering → grading) with clear logic
+- Severity-to-approval action mapping is concise and powerful: CRITICAL=BLOCK, HIGH=REQUEST_CHANGES
+- Security review checklist covers the most common web security issues from OWASP Top 10
+- Enhanced review report template has high information density, with grouping by severity level for clear visibility
+- Confidence filtering mechanism effectively reduces review noise and improves signal-to-noise ratio
 
-## 总体评价
-四大增强能力（严重级别/安全清单/质量阈值/置信度过滤）形成了系统化的审查框架。设计既全面又实用，审查报告模板升级后信息密度和可操作性显著提升。与 T-011 的 Pre-Review Verification 和 T-013 的覆盖率分析形成协同。
+## Overall Assessment
+The four enhancements (severity levels / security checklist / quality thresholds / confidence filtering) form a systematic review framework. The design is both comprehensive and practical, with the upgraded review report template significantly improving information density and actionability. Synergizes with T-011's Pre-Review Verification and T-013's coverage analysis.

@@ -1,187 +1,187 @@
-# T-010: Agent 状态面板中的 ASCII 流水线可视化
+# T-010: ASCII Pipeline Visualization in Agent Status Panel
 
 ## Context
 
-当前 `/agent status` 输出只显示 Agent 列表和简单的任务信息，无法直观看到每个任务在流水线中的位置。用户需要手动查看 `task-board.json` 才能了解任务进度。
+Currently `/agent status` only shows an Agent list and simple task info, with no visual indication of each task's position in the pipeline. Users must manually inspect `task-board.json` to understand task progress.
 
-多 Agent 框架的核心流程是 5 阶段流水线：Design → Implement → Review → Test → Accept。将这个流水线以 ASCII 图形展示在状态面板中，可以大幅提升项目可见性。
+The core workflow of the multi-agent framework is a 5-stage pipeline: Design → Implement → Review → Test → Accept. Displaying this pipeline as ASCII art in the status panel greatly improves project visibility.
 
 ## Decision
 
-在 `agent-switch` 的 `/agent status` 输出中增加 ASCII 流水线图。每个活跃任务独立一行，用 emoji 和状态标记展示当前位置。
+Add an ASCII pipeline diagram to the `/agent status` output in `agent-switch`. Each active task gets its own line, using emoji and status markers to show its current position.
 
 ## Alternatives Considered
 
-| 方案 | 优点 | 缺点 | 决定 |
-|------|------|------|------|
-| **A: 内联 ASCII 流水线（选中）** | 终端兼容性好、信息密度高 | 宽度有限，任务多时较长 | ✅ 选中 |
-| **B: 表格形式展示** | 结构清晰 | 不够直观，看不出流向 | ❌ 缺少流水线感 |
-| **C: 外部 HTML 报告** | 可视化效果最好 | 需要额外工具，脱离终端 | ❌ 增加依赖 |
-| **D: 仅文字描述** | 最简单 | 信息密度低，不直观 | ❌ 现状已如此 |
+| Option | Pros | Cons | Decision |
+|--------|------|------|----------|
+| **A: Inline ASCII pipeline (selected)** | Good terminal compatibility, high info density | Limited width; long when many tasks | ✅ Selected |
+| **B: Table format** | Clear structure | Not intuitive, no flow visualization | ❌ Lacks pipeline feel |
+| **C: External HTML report** | Best visualization | Requires extra tools, leaves terminal | ❌ Adds dependency |
+| **D: Text-only description** | Simplest | Low info density, not intuitive | ❌ Same as current state |
 
 ## Design
 
 ### Architecture
 
 ```
-/agent status 输出结构（增强后）：
+/agent status output structure (enhanced):
 
 ╔══════════════════════════════════════════╗
 ║  🤖 Multi-Agent Pipeline Status          ║
 ╠══════════════════════════════════════════╣
 ║                                          ║
-║  T-008: 自动记忆捕获                      ║
+║  T-008: Auto Memory Capture              ║
 ║  📐Design ──→ 🔨Implement ──→ 🔍Review   ║
-║    ✅          ⏳ ◀──当前      ⏸️          ║
+║    ✅          ⏳ ◀──current   ⏸️          ║
 ║  ──→ 🧪Test ──→ ✅Accept                 ║
 ║       ⏸️          ⏸️                      ║
 ║                                          ║
-║  T-009: 智能记忆加载                      ║
+║  T-009: Smart Memory Loading             ║
 ║  📐Design ──→ 🔨Implement ──→ 🔍Review   ║
-║    ⏳ ◀──当前   ⏸️            ⏸️          ║
+║    ⏳ ◀──current ⏸️            ⏸️          ║
 ║  ──→ 🧪Test ──→ ✅Accept                 ║
 ║       ⏸️          ⏸️                      ║
 ║                                          ║
 ╚══════════════════════════════════════════╝
 ```
 
-**状态图标定义**：
-- ✅ 已完成（done）
-- ⏳ 进行中（active / 当前阶段）
-- ⏸️ 等待中（pending / 未开始）
-- 🚫 已阻塞（blocked）
-- ❌ 失败需重做（rejected）
+**Status icon definitions**:
+- ✅ Completed (done)
+- ⏳ In progress (active / current stage)
+- ⏸️ Waiting (pending / not started)
+- 🚫 Blocked
+- ❌ Failed, needs redo (rejected)
 
-**阶段 emoji**：
-- 📐 Design（设计）
-- 🔨 Implement（实现）
-- 🔍 Review（审查）
-- 🧪 Test（测试）
-- ✅ Accept（验收）
+**Stage emoji**:
+- 📐 Design
+- 🔨 Implement
+- 🔍 Review
+- 🧪 Test
+- ✅ Accept
 
 ### Data Model
 
-**状态到阶段的映射**：
+**Status-to-stage mapping**:
 
 ```
 FSM Status      → Pipeline Stage    → Display
 ─────────────────────────────────────────────
-created         → (pre-pipeline)    → 未进入流水线
+created         → (pre-pipeline)    → Not in pipeline
 designing       → Design            → ⏳
 implementing    → Implement         → ⏳
 reviewing       → Review            → ⏳
 testing         → Test              → ⏳
 accepting       → Accept            → ⏳
-accepted        → Accept            → ✅（全流程完成）
-blocked         → (当前阶段)        → 🚫
+accepted        → Accept            → ✅ (all stages complete)
+blocked         → (current stage)   → 🚫
 ```
 
-**阶段完成推断规则**：
-- 如果当前状态是 `implementing`，则 `Design` 阶段为 ✅
-- 如果当前状态是 `reviewing`，则 `Design` + `Implement` 为 ✅
-- 依此类推：当前阶段之前的所有阶段标记为 ✅
+**Stage completion inference rules**:
+- If current status is `implementing`, then `Design` stage is ✅
+- If current status is `reviewing`, then `Design` + `Implement` are ✅
+- And so on: all stages before the current stage are marked ✅
 
 ### API / Interface
 
-**agent-switch SKILL.md 新增章节**：
+**New section in agent-switch SKILL.md**:
 
 ```markdown
-### 流水线可视化
+### Pipeline Visualization
 
-在 `/agent status` 输出中，为每个活跃任务展示 ASCII 流水线：
+In `/agent status` output, display an ASCII pipeline for each active task:
 
-#### 渲染规则
-1. 从 task-board.json 读取所有非 `accepted` 且非 `created` 的任务
-2. 对每个任务，根据 status 确定当前阶段
-3. 当前阶段标记 ⏳ + ◀──当前
-4. 之前的阶段标记 ✅
-5. 之后的阶段标记 ⏸️
-6. blocked 状态在对应阶段标记 🚫
+#### Rendering Rules
+1. Read all tasks from task-board.json that are not `accepted` or `created`
+2. For each task, determine current stage from status
+3. Mark current stage with ⏳ + ◀──current
+4. Mark previous stages with ✅
+5. Mark subsequent stages with ⏸️
+6. Mark blocked status with 🚫 at the corresponding stage
 
-#### 输出格式
-每个任务占 4 行：
-- 第 1 行：任务 ID + 标题
-- 第 2 行：前 3 个阶段（Design → Implement → Review）
-- 第 3 行：对应状态图标
-- 第 4 行：后 2 个阶段（Test → Accept）+ 状态图标
+#### Output Format
+Each task occupies 4 lines:
+- Line 1: Task ID + title
+- Line 2: First 3 stages (Design → Implement → Review)
+- Line 3: Corresponding status icons
+- Line 4: Last 2 stages (Test → Accept) + status icons
 ```
 
-**紧凑模式**（任务 > 5 个时自动切换）：
+**Compact mode** (auto-switches when tasks > 5):
 
 ```
-T-008: 自动记忆捕获   [📐✅──🔨⏳──🔍⏸️──🧪⏸️──✅⏸️]
-T-009: 智能记忆加载   [📐⏳──🔨⏸️──🔍⏸️──🧪⏸️──✅⏸️]
+T-008: Auto Memory Capture [📐✅──🔨⏳──🔍⏸️──🧪⏸️──✅⏸️]
+T-009: Smart Memory Loading [📐⏳──🔨⏸️──🔍⏸️──🧪⏸️──✅⏸️]
 ```
 
 ### Implementation Steps
 
-1. **定义阶段常量和映射**：
-   - 在 `skills/agent-switch/SKILL.md` 中定义 5 阶段名称、emoji、FSM 状态映射
-   - 定义状态图标（✅⏳⏸️🚫❌）
+1. **Define stage constants and mapping**:
+   - Define 5 stage names, emoji, and FSM status mapping in `skills/agent-switch/SKILL.md`
+   - Define status icons (✅⏳⏸️🚫❌)
 
-2. **设计渲染逻辑**：
-   - 在 `/agent status` 的说明中新增"流水线可视化"章节
-   - 描述渲染算法：读取任务列表 → 过滤活跃任务 → 计算每个阶段状态 → 输出 ASCII
+2. **Design rendering logic**:
+   - Add "Pipeline Visualization" section to the `/agent status` instructions
+   - Describe rendering algorithm: read task list → filter active tasks → compute each stage status → output ASCII
 
-3. **实现标准模式渲染**：
-   - 每个任务 4 行输出
-   - 阶段间用 `──→` 连接
-   - 当前阶段追加 `◀──当前` 标记
+3. **Implement standard mode rendering**:
+   - 4 lines per task
+   - Stages connected with `──→`
+   - Current stage appended with `◀──current` marker
 
-4. **实现紧凑模式渲染**：
-   - 任务数 > 5 时自动切换
-   - 每个任务单行：`[📐✅──🔨⏳──🔍⏸️──🧪⏸️──✅⏸️]`
+4. **Implement compact mode rendering**:
+   - Auto-switches when task count > 5
+   - Single line per task: `[📐✅──🔨⏳──🔍⏸️──🧪⏸️──✅⏸️]`
 
-5. **处理特殊状态**：
-   - `blocked`: 在对应阶段位置显示 🚫，并附加 blocked_reason
-   - `accepted`: 全部 ✅，标注"已完成"
-   - `created`: 不进入流水线展示（或标注"待启动"）
+5. **Handle special states**:
+   - `blocked`: Show 🚫 at the corresponding stage, append blocked_reason
+   - `accepted`: All ✅, marked as "completed"
+   - `created`: Not shown in pipeline (or marked as "pending start")
 
-6. **更新 `skills/agent-switch/SKILL.md`**：
-   - 在"查看所有 Agent 状态"操作中集成流水线输出
-   - 添加完整的渲染规则和示例输出
+6. **Update `skills/agent-switch/SKILL.md`**:
+   - Integrate pipeline output into "View all Agent status" operation
+   - Add complete rendering rules and example output
 
-7. **已完成任务的展示策略**：
-   - `accepted` 状态的任务默认折叠，仅显示一行摘要
-   - 可通过 `/agent status --all` 展开全部
+7. **Completed task display strategy**:
+   - `accepted` tasks collapsed by default, showing only a one-line summary
+   - Expandable via `/agent status --all`
 
 ## Test Spec
 
-### 单元测试
+### Unit Tests
 
-| # | 测试场景 | 预期结果 |
-|---|---------|---------|
-| 1 | 单个任务处于 `implementing` | 流水线显示 Design✅, Implement⏳, Review⏸️, Test⏸️, Accept⏸️ |
-| 2 | 单个任务处于 `reviewing` | Design✅, Implement✅, Review⏳, Test⏸️, Accept⏸️ |
-| 3 | 任务处于 `blocked`（从 implementing） | Design✅, Implement🚫, Review⏸️, Test⏸️, Accept⏸️ |
-| 4 | 任务已 `accepted` | 全部 ✅ |
-| 5 | 任务为 `created` | 不出现在流水线中（或标注"待启动"） |
+| # | Test Scenario | Expected Result |
+|---|--------------|-----------------|
+| 1 | Single task at `implementing` | Pipeline shows Design✅, Implement⏳, Review⏸️, Test⏸️, Accept⏸️ |
+| 2 | Single task at `reviewing` | Design✅, Implement✅, Review⏳, Test⏸️, Accept⏸️ |
+| 3 | Task at `blocked` (from implementing) | Design✅, Implement🚫, Review⏸️, Test⏸️, Accept⏸️ |
+| 4 | Task is `accepted` | All ✅ |
+| 5 | Task is `created` | Not shown in pipeline (or marked "pending start") |
 
-### 集成测试
+### Integration Tests
 
-| # | 测试场景 | 预期结果 |
-|---|---------|---------|
-| 6 | 3 个活跃任务在不同阶段 | 各自独立的流水线行，标准模式 |
-| 7 | 6 个活跃任务 | 自动切换紧凑模式，每任务一行 |
-| 8 | `/agent status` 整体输出 | 流水线在 Agent 列表之后展示，格式正确无错位 |
+| # | Test Scenario | Expected Result |
+|---|--------------|-----------------|
+| 6 | 3 active tasks at different stages | Independent pipeline lines for each, standard mode |
+| 7 | 6 active tasks | Auto-switches to compact mode, one line per task |
+| 8 | `/agent status` full output | Pipeline shown after Agent list, properly formatted |
 
-### 验收标准
+### Acceptance Criteria
 
-- [ ] G1: `/agent status` 包含 ASCII 流水线图，显示 5 阶段和当前位置
-- [ ] G2: 每个任务显示阶段名、emoji、状态图标（✅/⏳/⏸️）
-- [ ] G3: 多个活跃任务各有独立流水线行
-- [ ] G4: agent-switch SKILL.md 包含流水线可视化规范
+- [ ] G1: `/agent status` includes ASCII pipeline showing 5 stages and current position
+- [ ] G2: Each task displays stage name, emoji, status icon (✅/⏳/⏸️)
+- [ ] G3: Multiple active tasks each have independent pipeline lines
+- [ ] G4: agent-switch SKILL.md contains pipeline visualization spec
 
 ## Consequences
 
-**正面**：
-- 项目进度一目了然，无需查看 JSON 文件
-- 紧凑模式确保大量任务时仍可读
-- Emoji + ASCII 在各种终端都能正常显示
+**Positive**:
+- Project progress visible at a glance, no need to inspect JSON files
+- Compact mode keeps readability with many tasks
+- Emoji + ASCII displays correctly across various terminals
 
-**负面/风险**：
-- 终端宽度不足时可能换行导致错位
-- Emoji 在不同终端的宽度可能不一致
+**Negative/Risks**:
+- Narrow terminal width may cause line wrapping and misalignment
+- Emoji width may vary across different terminals
 
-**后续影响**：
-- 为未来的 Web Dashboard 提供数据模型参考
+**Future Impact**:
+- Provides data model reference for a future Web Dashboard

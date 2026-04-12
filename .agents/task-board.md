@@ -1,8 +1,8 @@
-# 📋 项目任务表
+# 📋 Project Task Board
 
-> 自动生成, 请勿手动编辑。
+> Auto-generated, do not edit manually.
 
-| ID | 标题 | 状态 | 负责 | 优先级 | 更新时间 |
-|----|------|------|------|--------|---------|
+| ID | Title | Status | Owner | Priority | Updated |
+|----|-------|--------|-------|----------|---------|
 
-_暂无任务_
+_No tasks_

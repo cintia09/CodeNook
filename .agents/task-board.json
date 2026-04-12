@@ -229,7 +229,7 @@
     {
       "id": "T-008",
       "title": "Automatic memory capture on stage transitions",
-      "description": "Agent 完成阶段(FSM 状态转移)时自动保存记忆快照，无需手动调用。从本轮工作中提取：关键决策、修改的文件、遇到的问题、交接要点。",
+      "description": "Automatically save a memory snapshot when an agent completes a stage (FSM state transition), no manual invocation needed. Extract from the current work: key decisions, modified files, issues encountered, and handoff notes.",
       "status": "accepted",
       "priority": "high",
       "assigned_to": null,
@@ -264,7 +264,7 @@
     {
       "id": "T-009",
       "title": "Smart memory loading by downstream agent role",
-      "description": "下游 Agent 启动时只加载它需要的记忆字段，按角色差异化。减少 token 消耗，增加有效信息密度。",
+      "description": "When a downstream agent starts, load only the memory fields it needs, differentiated by role. Reduces token consumption and increases effective information density.",
       "status": "accepted",
       "priority": "high",
       "assigned_to": null,
@@ -308,7 +308,7 @@
     {
       "id": "T-010",
       "title": "ASCII pipeline visualization in agent status",
-      "description": "/agent status 输出包含 ASCII 流水线图，展示每个任务当前在哪个阶段，哪些已完成。",
+      "description": "/agent status output includes an ASCII pipeline diagram showing which stage each task is currently in and which are completed.",
       "status": "accepted",
       "priority": "high",
       "assigned_to": null,
@@ -352,7 +352,7 @@
     {
       "id": "T-011",
       "title": "Enhance implementer with TDD discipline and verification loop",
-      "description": "融合 ECC 最佳实践到 agent-implementer：严格 TDD 红绿重构 + git checkpoint + 80% 覆盖率门槛 + 构建增量修复 + 提交前 verification loop",
+      "description": "Integrate ECC best practices into agent-implementer: strict TDD red-green-refactor + git checkpoint + 80% coverage threshold + incremental build fixes + pre-commit verification loop",
       "status": "accepted",
       "priority": "high",
       "assigned_to": null,
@@ -391,7 +391,7 @@
     {
       "id": "T-012",
       "title": "Enhance reviewer with structured severity and security checklist",
-      "description": "融合 ECC 审查实践到 agent-reviewer：置信度过滤 + CRITICAL/HIGH/MEDIUM/LOW 严重级别 + OWASP Top 10 安全清单 + 代码质量阈值",
+      "description": "Integrate ECC review practices into agent-reviewer: confidence filtering + CRITICAL/HIGH/MEDIUM/LOW severity levels + OWASP Top 10 security checklist + code quality thresholds",
       "status": "accepted",
       "priority": "high",
       "assigned_to": null,
@@ -435,7 +435,7 @@
     {
       "id": "T-013",
       "title": "Enhance tester with coverage analysis and flaky detection",
-      "description": "融合 ECC 测试实践到 agent-tester：覆盖率分析 + flaky 检测隔离 + E2E POM 模式 + 失败截图",
+      "description": "Integrate ECC testing practices into agent-tester: coverage analysis + flaky test detection and isolation + E2E Page Object Model pattern + failure screenshots",
       "status": "accepted",
       "priority": "high",
       "assigned_to": null,
@@ -474,7 +474,7 @@
     {
       "id": "T-014",
       "title": "Add ADR format to designer and user story format to acceptor",
-      "description": "设计者增加 ADR 格式（决策+替代方案+理由），验收者增加用户旅程格式（As a... I want... so that...）",
+      "description": "Add ADR format (decision + alternatives + rationale) to designer, and add user story format (As a... I want... so that...) to acceptor",
       "status": "accepted",
       "priority": "medium",
       "assigned_to": null,
@@ -513,7 +513,7 @@
     {
       "id": "T-015",
       "title": "Project-level living documents maintained by each agent",
-      "description": "项目级活文档体系：docs/ 下维护 6 个项目级文档（需求/设计/测试/实现/审阅/验收），每个 Agent 在完成任务后更新自己负责的文档，追加本次任务的内容，反映项目整体最新状态。",
+      "description": "Project-level living documentation system: maintain 6 project-level documents under docs/ (requirements/design/testing/implementation/review/acceptance). Each agent updates its responsible document after completing a task, appending the current task content to reflect the overall latest project state.",
       "status": "accepted",
       "priority": "high",
       "assigned_to": null,
@@ -565,7 +565,7 @@
     {
       "id": "T-016",
       "title": "Structured messaging with types, replay, and priority",
-      "description": "MSG-1+MSG-2+MSG-3: 结构化消息类型(type/severity/file/line) + 消息链路回放(/inbox --history) + 优先级(urgent/normal/info)",
+      "description": "MSG-1+MSG-2+MSG-3: Structured message types (type/severity/file/line) + message chain replay (/inbox --history) + priority levels (urgent/normal/info)",
       "status": "accepted",
       "priority": "high",
       "assigned_to": "implementer",
@@ -592,7 +592,7 @@
     {
       "id": "T-017",
       "title": "Cycle time metrics and enhanced staleness detection",
-      "description": "F-2+F-3: 每阶段停留时间 + 平均 cycle time + 按阶段差异化超时提醒",
+      "description": "F-2+F-3: Per-stage dwell time + average cycle time + stage-differentiated staleness timeout alerts",
       "status": "accepted",
       "priority": "high",
       "assigned_to": "implementer",
@@ -619,7 +619,7 @@
     {
       "id": "T-018",
       "title": "Enhanced task board with grouping, stats, and progress",
-      "description": "B-1+B-2+B-3: 看板分组视图 + 项目统计面板 + 任务进度追踪",
+      "description": "B-1+B-2+B-3: Kanban grouped view + project statistics panel + task progress tracking",
       "status": "accepted",
       "priority": "high",
       "assigned_to": "implementer",
@@ -646,7 +646,7 @@
     {
       "id": "T-019",
       "title": "Project-level memory for cross-task knowledge",
-      "description": "M-3: 项目级记忆 — project-memory.json 存储跨任务的技术栈决策和架构约定",
+      "description": "M-3: Project-level memory — project-memory.json stores cross-task tech stack decisions and architecture conventions",
       "status": "accepted",
       "priority": "medium",
       "assigned_to": "implementer",
@@ -668,7 +668,7 @@
     {
       "id": "T-020",
       "title": "One-line install script with conflict detection",
-      "description": "I-1: curl | bash 安装脚本，检测冲突+备份+安装后验证",
+      "description": "I-1: curl | bash install script with conflict detection + backup + post-install verification",
       "status": "accepted",
       "priority": "high",
       "assigned_to": "implementer",
@@ -695,7 +695,7 @@
     {
       "id": "T-021",
       "title": "Version management with CHANGELOG",
-      "description": "I-2: VERSION 文件 + CHANGELOG.md + 当前 v1.0.0",
+      "description": "I-2: VERSION file + CHANGELOG.md + current v1.0.0",
       "status": "accepted",
       "priority": "medium",
       "assigned_to": "implementer",
@@ -717,7 +717,7 @@
     {
       "id": "T-022",
       "title": "Community contribution guides",
-      "description": "I-3: CONTRIBUTING.md + PR/Issue 模板",
+      "description": "I-3: CONTRIBUTING.md + PR/Issue templates",
       "status": "accepted",
       "priority": "medium",
       "assigned_to": "implementer",
@@ -744,7 +744,7 @@
     {
       "id": "T-023",
       "title": "Core pipeline test suite",
-      "description": "I-4: 测试套件 — FSM 转移、看板 CRUD、消息投递、记忆快照",
+      "description": "I-4: Test suite — FSM transitions, kanban CRUD, message delivery, memory snapshots",
       "status": "accepted",
       "priority": "medium",
       "assigned_to": "implementer",
@@ -1142,7 +1142,7 @@
     {
       "id": "T-038",
       "title": "Inject ask-next-step rule in agent-init",
-      "description": "When agent-init initializes a project, inject into the project guidance file: '你的每一次回复最后都需要询问我的下一步计划，下一步计划的内容需要和当前 agent 的角色一致'. Ensures every agent response ends with a role-appropriate next-step question.",
+      "description": "When agent-init initializes a project, inject into the project guidance file: 'At the end of every response, you must ask about the user's next step, and the next-step options must be consistent with the current agent role'. Ensures every agent response ends with a role-appropriate next-step question.",
       "status": "accepted",
       "priority": "high",
       "created_at": "2026-04-11T07:20:43.331226+00:00",
@@ -1354,7 +1354,7 @@
     {
       "id": "T-043",
       "title": "Worktree prompt in acceptor workflow",
-      "description": "When acceptor receives a new feature request, ask user: '是否在新的 worktree 中进行？' If yes, create worktree via agent-worktree skill before task creation.",
+      "description": "When acceptor receives a new feature request, ask user: 'Would you like to work in a new worktree?' If yes, create worktree via agent-worktree skill before task creation.",
       "status": "accepted",
       "priority": "medium",
       "created_at": "2026-04-11T07:20:43.331226+00:00",
@@ -1388,7 +1388,7 @@
     {
       "id": "T-044",
       "title": "Role mismatch detection + switch prompt",
-      "description": "When user asks current agent to do something outside its scope, detect the mismatch and prompt: '这个任务更适合 <target-role>，是否切换？' If user confirms, auto-switch. All agents need this detection.",
+      "description": "When user asks current agent to do something outside its scope, detect the mismatch and prompt: 'This task is better suited for <target-role>, would you like to switch?' If user confirms, auto-switch. All agents need this detection.",
       "status": "accepted",
       "priority": "medium",
       "created_at": "2026-04-11T07:20:43.331226+00:00",

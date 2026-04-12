@@ -1,27 +1,27 @@
-# 代码审查报告: T-013
+# Code Review Report: T-013
 
-## 审查范围
-变更文件: 1 个 (`skills/agent-tester/SKILL.md`), +73 / -0 行 (估算)
+## Review Scope
+Changed Files: 1 (`skills/agent-tester/SKILL.md`), +73 / -0 lines (estimated)
 
-## 结论: ✅ 通过
+## Conclusion: ✅ Approved
 
-## Goals 实现检查
-| Goal | 描述 | 实现状态 | 备注 |
-|------|------|----------|------|
-| G1 | 覆盖率分析工作流: 检测框架→运行覆盖率→解析报告→识别未覆盖高优先级区域 | ✅ | L305-327: 完整 4 步工作流 + 框架检测列表 (Jest/Vitest/pytest/cargo/go) + 优先级排序 (业务逻辑>错误处理>边界>分支) + 覆盖率目标 (整体≥80%, 核心≥90%, 新代码 100%) |
-| G2 | Flaky 检测: 重跑 3-5 次，标记 flaky，用 test.fixme() 隔离 | ✅ | L329-351: 检测方法 (重跑 3~5 次) + 常见原因表 (竞态/超时/时间依赖/动画/共享状态) + 处理流程 (不计入失败统计, 记录到 issues.json) |
-| G3 | E2E 测试: POM 模式, data-testid 选择器, 截图/视频, Playwright 最佳实践 | ✅ | L353-375: TypeScript 代码示例展示 POM + data-testid, 选择器优先级, 等待策略, 失败处理 (截图+视频+trace), 浏览器覆盖建议 |
+## Goals Implementation Check
+| Goal | Description | Implementation Status | Notes |
+|------|-------------|-----------------------|-------|
+| G1 | Coverage analysis workflow: detect framework → run coverage → parse report → identify uncovered high-priority areas | ✅ | L305-327: Complete 4-step workflow + framework detection list (Jest/Vitest/pytest/cargo/go) + priority sorting (business logic > error handling > boundaries > branches) + coverage targets (overall ≥80%, core ≥90%, new code 100%) |
+| G2 | Flaky detection: rerun 3-5 times, mark flaky, isolate with test.fixme() | ✅ | L329-351: Detection method (rerun 3~5 times) + common causes table (race conditions / timeouts / time dependencies / animations / shared state) + handling process (excluded from failure statistics, recorded in issues.json) |
+| G3 | E2E testing: POM pattern, data-testid selectors, screenshots/video, Playwright best practices | ✅ | L353-375: TypeScript code example demonstrating POM + data-testid, selector priority, wait strategies, failure handling (screenshots + video + trace), browser coverage recommendations |
 
-## 问题列表
-无实质性问题。
+## Issues
+No substantive issues.
 
-## 优点
-- 覆盖率目标分层合理: 核心 ≥90%, 整体 ≥80%, UI 允许较低
-- Flaky 常见原因表具有实操指导价值，每个原因配修复方式
-- flaky 测试用 `test.fixme('flaky: [原因]')` 隔离但不删除，保留了测试价值
-- POM 代码示例直观，TypeScript 风格符合现代 E2E 测试实践
-- 选择器优先级 (`data-testid > role > text > 绝不用 CSS class`) 实用
-- 覆盖率检测支持 5 种主流框架/语言生态
+## Strengths
+- Coverage targets are reasonably tiered: core ≥90%, overall ≥80%, UI allowed lower
+- Flaky common causes table has practical guidance value, each cause paired with a fix approach
+- Flaky tests isolated with `test.fixme('flaky: [reason]')` without deletion, preserving test value
+- POM code example is intuitive, TypeScript style aligns with modern E2E testing practices
+- Selector priority (`data-testid > role > text > never use CSS class`) is practical
+- Coverage detection supports 5 mainstream frameworks/language ecosystems
 
-## 总体评价
-三个子功能均为高质量实现。覆盖率分析与 T-011 Implementer 的 80% 门槛呼应，Flaky 检测填补了测试稳定性管理的空白，E2E 部分提供了可直接复用的代码模式。无需修改。
+## Overall Assessment
+All three sub-features are high-quality implementations. Coverage analysis aligns with T-011 Implementer's 80% threshold, flaky detection fills the gap in test stability management, and the E2E section provides directly reusable code patterns. No modifications needed.

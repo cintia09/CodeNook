@@ -1,60 +1,61 @@
-# T-012: 增强 Reviewer 的结构化严重级别和安全清单
+# T-012: Enhance Reviewer Structured Severity Levels and Security Checklist
 
 ## Context
 
-当前 `agent-reviewer SKILL.md` 定义了基本的审查流程和报告模板，但缺乏：
-1. **严重级别分类**：所有问题不分轻重，无法区分阻塞性 bug 和建议性改进
-2. **安全审查清单**：没有系统化的安全检查项，容易遗漏 OWASP Top 10 类问题
-3. **代码质量阈值**：没有明确的量化标准（函数长度、文件大小、嵌套深度等）
-4. **置信度过滤**：所有发现都报告，包括低置信度的风格问题，降低信噪比
+The current `agent-reviewer SKILL.md` defines basic review process and report template, but lacks:
+1. **Severity classification**: All issues treated equally, cannot distinguish blocking bugs from suggested improvements
+2. **Security review checklist**: No systematic security checks, easy to miss OWASP Top 10 issues
+3. **Code quality thresholds**: No explicit quantitative standards (function length, file size, nesting depth, etc.)
+4. **Confidence filtering**: All findings reported including low-confidence style issues, reducing signal-to-noise ratio
 
 ## Decision
 
-增强 `agent-reviewer SKILL.md`，新增四个核心能力：结构化严重级别 + 安全清单 + 质量阈值 + 置信度过滤。
+Enhance `agent-reviewer SKILL.md` with four core capabilities: structured severity levels + security checklist + quality thresholds + confidence filtering.
 
 ## Alternatives Considered
 
-| 方案 | 优点 | 缺点 | 决定 |
-|------|------|------|------|
-| **A: SKILL.md 增强 + 审查模板升级（选中）** | 与现有框架一致，可增量采用 | 依赖 Agent 遵守 | ✅ 选中 |
-| **B: 集成 SonarQube/CodeClimate** | 自动化检测 | 需要外部服务，增加部署复杂度 | ❌ 外部依赖 |
-| **C: 自定义 lint 规则** | 硬性约束 | 每种语言需要单独配置，维护成本高 | ❌ 维护负担 |
-| **D: 仅升级审查模板** | 简单 | 没有结构化的决策框架 | ❌ 不够系统化 |
+| Option | Pros | Cons | Decision |
+|--------|------|------|----------|
+| **A: SKILL.md enhancement + report template upgrade (selected)** | Consistent with existing framework, incremental adoption | Relies on Agent compliance | ✅ Selected |
+| **B: Integrate SonarQube/CodeClimate** | Automated detection | Requires external service, increases deployment complexity | ❌ External dependency |
+| **C: Custom lint rules** | Hard constraints | Separate config per language, high maintenance cost | ❌ Maintenance burden |
+| **D: Only upgrade report template** | Simple | No structured decision framework | ❌ Not systematic enough |
 
 ## Design
 
 ### Architecture
 
 ```
-Reviewer 增强后的审查流程：
+Enhanced Reviewer Review Process:
 
 ┌─────────────────────────────────────────────┐
-│  审查输入：files_modified + diff             │
+│  Review input: files_modified + diff         │
 └──────────────────┬──────────────────────────┘
                    ▼
 ┌─────────────────────────────────────────────┐
-│  Step 1: 安全审查清单 🔒                      │
-│  逐项检查 OWASP Top 10 + 常见安全问题          │
+│  Step 1: Security Review Checklist 🔒        │
+│  Check each OWASP Top 10 + common issues     │
 └──────────────────┬──────────────────────────┘
                    ▼
 ┌─────────────────────────────────────────────┐
-│  Step 2: 代码质量阈值检查 📏                   │
-│  函数长度 / 文件大小 / 嵌套深度 / TODO         │
+│  Step 2: Code Quality Threshold Check 📏     │
+│  Function length / file size / nesting / TODO│
 └──────────────────┬──────────────────────────┘
                    ▼
 ┌─────────────────────────────────────────────┐
-│  Step 3: 逻辑/架构审查 🧠                     │
-│  正确性、边界条件、错误处理、性能               │
+│  Step 3: Logic/Architecture Review 🧠        │
+│  Correctness, edge cases, error handling,    │
+│  performance                                 │
 └──────────────────┬──────────────────────────┘
                    ▼
 ┌─────────────────────────────────────────────┐
-│  Step 4: 置信度过滤 🎯                        │
-│  仅保留置信度 >= 80% 的发现                    │
-│  丢弃风格/格式类噪声                           │
+│  Step 4: Confidence Filtering 🎯             │
+│  Keep only findings with confidence >= 80%   │
+│  Discard style/formatting noise              │
 └──────────────────┬──────────────────────────┘
                    ▼
 ┌─────────────────────────────────────────────┐
-│  Step 5: 严重级别分类 + 审批决策               │
+│  Step 5: Severity Classification + Decision  │
 │  CRITICAL → BLOCK                           │
 │  HIGH → REQUEST_CHANGES                     │
 │  MEDIUM/LOW → APPROVE with notes            │
@@ -63,81 +64,81 @@ Reviewer 增强后的审查流程：
 
 ### Data Model
 
-**严重级别定义**：
+**Severity level definitions**:
 
-| 级别 | 描述 | 审批动作 | 示例 |
-|------|------|---------|------|
-| 🔴 CRITICAL | 安全漏洞、数据丢失、系统崩溃 | **BLOCK** — 禁止通过 | SQL 注入、硬编码密钥、未处理的 null 导致崩溃 |
-| 🟠 HIGH | 逻辑错误、性能问题、缺少关键错误处理 | **REQUEST_CHANGES** — 必须修复 | 竞态条件、N+1 查询、未验证用户输入 |
-| 🟡 MEDIUM | 可维护性问题、非关键 bug、缺少测试 | **APPROVE with notes** — 建议修复 | 函数过长、缺少边界测试、魔法数字 |
-| 🔵 LOW | 小改进、文档完善 | **APPROVE with notes** — 可选修复 | 变量命名不佳、缺少注释、import 顺序 |
+| Level | Description | Approval Action | Examples |
+|-------|------------|----------------|----------|
+| 🔴 CRITICAL | Security vulnerability, data loss, system crash | **BLOCK** — must not pass | SQL injection, hardcoded secrets, unhandled null causing crash |
+| 🟠 HIGH | Logic error, performance issue, missing critical error handling | **REQUEST_CHANGES** — must fix | Race condition, N+1 query, unvalidated user input |
+| 🟡 MEDIUM | Maintainability issue, non-critical bug, missing tests | **APPROVE with notes** — should fix | Function too long, missing boundary test, magic numbers |
+| 🔵 LOW | Minor improvement, documentation | **APPROVE with notes** — optional fix | Poor variable naming, missing comments, import order |
 
-**审批决策规则**：
-- 存在任何 CRITICAL → **BLOCK**（整体审查结果为 BLOCK）
-- 存在 HIGH（无 CRITICAL）→ **REQUEST_CHANGES**
-- 仅 MEDIUM + LOW → **APPROVE with notes**
-- 无发现 → **APPROVE**
+**Approval decision rules**:
+- Any CRITICAL present → **BLOCK** (overall review result is BLOCK)
+- HIGH present (no CRITICAL) → **REQUEST_CHANGES**
+- Only MEDIUM + LOW → **APPROVE with notes**
+- No findings → **APPROVE**
 
-**安全审查清单**：
+**Security review checklist**:
 
 ```markdown
-| # | 检查项 | 风险 | 检查方法 |
-|---|--------|------|---------|
-| 1 | 硬编码密钥/密码 | CRITICAL | grep 敏感模式: password=, secret=, api_key=, token= |
-| 2 | SQL 注入 | CRITICAL | 检查 SQL 拼接，是否使用参数化查询 |
-| 3 | XSS（跨站脚本） | HIGH | 检查用户输入是否转义后再渲染 |
-| 4 | CSRF（跨站请求伪造） | HIGH | 检查表单/API 是否有 CSRF token |
-| 5 | 路径遍历 | HIGH | 检查文件路径是否过滤 ../ 和绝对路径 |
-| 6 | 认证绕过 | CRITICAL | 检查 API 端点是否有 auth 中间件 |
-| 7 | 不安全依赖 | MEDIUM | 检查 npm audit / pip audit 结果 |
-| 8 | 日志泄露敏感信息 | MEDIUM | 检查 log/console 是否输出密码、token |
+| # | Check Item | Risk | Check Method |
+|---|-----------|------|-------------|
+| 1 | Hardcoded secrets/passwords | CRITICAL | grep sensitive patterns: password=, secret=, api_key=, token= |
+| 2 | SQL injection | CRITICAL | Check for SQL concatenation, verify parameterized queries |
+| 3 | XSS (Cross-Site Scripting) | HIGH | Check if user input is escaped before rendering |
+| 4 | CSRF (Cross-Site Request Forgery) | HIGH | Check forms/APIs for CSRF token |
+| 5 | Path traversal | HIGH | Check file paths for ../ and absolute path filtering |
+| 6 | Auth bypass | CRITICAL | Check API endpoints for auth middleware |
+| 7 | Insecure dependencies | MEDIUM | Check npm audit / pip audit results |
+| 8 | Sensitive data in logs | MEDIUM | Check log/console for passwords, tokens |
 ```
 
-**代码质量阈值**：
+**Code quality thresholds**:
 
 ```markdown
-| 指标 | 阈值 | 级别 |
-|------|------|------|
-| 函数/方法行数 | > 50 行 | MEDIUM — 建议拆分 |
-| 文件行数 | > 800 行 | MEDIUM — 建议拆分 |
-| 嵌套深度 | > 4 层 | MEDIUM — 建议提前返回/提取函数 |
-| 圈复杂度 | > 15 | HIGH — 必须拆分 |
-| console.log/print 调试语句 | 存在 | LOW — 清理 |
-| TODO/FIXME 无 ticket | 存在 | LOW — 关联 issue 或移除 |
-| 重复代码块 | > 10 行重复 | MEDIUM — 提取公共函数 |
+| Metric | Threshold | Level |
+|--------|----------|-------|
+| Function/method lines | > 50 lines | MEDIUM — suggest splitting |
+| File lines | > 800 lines | MEDIUM — suggest splitting |
+| Nesting depth | > 4 levels | MEDIUM — suggest early return/extract function |
+| Cyclomatic complexity | > 15 | HIGH — must split |
+| console.log/print debug statements | Present | LOW — clean up |
+| TODO/FIXME without ticket | Present | LOW — link to issue or remove |
+| Duplicate code blocks | > 10 lines duplicated | MEDIUM — extract shared function |
 ```
 
 ### API / Interface
 
-**增强后的审查报告模板**：
+**Enhanced review report template**:
 
 ```markdown
 # Code Review Report — T-NNN
 
-## 审查概要
-- **审查者**: Reviewer Agent
-- **审查日期**: YYYY-MM-DD
-- **文件数**: N
-- **发现总数**: N (CRITICAL: X, HIGH: Y, MEDIUM: Z, LOW: W)
-- **审批决策**: APPROVE / REQUEST_CHANGES / BLOCK
+## Review Summary
+- **Reviewer**: Reviewer Agent
+- **Review Date**: YYYY-MM-DD
+- **Files**: N
+- **Total Findings**: N (CRITICAL: X, HIGH: Y, MEDIUM: Z, LOW: W)
+- **Approval Decision**: APPROVE / REQUEST_CHANGES / BLOCK
 
-## 🔒 安全审查
-| # | 检查项 | 结果 | 备注 |
-|---|--------|------|------|
-| 1 | 硬编码密钥 | ✅ 通过 | — |
-| 2 | SQL 注入 | ✅ 通过 | 使用参数化查询 |
+## 🔒 Security Review
+| # | Check Item | Result | Notes |
+|---|-----------|--------|-------|
+| 1 | Hardcoded secrets | ✅ Pass | — |
+| 2 | SQL injection | ✅ Pass | Uses parameterized queries |
 | ... | ... | ... | ... |
 
-## 📋 发现列表
+## 📋 Findings
 
 ### 🔴 CRITICAL
-（无）
+(None)
 
 ### 🟠 HIGH
-1. **[HIGH] 未验证用户输入** (confidence: 95%)
-   - 文件: `src/api/handler.ts:42`
-   - 描述: 用户输入直接传入 SQL 查询
-   - 建议: 使用参数化查询
+1. **[HIGH] Unvalidated user input** (confidence: 95%)
+   - File: `src/api/handler.ts:42`
+   - Description: User input passed directly to SQL query
+   - Suggestion: Use parameterized queries
 
 ### 🟡 MEDIUM
 ...
@@ -145,91 +146,91 @@ Reviewer 增强后的审查流程：
 ### 🔵 LOW
 ...
 
-## 📏 代码质量
-| 指标 | 状态 | 详情 |
-|------|------|------|
-| 函数长度 | ⚠️ | `processData()` 72 行，建议拆分 |
-| 文件大小 | ✅ | 最大文件 320 行 |
-| 嵌套深度 | ✅ | 最大 3 层 |
+## 📏 Code Quality
+| Metric | Status | Details |
+|--------|--------|---------|
+| Function length | ⚠️ | `processData()` 72 lines, suggest splitting |
+| File size | ✅ | Largest file 320 lines |
+| Nesting depth | ✅ | Max 3 levels |
 
-## 结论
-[审批决策和总结说明]
+## Conclusion
+[Approval decision and summary]
 ```
 
 ### Implementation Steps
 
-1. **更新 `skills/agent-reviewer/SKILL.md` — 严重级别章节**：
-   - 定义 CRITICAL/HIGH/MEDIUM/LOW 四级分类
-   - 定义每个级别的审批动作（BLOCK/REQUEST_CHANGES/APPROVE with notes）
-   - 提供每个级别的典型示例
+1. **Update `skills/agent-reviewer/SKILL.md` — Severity levels**:
+   - Define CRITICAL/HIGH/MEDIUM/LOW four-tier classification
+   - Define approval action for each level (BLOCK/REQUEST_CHANGES/APPROVE with notes)
+   - Provide typical examples for each level
 
-2. **新增安全审查清单章节**：
-   - 定义 8 项安全检查（硬编码密钥、SQL 注入、XSS、CSRF、路径遍历、认证绕过、不安全依赖、日志泄露）
-   - 每项包含风险级别和检查方法
-   - 标注为"每次审查必须执行"
+2. **Add security review checklist section**:
+   - Define 8 security checks (hardcoded secrets, SQL injection, XSS, CSRF, path traversal, auth bypass, insecure deps, log leakage)
+   - Each includes risk level and check method
+   - Marked as "must execute on every review"
 
-3. **新增代码质量阈值章节**：
-   - 定义 7 项量化指标（函数行数、文件行数、嵌套深度、圈复杂度、调试语句、TODO、重复代码）
-   - 每项包含阈值和对应严重级别
+3. **Add code quality thresholds section**:
+   - Define 7 quantitative metrics (function lines, file lines, nesting depth, cyclomatic complexity, debug statements, TODOs, duplicate code)
+   - Each includes threshold and corresponding severity level
 
-4. **新增置信度过滤规则**：
-   - 定义：仅报告置信度 >= 80% 的发现
-   - 排除：纯风格/格式问题（空格、括号位置、import 顺序）
-   - 每个发现必须标注置信度百分比
+4. **Add confidence filtering rules**:
+   - Rule: Only report findings with confidence >= 80%
+   - Exclude: Pure style/formatting issues (whitespace, bracket placement, import order)
+   - Each finding must include confidence percentage
 
-5. **升级审查报告模板**：
-   - 新增审查概要（发现统计 + 审批决策）
-   - 新增安全审查结果表
-   - 按严重级别分组展示发现
-   - 每个发现包含：级别、置信度、文件位置、描述、建议
-   - 新增代码质量表
+5. **Upgrade review report template**:
+   - Add review summary (finding statistics + approval decision)
+   - Add security review results table
+   - Group findings by severity level
+   - Each finding includes: level, confidence, file location, description, suggestion
+   - Add code quality table
 
-6. **更新审查流程**：
-   - 在现有 8 步审查流程中集成安全清单（作为必选步骤）
-   - 在最终报告前增加置信度过滤步骤
-   - 在审批决策中增加级别聚合逻辑
+6. **Update review process**:
+   - Integrate security checklist into existing 8-step review process (as mandatory step)
+   - Add confidence filtering step before final report
+   - Add severity aggregation logic to approval decision
 
 ## Test Spec
 
-### 单元测试
+### Unit Tests
 
-| # | 测试场景 | 预期结果 |
-|---|---------|---------|
-| 1 | SKILL.md 包含四级严重级别定义 | CRITICAL/HIGH/MEDIUM/LOW 均有定义和示例 |
-| 2 | SKILL.md 包含安全清单 | 8 项安全检查均存在 |
-| 3 | SKILL.md 包含代码质量阈值 | 7 项阈值均存在 |
-| 4 | SKILL.md 包含置信度过滤规则 | >= 80% 阈值明确定义 |
-| 5 | 审查报告模板包含严重级别分组 | 模板包含 CRITICAL/HIGH/MEDIUM/LOW 分节 |
+| # | Test Scenario | Expected Result |
+|---|--------------|-----------------|
+| 1 | SKILL.md contains four severity levels | CRITICAL/HIGH/MEDIUM/LOW all defined with examples |
+| 2 | SKILL.md contains security checklist | All 8 security checks present |
+| 3 | SKILL.md contains code quality thresholds | All 7 thresholds present |
+| 4 | SKILL.md contains confidence filtering rules | >= 80% threshold clearly defined |
+| 5 | Review report template has severity grouping | Template has CRITICAL/HIGH/MEDIUM/LOW sections |
 
-### 集成测试
+### Integration Tests
 
-| # | 测试场景 | 预期结果 |
-|---|---------|---------|
-| 6 | 审查发现 CRITICAL 问题 | 审批决策为 BLOCK |
-| 7 | 审查仅发现 MEDIUM 问题 | 审批决策为 APPROVE with notes |
-| 8 | 发现置信度 60% 的风格问题 | 被过滤，不出现在报告中 |
-| 9 | 函数 > 50 行 | 报告中出现 MEDIUM 级别的质量警告 |
+| # | Test Scenario | Expected Result |
+|---|--------------|-----------------|
+| 6 | Review finds CRITICAL issue | Approval decision is BLOCK |
+| 7 | Review finds only MEDIUM issues | Approval decision is APPROVE with notes |
+| 8 | Finding with 60% confidence on style issue | Filtered out, not in report |
+| 9 | Function > 50 lines | MEDIUM quality warning in report |
 
-### 验收标准
+### Acceptance Criteria
 
-- [ ] G1: 严重级别（CRITICAL/HIGH/MEDIUM/LOW）定义完整，审批规则明确
-- [ ] G2: 安全清单包含 8 项检查（secrets, injection, XSS, CSRF, path traversal, auth bypass, deps, logs）
-- [ ] G3: 代码质量阈值包含 7 项指标
-- [ ] G4: 置信度 >= 80% 过滤规则明确定义
+- [ ] G1: Severity levels (CRITICAL/HIGH/MEDIUM/LOW) fully defined with clear approval rules
+- [ ] G2: Security checklist covers 8 checks (secrets, injection, XSS, CSRF, path traversal, auth bypass, deps, logs)
+- [ ] G3: Code quality thresholds include 7 metrics
+- [ ] G4: Confidence >= 80% filtering rule clearly defined
 
 ## Consequences
 
-**正面**：
-- 审查报告信噪比大幅提升，CRITICAL 问题优先处理
-- 安全审查系统化，不再遗漏常见漏洞
-- 代码质量有量化标准，可追踪改进趋势
-- 置信度过滤减少无意义的审查来回
+**Positive**:
+- Review report signal-to-noise ratio significantly improved; CRITICAL issues prioritized
+- Security review systematized, common vulnerabilities no longer missed
+- Code quality has quantitative standards, improvement trends trackable
+- Confidence filtering reduces meaningless review back-and-forth
 
-**负面/风险**：
-- 严格的安全清单可能增加审查时间
-- 阈值可能需要根据项目类型调整（如 UI 文件通常较长）
-- 置信度判断依赖 Agent 主观评估
+**Negative/Risks**:
+- Strict security checklist may increase review time
+- Thresholds may need adjustment for project type (e.g., UI files are typically longer)
+- Confidence judgment relies on Agent's subjective assessment
 
-**后续影响**：
-- T-013 Tester 可以根据 CRITICAL/HIGH 发现优先测试对应区域
-- 审查报告的结构化数据可用于项目级质量分析
+**Future Impact**:
+- T-013 Tester can prioritize testing areas corresponding to CRITICAL/HIGH findings
+- Structured review report data can be used for project-level quality analysis

@@ -1,321 +1,321 @@
 ---
 name: agent-docs
-description: "文档流水线 — 标准化阶段性文档模板、输入/输出矩阵、FSM 文档门禁"
+description: "Document Pipeline — Standardized phase document templates, input/output matrix, FSM document gate"
 ---
 
 # Agent Document Pipeline
 
-> 每个 SDLC 阶段必须产出标准化文档，作为下一阶段的输入。文档是 Agent 间协作的正式交付物。
+> Each SDLC phase must produce standardized documents as input for the next phase. Documents are the formal deliverables for inter-agent collaboration.
 
-## 文档流转矩阵
+## Document Flow Matrix
 
-| 阶段 | Agent | 输入文档 | 输出文档 |
-|------|-------|---------|---------|
-| 需求定义 | Acceptor | (用户需求) | `requirements.md` + `acceptance-criteria.md` |
-| 架构设计 | Designer | requirements.md | `design.md` |
-| 编码实现 | Implementer | requirements.md + design.md | `implementation.md` |
-| 代码审查 | Reviewer | requirements.md + design.md + implementation.md | `review-report.md` |
-| 测试验证 | Tester | requirements.md + design.md + implementation.md | `test-report.md` |
-| 验收 | Acceptor | acceptance-criteria.md + 全部文档 | Accept / Reject |
+| Phase | Agent | Input Documents | Output Documents |
+|-------|-------|----------------|-----------------|
+| Requirements | Acceptor | (User requirements) | `requirements.md` + `acceptance-criteria.md` |
+| Architecture Design | Designer | requirements.md | `design.md` |
+| Implementation | Implementer | requirements.md + design.md | `implementation.md` |
+| Code Review | Reviewer | requirements.md + design.md + implementation.md | `review-report.md` |
+| Test Verification | Tester | requirements.md + design.md + implementation.md | `test-report.md` |
+| Acceptance | Acceptor | acceptance-criteria.md + all documents | Accept / Reject |
 
-## 文档存储
+## Document Storage
 
-所有文档按任务 ID 存放：
+All documents are stored by task ID:
 
 ```
 .agents/docs/T-XXX/
-  requirements.md          ← Acceptor 产出
-  acceptance-criteria.md   ← Acceptor 产出
-  design.md                ← Designer 产出
-  implementation.md        ← Implementer 产出
-  review-report.md         ← Reviewer 产出
-  test-report.md           ← Tester 产出
+  requirements.md          ← Acceptor output
+  acceptance-criteria.md   ← Acceptor output
+  design.md                ← Designer output
+  implementation.md        ← Implementer output
+  review-report.md         ← Reviewer output
+  test-report.md           ← Tester output
 ```
 
-## Agent 启动流程
+## Agent Startup Process
 
-切换到任何 Agent 时，**必须**：
+When switching to any Agent, you **must**:
 
-1. 确认当前任务 ID（从 task-board 读取）
-2. 检查 `.agents/docs/T-XXX/` 下的输入文档是否存在
-3. 如果输入文档存在 → **先阅读全部输入文档**，再开始工作
-4. 如果输入文档缺失 → 提醒用户需先完成前序阶段
-5. 工作完成后，**必须**创建本阶段的输出文档
+1. Confirm the current task ID (read from task-board)
+2. Check whether input documents exist under `.agents/docs/T-XXX/`
+3. If input documents exist → **read all input documents first**, then begin work
+4. If input documents are missing → remind user to complete the preceding phase
+5. After work is complete, **must** create this phase's output documents
 
-## FSM 过渡文档门禁
+## FSM Transition Document Gate
 
-状态转换前，检查当前阶段的输出文档是否已创建：
+Before state transitions, check whether the current phase's output documents have been created:
 
-| 转换 | 必须存在的文档 |
-|------|--------------|
+| Transition | Required Documents |
+|------------|-------------------|
 | `created → designing` | `requirements.md` + `acceptance-criteria.md` |
 | `designing → implementing` | `design.md` |
 | `implementing → reviewing` | `implementation.md` |
 | `reviewing → testing` | `review-report.md` |
 | `testing → accepting` | `test-report.md` |
-| `accepting → accepted` | (验收者确认所有目标通过) |
-| `reviewing → implementing` (打回) | `review-report.md`（含问题列表）|
-| `testing → fixing` (发现问题) | `test-report.md`（含失败用例）|
+| `accepting → accepted` | (Acceptor confirms all goals pass) |
+| `reviewing → implementing` (rejected) | `review-report.md` (with issue list) |
+| `testing → fixing` (issues found) | `test-report.md` (with failed test cases) |
 
-> **门禁模式** 由 `task-board.json` 顶层字段 `"doc_gate_mode"` 控制：
+> **Gate mode** is controlled by the `"doc_gate_mode"` top-level field in `task-board.json`:
 >
-> | 模式 | 行为 |
-> |------|------|
-> | `"warn"` (默认) | ⚠️ 输出警告，不阻止转换。AI Agent 应自动补齐 |
-> | `"strict"` | ⛔ 阻止转换，`LEGAL=false`。必须先写好文档才能推进 |
+> | Mode | Behavior |
+> |------|----------|
+> | `"warn"` (default) | ⚠️ Output warning, do not block transition. AI Agent should auto-complete documents |
+> | `"strict"` | ⛔ Block transition, `LEGAL=false`. Documents must be written before proceeding |
 >
-> 配置方法：在 `task-board.json` 中添加 `"doc_gate_mode": "strict"`
+> Configuration: Add `"doc_gate_mode": "strict"` to `task-board.json`
 
 ---
 
-## 文档模板
+## Document Templates
 
-### 1. 需求文档 (`requirements.md`)
+### 1. Requirements Document (`requirements.md`)
 
 ```markdown
-# 需求文档: T-XXX — {任务标题}
+# Requirements Document: T-XXX — {Task Title}
 
-## 1. 背景与目标
-{为什么需要这个功能/修复，解决什么问题}
+## 1. Background and Goals
+{Why this feature/fix is needed, what problem it solves}
 
-## 2. 功能需求
-### 2.1 核心功能
-- [ ] {功能点 1}
-- [ ] {功能点 2}
+## 2. Functional Requirements
+### 2.1 Core Features
+- [ ] {Feature 1}
+- [ ] {Feature 2}
 
-### 2.2 约束条件
-- {技术约束、兼容性要求、性能要求等}
+### 2.2 Constraints
+- {Technical constraints, compatibility requirements, performance requirements, etc.}
 
-## 3. 非功能需求
-- **性能**: {响应时间、吞吐量等}
-- **安全**: {权限、数据保护等}
-- **兼容性**: {平台、浏览器、API 版本等}
+## 3. Non-Functional Requirements
+- **Performance**: {Response time, throughput, etc.}
+- **Security**: {Permissions, data protection, etc.}
+- **Compatibility**: {Platforms, browsers, API versions, etc.}
 
-## 4. 范围
-### 包含
-- {明确包含的功能}
+## 4. Scope
+### Included
+- {Explicitly included features}
 
-### 不包含
-- {明确排除的功能}
+### Excluded
+- {Explicitly excluded features}
 
-## 5. 依赖
-- {外部依赖、前置条件}
+## 5. Dependencies
+- {External dependencies, prerequisites}
 
 ---
-*由 Acceptor 创建于 {日期}*
+*Created by Acceptor on {date}*
 ```
 
-### 2. 验收标准文档 (`acceptance-criteria.md`)
+### 2. Acceptance Criteria Document (`acceptance-criteria.md`)
 
 ```markdown
-# 验收标准: T-XXX — {任务标题}
+# Acceptance Criteria: T-XXX — {Task Title}
 
-## 验收条件
+## Acceptance Conditions
 
-### AC-1: {验收条件标题}
-- **给定**: {前置条件}
-- **当**: {操作步骤}
-- **那么**: {预期结果}
+### AC-1: {Acceptance Condition Title}
+- **Given**: {Preconditions}
+- **When**: {Action steps}
+- **Then**: {Expected result}
 
-### AC-2: {验收条件标题}
-- **给定**: {前置条件}
-- **当**: {操作步骤}
-- **那么**: {预期结果}
+### AC-2: {Acceptance Condition Title}
+- **Given**: {Preconditions}
+- **When**: {Action steps}
+- **Then**: {Expected result}
 
-## 验收方式
-- [ ] 功能验证: {如何验证功能正确}
-- [ ] 边界测试: {极端情况测试}
-- [ ] 回归确认: {不影响现有功能}
+## Verification Methods
+- [ ] Functional verification: {How to verify correctness}
+- [ ] Boundary testing: {Edge case testing}
+- [ ] Regression confirmation: {No impact on existing features}
 
-## 不接受条件
-- {明确不接受的情况，如崩溃、数据丢失等}
+## Rejection Conditions
+- {Explicitly unacceptable situations, e.g., crashes, data loss}
 
 ---
-*由 Acceptor 创建于 {日期}*
+*Created by Acceptor on {date}*
 ```
 
-### 3. 设计文档 (`design.md`)
+### 3. Design Document (`design.md`)
 
 ```markdown
-# 设计文档: T-XXX — {任务标题}
+# Design Document: T-XXX — {Task Title}
 
-## 1. 需求分析
-{对 requirements.md 的理解和补充分析}
+## 1. Requirements Analysis
+{Understanding and supplementary analysis of requirements.md}
 
-## 2. 技术方案
+## 2. Technical Solution
 
-### 2.1 架构设计
-{整体架构、模块划分、数据流}
+### 2.1 Architecture Design
+{Overall architecture, module breakdown, data flow}
 
-### 2.2 接口设计
-{API 接口、函数签名、数据结构}
+### 2.2 Interface Design
+{API interfaces, function signatures, data structures}
 
-### 2.3 数据模型
-{数据库表、JSON 结构等}
+### 2.3 Data Model
+{Database tables, JSON structures, etc.}
 
-## 3. 实现策略
-- **方案选择**: {选择了什么方案，为什么}
-- **备选方案**: {考虑过但放弃的方案，原因}
+## 3. Implementation Strategy
+- **Chosen approach**: {What approach was chosen and why}
+- **Alternatives considered**: {Approaches considered but rejected, with reasons}
 
-## 4. 影响范围
-- **新增文件**: {列出要新增的文件}
-- **修改文件**: {列出要修改的文件}
-- **风险点**: {可能的风险和缓解措施}
+## 4. Impact Scope
+- **New files**: {List of files to add}
+- **Modified files**: {List of files to modify}
+- **Risk points**: {Potential risks and mitigations}
 
-## 5. 测试建议
-- {建议的测试用例方向}
-- {需要覆盖的边界情况}
+## 5. Testing Recommendations
+- {Suggested test case directions}
+- {Boundary cases to cover}
 
 ---
-*由 Designer 创建于 {日期} | 基于 requirements.md*
+*Created by Designer on {date} | Based on requirements.md*
 ```
 
-### 4. 实现文档 (`implementation.md`)
+### 4. Implementation Document (`implementation.md`)
 
 ```markdown
-# 实现文档: T-XXX — {任务标题}
+# Implementation Document: T-XXX — {Task Title}
 
-## 1. 实现概述
-{实现了什么，采用了什么方法}
+## 1. Implementation Overview
+{What was implemented and what approach was used}
 
-## 2. 变更列表
+## 2. Change List
 
-### 新增文件
-| 文件 | 用途 |
-|------|------|
-| {path} | {说明} |
-
-### 修改文件
-| 文件 | 变更内容 |
+### New Files
+| File | Purpose |
 |------|---------|
-| {path} | {说明} |
+| {path} | {description} |
 
-## 3. 关键实现细节
-{核心逻辑、算法、设计模式等}
-
-## 4. 与设计文档的偏差
-{如果有与 design.md 不一致的地方，说明原因}
-
-## 5. 测试覆盖
-- **单元测试**: {新增/修改的测试文件}
-- **自测结果**: {本地运行结果}
-
-## 6. 已知限制
-- {目前已知的限制或待优化项}
-
----
-*由 Implementer 创建于 {日期} | 基于 design.md + requirements.md*
-```
-
-### 5. 审查报告 (`review-report.md`)
-
-```markdown
-# 审查报告: T-XXX — {任务标题}
-
-## 1. 审查范围
-- **审查文件数**: {N}
-- **审查基于**: requirements.md + design.md + implementation.md
-
-## 2. 审查结论: {✅ 通过 / ❌ 打回 / ⚠️ 有条件通过}
-
-## 3. 问题列表
-
-### 🔴 必须修复 (Blockers)
-| # | 文件 | 行号 | 问题 | 严重性 |
-|---|------|------|------|--------|
-| 1 | {path} | {line} | {描述} | HIGH |
-
-### 🟡 建议修复 (Suggestions)
-| # | 文件 | 行号 | 问题 | 严重性 |
-|---|------|------|------|--------|
-| 1 | {path} | {line} | {描述} | MEDIUM |
-
-### 🟢 可选优化 (Nice-to-have)
-- {建议}
-
-## 4. 质量评估
-- **代码质量**: ⭐⭐⭐⭐☆
-- **测试覆盖**: ⭐⭐⭐⭐☆
-- **设计符合度**: ⭐⭐⭐⭐☆
-- **安全性**: ⭐⭐⭐⭐⭐
-
-## 5. 与设计文档一致性
-{实现是否符合 design.md 的设计方案}
-
----
-*由 Reviewer 创建于 {日期} | 基于 requirements.md + design.md + implementation.md*
-```
-
-### 6. 测试报告 (`test-report.md`)
-
-```markdown
-# 测试报告: T-XXX — {任务标题}
-
-## 1. 测试范围
-- **测试基于**: requirements.md + design.md + implementation.md
-- **验收标准参考**: acceptance-criteria.md
-
-## 2. 测试结论: {✅ 全部通过 / ❌ 有失败 / ⚠️ 部分通过}
-
-## 3. 测试用例结果
-
-| # | 用例名称 | 类型 | 预期结果 | 实际结果 | 状态 |
-|---|---------|------|---------|---------|------|
-| 1 | {名称} | 功能/边界/异常 | {预期} | {实际} | ✅/❌ |
-
-## 4. 失败用例详情
-### TC-{N}: {用例名称}
-- **复现步骤**: {步骤}
-- **预期**: {预期结果}
-- **实际**: {实际结果}
-- **截图/日志**: {如有}
-
-## 5. 覆盖率
-- **需求覆盖**: {X}/{Y} 个需求点已测试
-- **验收条件覆盖**: {X}/{Y} 个 AC 已验证
-- **代码覆盖**: {如有覆盖率数据}
-
-## 6. 风险评估
-- {未覆盖的测试点}
-- {发现的非阻塞问题}
-
----
-*由 Tester 创建于 {日期} | 基于 requirements.md + design.md + implementation.md*
-```
-
----
-
-## 3-Phase 模式扩展
-
-3-Phase 模式下，文档更加细化：
-
-| 阶段 | 输出文档 |
+### Modified Files
+| File | Changes |
 |------|---------|
+| {path} | {description} |
+
+## 3. Key Implementation Details
+{Core logic, algorithms, design patterns, etc.}
+
+## 4. Deviations from Design Document
+{Any inconsistencies with design.md, with explanations}
+
+## 5. Test Coverage
+- **Unit tests**: {New/modified test files}
+- **Self-test results**: {Local run results}
+
+## 6. Known Limitations
+- {Known limitations or items to optimize}
+
+---
+*Created by Implementer on {date} | Based on design.md + requirements.md*
+```
+
+### 5. Review Report (`review-report.md`)
+
+```markdown
+# Review Report: T-XXX — {Task Title}
+
+## 1. Review Scope
+- **Files reviewed**: {N}
+- **Review based on**: requirements.md + design.md + implementation.md
+
+## 2. Review Conclusion: {✅ Passed / ❌ Rejected / ⚠️ Conditionally Passed}
+
+## 3. Issue List
+
+### 🔴 Must Fix (Blockers)
+| # | File | Line | Issue | Severity |
+|---|------|------|-------|----------|
+| 1 | {path} | {line} | {description} | HIGH |
+
+### 🟡 Suggested Fixes (Suggestions)
+| # | File | Line | Issue | Severity |
+|---|------|------|-------|----------|
+| 1 | {path} | {line} | {description} | MEDIUM |
+
+### 🟢 Optional Improvements (Nice-to-have)
+- {suggestion}
+
+## 4. Quality Assessment
+- **Code quality**: ⭐⭐⭐⭐☆
+- **Test coverage**: ⭐⭐⭐⭐☆
+- **Design compliance**: ⭐⭐⭐⭐☆
+- **Security**: ⭐⭐⭐⭐⭐
+
+## 5. Design Document Consistency
+{Whether implementation conforms to the design.md approach}
+
+---
+*Created by Reviewer on {date} | Based on requirements.md + design.md + implementation.md*
+```
+
+### 6. Test Report (`test-report.md`)
+
+```markdown
+# Test Report: T-XXX — {Task Title}
+
+## 1. Test Scope
+- **Tests based on**: requirements.md + design.md + implementation.md
+- **Acceptance criteria reference**: acceptance-criteria.md
+
+## 2. Test Conclusion: {✅ All Passed / ❌ Failures Found / ⚠️ Partially Passed}
+
+## 3. Test Case Results
+
+| # | Case Name | Type | Expected Result | Actual Result | Status |
+|---|-----------|------|----------------|---------------|--------|
+| 1 | {name} | Functional/Boundary/Exception | {expected} | {actual} | ✅/❌ |
+
+## 4. Failed Case Details
+### TC-{N}: {Case Name}
+- **Reproduction steps**: {steps}
+- **Expected**: {expected result}
+- **Actual**: {actual result}
+- **Screenshots/logs**: {if any}
+
+## 5. Coverage
+- **Requirements coverage**: {X}/{Y} requirements tested
+- **Acceptance criteria coverage**: {X}/{Y} ACs verified
+- **Code coverage**: {if coverage data available}
+
+## 6. Risk Assessment
+- {Untested areas}
+- {Non-blocking issues found}
+
+---
+*Created by Tester on {date} | Based on requirements.md + design.md + implementation.md*
+```
+
+---
+
+## 3-Phase Mode Extension
+
+In 3-Phase mode, documents are more granular:
+
+| Phase | Output Documents |
+|-------|-----------------|
 | requirements | `requirements.md` + `acceptance-criteria.md` |
-| architecture | `design.md` (§2.1 架构部分) |
-| tdd_design | `design.md` (§5 测试建议 → 完整测试设计) |
-| dfmea | `design.md` (附录: DFMEA 风险分析) |
-| design_review | `review-report.md` (设计审查版) |
+| architecture | `design.md` (§2.1 Architecture section) |
+| tdd_design | `design.md` (§5 Testing Recommendations → full test design) |
+| dfmea | `design.md` (Appendix: DFMEA risk analysis) |
+| design_review | `review-report.md` (design review version) |
 | implementing | `implementation.md` |
-| code_reviewing | `review-report.md` (代码审查版) |
-| ci_monitoring | `test-report.md` (CI 报告部分) |
-| device_baseline | `test-report.md` (设备基线部分) |
-| regression_testing | `test-report.md` (回归测试部分) |
-| feature_testing | `test-report.md` (功能测试部分) |
-| log_analysis | `test-report.md` (日志分析部分) |
-| documentation | `implementation.md` (更新最终版本) |
+| code_reviewing | `review-report.md` (code review version) |
+| ci_monitoring | `test-report.md` (CI report section) |
+| device_baseline | `test-report.md` (device baseline section) |
+| regression_testing | `test-report.md` (regression testing section) |
+| feature_testing | `test-report.md` (feature testing section) |
+| log_analysis | `test-report.md` (log analysis section) |
+| documentation | `implementation.md` (updated final version) |
 
 ---
 
-## 命令支持
+## Command Support
 
-AI Agent 可以使用以下命令管理文档：
+AI Agents can use the following commands to manage documents:
 
 ```bash
-# 列出任务的所有文档
+# List all documents for a task
 ls .agents/docs/T-XXX/
 
-# 检查文档完整性
+# Check document completeness
 for doc in requirements.md acceptance-criteria.md design.md implementation.md review-report.md test-report.md; do
   [ -f ".agents/docs/T-XXX/$doc" ] && echo "✅ $doc" || echo "❌ $doc (missing)"
 done

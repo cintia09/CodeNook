@@ -1,35 +1,35 @@
-# 设计审查报告: T-015
+# Design Review Report: T-015
 
-## 审查范围
-- 设计文档: T-015-living-documents.md
-- Goals 数量: 5
+## Review Scope
+- Design Document: T-015-living-documents.md
+- Number of Goals: 5
 
-## 结论: ✅ 设计通过
+## Conclusion: ✅ Design Approved
 
-## Goals 覆盖检查
-| Goal | 描述 | 覆盖状态 |
-|------|------|----------|
-| G1 | 6 个活文档模板定义（含标准结构和 Changelog） | ✅ 已覆盖 — Template Specs 逐一定义了 6 个模板的初始内容和追加章节模板，每个都含 Changelog 表 |
-| G2 | 5 个 Agent SKILL.md 更新（追加活文档步骤） | ✅ 已覆盖 — Implementation Steps 3-7 对每个 Agent 分别定义了流程插入位置、追加逻辑和"活文档维护规则"章节 |
-| G3 | 累积式追加（## T-NNN: title，不覆盖已有内容） | ✅ 已覆盖 — Data Model "累积规则"明确定义了追加到末尾、`---` 分隔、修订版本号等规则 |
-| G4 | Tester 写入前读取 requirement.md + design.md | ✅ 已覆盖 — Implementation Step 5 替换了 Tester 流程 A 的读取步骤，优先从活文档获取输入 |
-| G5 | agent-init 创建初始模板（不覆盖已有） | ✅ 已覆盖 — Implementation Step 2 定义了 `[ ! -f docs/xxx.md ]` 的条件创建逻辑 |
+## Goals Coverage Check
+| Goal | Description | Coverage Status |
+|------|-------------|-----------------|
+| G1 | 6 living document template definitions (with standard structure and Changelog) | ✅ Covered — Template Specs define initial content and appended section templates for each of the 6 templates, each containing a Changelog table |
+| G2 | 5 Agent SKILL.md updates (appending living document steps) | ✅ Covered — Implementation Steps 3-7 define the process insertion point, append logic, and "Living Document Maintenance Rules" section for each Agent |
+| G3 | Cumulative appending (## T-NNN: title, without overwriting existing content) | ✅ Covered — Data Model "Cumulative Rules" explicitly defines rules for appending at the end, `---` separators, revision version numbers, etc. |
+| G4 | Tester reads requirement.md + design.md before writing | ✅ Covered — Implementation Step 5 replaces the Tester's Process A read step, prioritizing input from living documents |
+| G5 | agent-init creates initial templates (without overwriting existing ones) | ✅ Covered — Implementation Step 2 defines the `[ ! -f docs/xxx.md ]` conditional creation logic |
 
-## 问题列表
-| # | 严重性 | 描述 | 建议 |
-|---|--------|------|------|
-| 1 | LOW | 活文档随任务数增长会变长（设计中已用摘要限制每章节 30-50 行来缓解） | 设计中的 Consequences 已提及归档方案（按年份归档），当前可接受 |
-| 2 | LOW | "请勿手动编辑"的约束无硬性保障，人类用户可能误编辑 | 可考虑在 verify-init.sh 中增加格式验证（检查 ## T-NNN 章节标题格式），作为后续优化项 |
-| 3 | LOW | 文档中 Acceptor 同时维护 requirement.md 和 acceptance.md 两个文档，职责较重 | 两个文档分别在流程 A 和流程 B 的不同时机写入，实际并不冲突，可接受 |
+## Issues
+| # | Severity | Description | Recommendation |
+|---|----------|-------------|----------------|
+| 1 | LOW | Living documents grow longer as the number of tasks increases (mitigated in the design by limiting each section to 30-50 lines with summaries) | The Consequences section in the design already mentions an archiving strategy (archive by year), currently acceptable |
+| 2 | LOW | The "do not edit manually" constraint has no hard enforcement; human users may accidentally edit | Consider adding format validation in verify-init.sh (checking ## T-NNN section heading format) as a future optimization |
+| 3 | LOW | The Acceptor maintains both requirement.md and acceptance.md, which is a heavier responsibility | The two documents are written at different stages in Process A and Process B respectively, so there is no actual conflict; acceptable |
 
-## 优点
-- 设计文档极其详尽——9 个实现步骤覆盖了所有涉及的文件和具体插入位置（精确到行号和步骤编号），实现者可直接执行
-- 6 个模板规格设计统一（标题 + 说明行 + 累积章节 + Changelog），结构优雅
-- 每个 Agent 的"活文档维护规则"章节提供了独立完整的操作指南
-- Tester 的"读取 → 写入"依赖链形成了跨 Agent 信息流闭环
-- verify-init.sh 更新确保初始化验证覆盖新增文件
-- 目标覆盖自查表展示了 T-014 ADR 格式的实践（设计自身也在遵循新标准）
-- 24 个测试用例（13 单元 + 11 集成）覆盖全面
+## Strengths
+- Design document is extremely detailed — 9 implementation steps cover all involved files and specific insertion points (down to line numbers and step numbers), enabling implementers to execute directly
+- 6 template specifications have a unified design (title + description line + cumulative sections + Changelog), with an elegant structure
+- Each Agent's "Living Document Maintenance Rules" section provides an independently complete operations guide
+- Tester's "read → write" dependency chain forms a cross-Agent information flow closed loop
+- verify-init.sh update ensures initialization verification covers newly added files
+- Goal coverage self-check table demonstrates the T-014 ADR format in practice (the design itself follows the new standard)
+- 24 test cases (13 unit + 11 integration) provide comprehensive coverage
 
-## 总体评价
-这是本批 8 个设计文档中最复杂也是最详尽的一份。5 个 Goal 全部覆盖，跨 6 个 SKILL.md 的变更清晰有序。活文档系统解决了知识碎片化的核心问题，累积式设计保证了项目历史的可追溯性。Implementation Steps 的精确程度堪称本批最佳。设计通过。
+## Overall Assessment
+This is the most complex and most detailed of the 8 design documents in this batch. All 5 Goals are fully covered, with clear and orderly changes across 6 SKILL.md files. The living document system addresses the core problem of knowledge fragmentation, and the cumulative design ensures project history traceability. The precision of the Implementation Steps is the best in this batch. Design approved.
