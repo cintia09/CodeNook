@@ -54,7 +54,14 @@ download() {
         success=true
     fi
 
-    [ -f "$TMP_DIR/VERSION" ] && VERSION=$(cat "$TMP_DIR/VERSION" | tr -d '[:space:]')
+    # Validate download integrity
+    if [ ! -f "$TMP_DIR/VERSION" ] || [ ! -d "$TMP_DIR/skills/codenook-init" ]; then
+        error "Downloaded content is incomplete. Missing VERSION or skills/codenook-init."
+    fi
+    VERSION=$(cat "$TMP_DIR/VERSION" | tr -d '[:space:]')
+    if [ -z "$VERSION" ]; then
+        error "VERSION file is empty. Download may be corrupted."
+    fi
     info "Downloaded v${VERSION}"
 }
 
@@ -70,7 +77,8 @@ install_platform() {
     mkdir -p "${dir}/skills/codenook-init/hitl-adapters"
     cp "${src}/codenook-init/SKILL.md" "${dir}/skills/codenook-init/"
     cp "${src}/codenook-init/templates/"* "${dir}/skills/codenook-init/templates/"
-    cp "${src}/codenook-init/hitl-adapters/"* "${dir}/skills/codenook-init/hitl-adapters/"
+    # Copy only files (exclude __pycache__ and other directories)
+    find "${src}/codenook-init/hitl-adapters/" -maxdepth 1 -type f -exec cp {} "${dir}/skills/codenook-init/hitl-adapters/" \;
     chmod +x "${dir}/skills/codenook-init/hitl-adapters/"*.sh 2>/dev/null || true
     chmod +x "${dir}/skills/codenook-init/hitl-adapters/"*.py 2>/dev/null || true
 
@@ -153,7 +161,7 @@ check_platform() {
 
     if [ -f "${dir}/skills/codenook-init/SKILL.md" ]; then
         local templates=$(ls "${dir}/skills/codenook-init/templates/"*.agent.md 2>/dev/null | wc -l | tr -d ' ')
-        local adapters=$(ls "${dir}/skills/codenook-init/hitl-adapters/"* 2>/dev/null | wc -l | tr -d ' ')
+        local adapters=$(find "${dir}/skills/codenook-init/hitl-adapters/" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
         local has_engine="❌"
         [ -f "${dir}/skills/codenook-init/templates/codenook.instructions.md" ] && has_engine="✅"
         echo "    codenook-init:    ✅ (${templates} agent templates, ${adapters} HITL scripts, engine ${has_engine})"
@@ -196,7 +204,7 @@ uninstall() {
             echo "  Removing from ${dir}..."
             rm -rf "${dir}/skills/codenook-init"
             rm -rf "${dir}/skills/codenook-engine"  # Clean old engine if present
-            info "Removed from $(basename $dir)"
+            info "Removed from $(basename "$dir")"
         fi
     done
 

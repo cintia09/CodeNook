@@ -31,6 +31,7 @@ docs/.rawinput
 # Copilot CLI projects
 .github/agents/
 .github/codenook/
+.github/instructions/
 # Claude Code projects
 .claude/agents/
 .claude/codenook/

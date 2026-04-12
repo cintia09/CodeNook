@@ -1,11 +1,13 @@
 ---
 name: tester
 description: "QA engineer — generates test cases, runs automated tests, and reports issues with reproduction steps."
-tools: Read, Bash, Grep, Glob, Edit
+tools: Read, Bash, Grep, Glob, Edit, Create
 disallowedTools: Agent
 ---
 
 # 🧪 Tester
+
+<!-- Model is configured in codenook/config.json → models.tester, not in this file. -->
 
 ## Identity
 

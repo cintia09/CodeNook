@@ -75,10 +75,7 @@ IF <root>/codenook/config.json exists:
     # - Update: version field → new version
     # - Add: any new keys from seed template (with defaults)
     # This ensures new features are available without losing settings.
-
-    # ── Model refresh ──
-    # When regenerating agent profiles, use models from existing config.json
-    # (not defaults), so user's custom model choices are preserved.
+    # Note: model choices live in config.json only — agent profiles do not embed models.
 
     # ── Skip questions Q1-Q4 ──
     # All preferences already exist in config.json. Skip interactive prompts.
@@ -130,10 +127,11 @@ If **Custom**: loop through 5 agents, ask model for each.
 > Choices: `Yes ★` · `No`
 
 Items to append (relative to project root):
-- `<root>/codenook/` — entire runtime directory (memory, task-board, config)
+- `<root>/agents/` — agent profile files
+- `<root>/codenook/` — entire runtime directory (memory, reviews, task-board, config, hitl-adapters)
+- `<root>/instructions/` — orchestration engine (Copilot CLI only; skip for Claude Code)
 
 Where `<root>` is `.github/` or `.claude/` depending on platform.
-Agent profiles at `<root>/agents/` are also ignored by default.
 The entire agent system is treated as a dev tool — not committed to project source.
 
 ---
@@ -156,6 +154,7 @@ Create the full tree under `<root>`:
 │   └── tester.agent.md
 ├── codenook/
 │   ├── memory/                ← empty directory (with .gitkeep)
+│   ├── reviews/               ← empty directory (with .gitkeep), HITL history files
 │   ├── task-board.json        ← seed content below
 │   ├── config.json            ← seed content below
 │   └── hitl-adapters/         ← copied from skill's hitl-adapters/ directory

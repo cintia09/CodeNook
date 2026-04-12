@@ -18,10 +18,12 @@ Features:
 """
 
 import http.server
+import html as _html
 import json
 import os
 import re as _re
 import sys
+import tempfile as _tempfile
 import urllib.parse
 from datetime import datetime
 from pathlib import Path
@@ -68,7 +70,12 @@ def read_history():
 
 
 def _extract_mermaid_blocks(md_text):
-    """Extract mermaid code blocks before markdown processing, replace with placeholders."""
+    """Extract mermaid code blocks before markdown processing, replace with placeholders.
+
+    Note: This uses a simple regex and will incorrectly match mermaid blocks nested
+    inside other code blocks (e.g., in Python strings). This is a known limitation.
+    Avoid placing ```mermaid inside other code fences in review documents.
+    """
     blocks = []
     def replace_mermaid(m):
         blocks.append(m.group(1))
@@ -230,7 +237,7 @@ def generate_page():
 
     status_badge = {
         "pending": '<span class="badge pending">⏳ Pending Review</span>',
-        "approved": '<span class="badge approved">✅ Approved</span>',
+        "approve": '<span class="badge approved">✅ Approved</span>',
         "feedback": '<span class="badge feedback">💬 Changes Requested</span>',
     }.get(current_status, '<span class="badge pending">⏳ Pending</span>')
 
@@ -240,26 +247,28 @@ def generate_page():
     for item in history:
         entry_by = item.get("by", "human")
         if entry_by == "agent":
-            # Agent response entry
-            agent_role = item.get("role", "agent")
+            agent_role = _html.escape(item.get("role", "agent"))
+            summary = _html.escape(item.get("summary", item.get("feedback", "Agent revised the document.")))
             history_html += f'''
         <div class="history-item agent-response">
             <div class="history-header">
                 <strong>🤖 {agent_role.upper()} RESPONSE</strong>
-                <span class="time">{item.get("at", "")}</span>
+                <span class="time">{_html.escape(item.get("at", ""))}</span>
             </div>
-            <p>{item.get("summary", item.get("feedback", "Agent revised the document."))}</p>
+            <p>{summary}</p>
         </div>'''
         else:
-            # Human feedback entry
-            decision_label = "✅ APPROVED" if item.get("decision") == "approved" else "💬 FEEDBACK"
+            decision = item.get("decision", "")
+            decision_label = "✅ APPROVED" if decision == "approve" else "💬 FEEDBACK"
+            css_class = "approved" if decision == "approve" else "feedback"
+            feedback_text = _html.escape(item.get("feedback", "")) if item.get("feedback") else ""
             history_html += f'''
-        <div class="history-item {'approved' if item.get('decision') == 'approved' else 'feedback'}">
+        <div class="history-item {css_class}">
             <div class="history-header">
                 <strong>👤 {decision_label}</strong>
-                <span class="time">{item.get("at", "")}</span>
+                <span class="time">{_html.escape(item.get("at", ""))}</span>
             </div>
-            {"<p>" + item.get("feedback", "") + "</p>" if item.get("feedback") else ""}
+            {"<p>" + feedback_text + "</p>" if feedback_text else ""}
         </div>'''
 
     return f'''<!DOCTYPE html>
@@ -337,20 +346,20 @@ def generate_page():
     {content_html}
   </div>
 
-  {"" if current_status == "approved" else f"""
+  {"" if current_status == "approve" else f"""
   <div class="feedback-form">
     <h2>💬 Your Feedback</h2>
     <form method="POST" action="/submit">
       <textarea name="feedback" placeholder="Enter your feedback here... (optional for approval, required for changes request)"></textarea>
       <div class="actions">
-        <button type="submit" name="decision" value="approved" class="btn-approve">✅ Approve</button>
+        <button type="submit" name="decision" value="approve" class="btn-approve">✅ Approve</button>
         <button type="submit" name="decision" value="feedback" class="btn-feedback">💬 Request Changes</button>
       </div>
     </form>
   </div>
   """}
 
-  {"<div class='result'>✅ Document approved. Agent can proceed.</div>" if current_status == "approved" else ""}
+  {"<div class='result'>✅ Document approved. Agent can proceed.</div>" if current_status == "approve" else ""}
 
   <div class="history">
     <h2>📋 Feedback History</h2>
@@ -409,17 +418,17 @@ class HITLHandler(http.server.BaseHTTPRequestHandler):
             "by": "human"
         }
 
-        # Write current decision (atomic: write temp file then rename)
-        tmp_feedback = FEEDBACK_FILE + ".tmp"
-        with open(tmp_feedback, "w") as f:
+        # Write current decision (atomic: unique temp file then rename)
+        fd, tmp_feedback = _tempfile.mkstemp(dir=FEEDBACK_DIR, prefix=".fb-", suffix=".tmp")
+        with os.fdopen(fd, 'w') as f:
             json.dump(entry, f, indent=2, ensure_ascii=False)
         os.rename(tmp_feedback, FEEDBACK_FILE)
 
-        # Append to history (atomic: write temp file then rename)
+        # Append to history (atomic: unique temp file then rename)
         history = read_history()
         history.append(entry)
-        tmp_history = HISTORY_FILE + ".tmp"
-        with open(tmp_history, "w") as f:
+        fd, tmp_history = _tempfile.mkstemp(dir=FEEDBACK_DIR, prefix=".hist-", suffix=".tmp")
+        with os.fdopen(fd, 'w') as f:
             json.dump(history, f, indent=2, ensure_ascii=False)
         os.rename(tmp_history, HISTORY_FILE)
 

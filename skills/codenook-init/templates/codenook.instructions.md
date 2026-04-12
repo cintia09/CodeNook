@@ -96,13 +96,24 @@ For each task, execute this loop:
 ```
 function orchestrate(task_id):
   task = read task-board.json → find task by id
+  config = read ${ROOT}/codenook/config.json
   HITL_DIR = ${ROOT}/codenook/hitl-adapters
+  REVIEWS_DIR = ${ROOT}/codenook/reviews
 
   while task.status != "done":
     route = ROUTING[task.status]
 
     if route has hitl:
       # ── HITL GATE (MANDATORY — DO NOT SKIP) ──
+      # Derive last_role and latest_artifact from current status:
+      #   e.g., "designing_done" → last_role = "designer", artifact = task.artifacts["designer"]
+      last_role = route.from_agent       # the agent whose output is being reviewed
+      latest_artifact = task.artifacts.get(last_role, "")
+
+      # Step 0: Verify HITL scripts exist
+      if not exists HITL_DIR/hitl-verify.sh:
+        report error "HITL scripts missing. Run codenook-init upgrade."; break
+
       # Step 1: Present output for human review
       adapter = detect_adapter()
       adapter.publish(task_id, last_role, latest_artifact)
@@ -123,8 +134,9 @@ function orchestrate(task_id):
       })
       save task-board.json
 
-      # Also write to HITL adapter history file (for local-html UI):
-      # Append same entry to <root>/codenook/reviews/<task_id>-<role>-history.json
+      # Also write to HITL history file for local-html UI display:
+      # The ORCHESTRATOR (not the adapter) writes this file.
+      # Append same entry to REVIEWS_DIR/<task_id>-<last_role>-history.json
 
       # Step 4: Verify HITL completion (programmatic enforcement)
       bash HITL_DIR/hitl-verify.sh <task_id> <task.status>
@@ -138,15 +150,29 @@ function orchestrate(task_id):
 
     # ── Agent Phase ──
     role = route.agent
-    memory   = load codenook/memory/<task_id>-<role>-memory.md (if exists)
+    memory   = load ${ROOT}/codenook/memory/<task_id>-<role>-memory.md (if exists)
     upstream = collect all upstream artifacts from task.artifacts
     feedback = pending feedback from previous HITL (if any)
     prompt   = build_context(task, role, memory, upstream, feedback)
 
     # Model resolution (priority: task override > config.json > platform default)
-    model = task.model_override or config.models[role] or None
-    result = task(agent_type=role, prompt=prompt, model=model)
-    # If agent fails: report to user, pause loop
+    # When model is None, the task() tool uses the platform's default model.
+    model = task.model_override or config.models.get(role) or None
+
+    # For reviewer: consider using "code-review" agent_type for platform-enhanced analysis
+    # (see Pre-Spawn Intelligence section below for details)
+    agent_type = role
+    result = task(agent_type=agent_type, prompt=prompt, model=model)
+
+    # If agent fails (crash, timeout, error):
+    # - Do NOT change task.status — keep it at current state
+    # - Report error to user via ask_user()
+    # - Offer choices: "Retry", "Retry with different model", "Skip to next phase"
+    # - Wait for user decision before continuing the loop
+    if result.failed:
+      user_choice = ask_user("Agent failed: " + result.error, ["Retry", "Retry with different model", "Skip"])
+      if user_choice == "Retry": continue
+      if user_choice == "Skip": task.status = route.next  # advance despite failure
 
     task.artifacts[role] = summary of result
     task.status = route.next
@@ -160,11 +186,11 @@ function orchestrate(task_id):
       "role": role,
       "by": "agent"
     })
-    # Also append to HITL adapter history file for local-html display:
-    # Append to <root>/codenook/reviews/<task_id>-<role>-history.json
+    # Also append to HITL history file for local-html display:
+    # Append to REVIEWS_DIR/<task_id>-<role>-history.json
 
     save task-board.json
-    save codenook/memory/<task_id>-<role>-memory.md
+    save ${ROOT}/codenook/memory/<task_id>-<role>-memory.md
     # Loop continues → next iteration hits HITL gate
 ```
 
@@ -177,7 +203,7 @@ To start: user says "run task T-XXX" or "orchestrate T-XXX".
 
 ## Memory Management
 
-Each phase writes a snapshot to `codenook/memory/<task_id>-<role>-memory.md`:
+Each phase writes a snapshot to `${ROOT}/codenook/memory/<task_id>-<role>-memory.md`:
 
 ```markdown
 # Memory — T-001 / designer
@@ -245,10 +271,14 @@ Before spawning ANY subagent, gather phase-specific context from the project:
    ```
    If found, include it in the reviewer's context as mandatory checklist items.
 
-2. **Platform Code-Review Agent** — the orchestrator SHOULD use `code-review`
-   as the `agent_type` when spawning the reviewer. This leverages the platform's
-   built-in code review capabilities (extremely high signal-to-noise ratio,
-   focused on bugs/security/logic). The reviewer profile is still loaded as context.
+2. **Platform Code-Review Agent** — the orchestrator MAY use `code-review`
+   as the `agent_type` when spawning the reviewer, instead of the custom `reviewer`.
+   This leverages the platform's built-in code review capabilities (extremely high
+   signal-to-noise ratio, focused on bugs/security/logic). The reviewer.agent.md
+   profile is still loaded as context in the prompt.
+   - Use `"code-review"` when: PR-style diff review, focus on bugs/security
+   - Use `"reviewer"` when: holistic review including architecture, documentation
+   - Default: `"code-review"` (can be overridden in config.json → `reviewer_agent_type`)
    ```
    result = task(agent_type="code-review", prompt=review_context)
    ```
