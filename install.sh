@@ -65,6 +65,11 @@ install_platform() {
 
     echo -e "  ${CYAN}${name}${NC} → ${dir}/skills/"
 
+    # Remove old skill names (pre-rename: agent-init, agent-orchestrator)
+    for old_name in agent-init agent-orchestrator; do
+        [ -d "${dir}/skills/${old_name}" ] && rm -rf "${dir}/skills/${old_name}" && echo "    🗑️ Removed old ${old_name}"
+    done
+
     # codenook-init (SKILL.md + templates/)
     mkdir -p "${dir}/skills/codenook-init/templates"
     cp "${src}/codenook-init/SKILL.md" "${dir}/skills/codenook-init/"
