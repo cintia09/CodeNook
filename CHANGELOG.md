@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - **Hook hard constraint**: `agent-pre-tool-use.sh` now blocks FSM transitions in `task-board.json` when `hitl.enabled: true` and no approved feedback file exists
 - **6 transitions enforced**: created→designing, designing→implementing, implementing→reviewing, reviewing→testing, testing→accepting, accepting→accepted
-- **All 5 agent skills** updated with `🔒 Hook 硬约束` notice
+- **All 5 agent skills** updated with `🔒 Hook hard constraint` notice
 - Backward transitions and property-only changes remain unrestricted
 - HITL disabled (`hitl.enabled: false`) skips all gate checks
 
@@ -128,19 +128,19 @@ All notable changes to this project will be documented in this file.
 
 **R2: Per-Agent Skill Isolation:**
 - All 5 `.agent.md` profiles now declare `skills:` allowlist in frontmatter
-- Each agent has explicit "Skill 权限" section with positive and negative constraints
+- Each agent has explicit "Skill permissions" section with positive and negative constraints
 - Shared skills (7): orchestrator, fsm, task-board, messaging, memory, switch, docs
 - Role-specific skills (11): config, init, acceptor, designer, implementer, reviewer, tester, events, hooks, hypothesis, teams
 
 **R1: Token Distribution Documentation Fix:**
-- `docs/llm-message-structure.md`: Corrected token pie chart from "18 Skills 全文 40%" to "Skills 摘要列表 1%"
+- `docs/llm-message-structure.md`: Corrected token pie chart from "18 Skills full text 40%" to "Skills summary list 1%"
 - Added explanation of two-level loading mechanism (summary ~1% + on-demand full text)
 - Updated ASCII packet structure to reflect summary-only skill injection
-- Corrected "关键洞察" section to describe two-level loading
+- Corrected "Key Insights" section to describe two-level loading
 
 **R4: Dual Installation Methods in README:**
-- "方式一: 一键安装" — `curl | bash` (script-driven)
-- "方式二: 提示安装" — Tell AI assistant to install from repo (AI-guided)
+- "Method 1: One-click Install" — `curl | bash` (script-driven)
+- "Method 2: Prompt-based Install" — Tell AI assistant to install from repo (AI-guided)
 - Added detailed manual install steps table (target directories per platform)
 - Updated skill count from 15 to 18
 
@@ -354,7 +354,7 @@ New tests: pre-tool-use agent boundaries (acceptor/implementer/reviewer), before
 
 ### 📖 README
 
-- Added "已知限制 & 常见问题" (Known Limitations & Troubleshooting) section
+- Added "Known Limitations & Troubleshooting" section
 
 ## [3.0.19] - 2026-04-09
 
@@ -428,7 +428,7 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 
 **Documentation:**
 - **README skill count** — badge updated 15→16, added `agent-config` to skills table
-- **Section anchor** — `#15-个-skills` → `#16-个-skills`
+- **Section anchor** — `#15-skills` → `#16-skills`
 
 ## [3.0.16] - 2026-04-09
 
@@ -601,7 +601,7 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 
 ### 📝 Documentation
 - Fix README lifecycle diagram: add missing `accepting → accept_fail → designing` path
-- Fix duplicate "Claude Code、Claude Code" → "Claude Code、GitHub Copilot"
+- Fix duplicate "Claude Code, Claude Code" → "Claude Code, GitHub Copilot"
 - Fix "15+ Hook" → "13 Hook" in skills table and roadmap
 - Fix staleness-check event type: SessionStart → PostToolUse (matches hooks.json)
 - Update docs/agent-rules.md with 3-Phase workflow rules
@@ -808,14 +808,14 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 ### Forced Natural Language Agent Switch
 - agent-switch SKILL.md: expanded description with 7 trigger patterns (CN+EN)
 - Added mandatory trigger rules section with name mapping table
-- agent-rules.md: new "强制角色切换" top-priority section
+- agent-rules.md: new "Forced Role Switch" top-priority section
 - agent-init Step 7a: CLAUDE.md template now includes switch trigger rules
-- Supports: "切换到验收者", "switch to tester", "/agent acceptor", "我是实现者", etc.
+- Supports: "switch to acceptor" (CN), "switch to tester", "/agent acceptor", "I am implementer" (CN), etc.
 
 ## v3.3.3
 
 ### Role Permission Enforcement
-- agent-rules.md: new "角色权限强制执行" section with permission matrix
+- agent-rules.md: new "Role Permission Enforcement" section with permission matrix
 - Self-check before every file operation: read active-agent → check matrix → block violations
 - Violation response template: shows role, blocked action, and switch suggestion
 - agent-init Step 7a: CLAUDE.md template includes enforcement rules

@@ -1,8 +1,8 @@
-# 测试规格文档
+# Test Specification
 
-> 维护者: 🧪 Tester | 更新时机: 测试阶段开始时
-> 输入: requirement.md + design.md
+> Maintainer: 🧪 Tester | Updated: At the start of the testing phase
+> Input: requirement.md + design.md
 
 ---
 
-<!-- Tester 根据需求和设计文档，在此追加测试用例和策略 -->
+<!-- Tester appends test cases and strategies here based on requirements and design documents -->

@@ -1,7 +1,7 @@
-# 实现文档
+# Implementation Document
 
-> 维护者: 💻 Implementer | 更新时机: 实现完成后
+> Maintainer: 💻 Implementer | Updated: After implementation is complete
 
 ---
 
-<!-- Implementer 在完成实现后，在此追加实现细节和变更说明 -->
+<!-- Implementer appends implementation details and change notes here -->

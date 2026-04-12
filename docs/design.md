@@ -1,7 +1,7 @@
-# 设计文档
+# Design Document
 
-> 维护者: 🏗️ Designer | 更新时机: 设计完成后
+> Maintainer: 🏗️ Designer | Updated: After design is complete
 
 ---
 
-<!-- Designer 在完成设计后，在此追加设计方案和 ADR -->
+<!-- Designer appends design proposals and ADRs here after completing design -->

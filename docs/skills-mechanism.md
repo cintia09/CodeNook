@@ -1,58 +1,58 @@
-# Skills 工作机制 — 加载、注入与 Agent 行为
+# Skills Mechanism — Loading, Injection & Agent Behavior
 
-## 1. 两级加载机制
+## 1. Two-Level Loading
 
 ```mermaid
 sequenceDiagram
-    participant FS as 📂 文件系统
+    participant FS as 📂 File System
     participant Platform as Claude Code / Copilot CLI
     participant SP as System Prompt
     participant LLM as 🧠 LLM
-    participant Msg as Messages 数组
+    participant Msg as Messages Array
 
-    Note over FS: 19 个 SKILL.md 文件<br/>~/.claude/skills/ 或 ~/.copilot/skills/
+    Note over FS: 19 SKILL.md files<br/>~/.claude/skills/ or ~/.copilot/skills/
 
-    FS->>Platform: 扫描 skills 目录
-    Platform->>Platform: 提取 name + description (≤250字符)
+    FS->>Platform: Scan skills directory
+    Platform->>Platform: Extract name + description (≤250 chars)
 
     rect rgb(255, 212, 59)
-        Note over Platform,SP: 第一级: 摘要列表 (~1% token)
-        Platform->>SP: 注入 skill 名称+描述列表
+        Note over Platform,SP: Level 1: Summary list (~1% token)
+        Platform->>SP: Inject skill name+description list
     end
 
-    SP->>LLM: System Prompt (含摘要列表)
-    LLM->>LLM: 根据用户意图判断需要哪个 skill
+    SP->>LLM: System Prompt (with summary list)
+    LLM->>LLM: Determine which skill is needed based on user intent
 
     rect rgb(81, 207, 102)
-        Note over LLM,Msg: 第二级: 按需全文 (5-15% token)
-        LLM->>Platform: 调用 /skillname 或自动激活
-        Platform->>FS: 读取完整 SKILL.md
-        FS-->>Platform: 全文内容 + 变量替换
-        Platform->>Msg: 全文注入 Messages 数组
+        Note over LLM,Msg: Level 2: On-demand full text (5-15% token)
+        LLM->>Platform: Call /skillname or auto-activate
+        Platform->>FS: Read full SKILL.md
+        FS-->>Platform: Full content + variable substitution
+        Platform->>Msg: Inject full text into Messages array
     end
 
-    Msg->>LLM: 下一轮对话包含 skill 全文
+    Msg->>LLM: Next conversation turn includes skill full text
 ```
 
-## 2. Skill 发现路径
+## 2. Skill Discovery Paths
 
 ```mermaid
 flowchart TB
     subgraph CC["Claude Code"]
-        CC1["~/.claude/skills/ (用户级)"]
-        CC2[".claude/skills/ (项目级)"]
-        CC3[".agents/skills/ (共享路径)"]
+        CC1["~/.claude/skills/ (user-level)"]
+        CC2[".claude/skills/ (project-level)"]
+        CC3[".agents/skills/ (shared path)"]
     end
 
     subgraph CP["GitHub Copilot CLI"]
-        CP1["~/.copilot/skills/ (用户级)"]
-        CP2[".github/skills/ (项目级)"]
-        CP3[".claude/skills/ (兼容路径)"]
-        CP4[".agents/skills/ (共享路径)"]
+        CP1["~/.copilot/skills/ (user-level)"]
+        CP2[".github/skills/ (project-level)"]
+        CP3[".claude/skills/ (compat path)"]
+        CP4[".agents/skills/ (shared path)"]
     end
 
-    subgraph Agent["🤖 当前 Agent"]
-        A1["Skills 摘要列表<br/>(全部 19 个)"]
+    subgraph Agent["🤖 Current Agent"]
+        A1["Skills Summary List<br/>(all 19)"]
     end
 
     CC1 & CC2 & CC3 --> A1
@@ -63,21 +63,21 @@ flowchart TB
     style Agent fill:#51cf66,color:#fff
 ```
 
-| 维度 | Claude Code | Copilot CLI |
-|------|------------|-------------|
-| 用户级 | `~/.claude/skills/` | `~/.copilot/skills/` |
-| 项目级 | `.claude/skills/` | `.github/skills/` |
-| 共享路径 | `.agents/skills/` ✅ | `.agents/skills/` ✅ |
-| 热加载 | ⚠️ memoize 缓存, 需新会话 | `/skills reload` |
-| 条件激活 | frontmatter `paths:` glob | 不支持 (忽略) |
+| Dimension | Claude Code | Copilot CLI |
+|-----------|------------|-------------|
+| User-level | `~/.claude/skills/` | `~/.copilot/skills/` |
+| Project-level | `.claude/skills/` | `.github/skills/` |
+| Shared path | `.agents/skills/` ✅ | `.agents/skills/` ✅ |
+| Hot reload | ⚠️ Memoize cache, requires new session | `/skills reload` |
+| Conditional activation | frontmatter `paths:` glob | Not supported (ignored) |
 
-> **`paths:` 条件激活**: 在 SKILL.md frontmatter 中添加 `paths: ["hooks/**", "**/*.sh"]` 后, 该 skill 仅在操作匹配文件时自动加载到摘要列表。手动 `/skillname` 调用不受影响。目前仅 `agent-hooks` 使用此特性。
+> **`paths:` Conditional Activation**: Adding `paths: ["hooks/**", "**/*.sh"]` to SKILL.md frontmatter limits that skill to auto-load into the summary list only when operating on matching files. Manual `/skillname` invocation is unaffected. Currently only `agent-hooks` uses this feature.
 
-## 3. Per-Agent Skill 隔离
+## 3. Per-Agent Skill Isolation
 
 ```mermaid
 flowchart LR
-    subgraph Shared["📚 共享 Skills (8个)"]
+    subgraph Shared["📚 Shared Skills (8)"]
         SK1["orchestrator"]
         SK2["fsm"]
         SK3["task-board"]
@@ -88,7 +88,7 @@ flowchart LR
         SK8["worktree"]
     end
 
-    subgraph RoleSkills["🎯 角色专属 Skills"]
+    subgraph RoleSkills["🎯 Role-Specific Skills"]
         direction TB
         RS1["acceptor: config, init,<br/>acceptor, teams"]
         RS2["designer: designer,<br/>hypothesis"]
@@ -98,11 +98,11 @@ flowchart LR
     end
 
     subgraph Agents["👥 Agent Profiles"]
-        A1["🎯 Acceptor<br/>skills: 共享8 + 专属4 = 12"]
-        A2["🏗️ Designer<br/>skills: 共享8 + 专属2 = 10"]
-        A3["💻 Implementer<br/>skills: 共享8 + 专属4 = 12"]
-        A4["🔍 Reviewer<br/>skills: 共享8 + 专属1 = 9"]
-        A5["🧪 Tester<br/>skills: 共享8 + 专属2 = 10"]
+        A1["🎯 Acceptor<br/>skills: shared 8 + role 4 = 12"]
+        A2["🏗️ Designer<br/>skills: shared 8 + role 2 = 10"]
+        A3["💻 Implementer<br/>skills: shared 8 + role 4 = 12"]
+        A4["🔍 Reviewer<br/>skills: shared 8 + role 1 = 9"]
+        A5["🧪 Tester<br/>skills: shared 8 + role 2 = 10"]
     end
 
     Shared --> A1 & A2 & A3 & A4 & A5
@@ -121,47 +121,47 @@ flowchart LR
     style A5 fill:#ff922b,color:#fff
 ```
 
-> **隔离强度**: Prompt 软约束 (~95% LLM 遵守率)。隔离仅影响项目级 5 个 agent 角色之间，不影响非 agent 模式下的 skill 使用。
+> **Isolation Strength**: Prompt-based soft constraint (~95% LLM compliance). Isolation only applies between the 5 project-level agent roles; it does not affect skill usage in non-agent mode.
 
-## 4. 三层行为控制体系
+## 4. Three-Layer Behavior Control
 
 ```mermaid
 flowchart TB
-    subgraph Layer1["第1层: Agent Profile + Skill 约束 (定义)"]
+    subgraph Layer1["Layer 1: Agent Profile + Skill Constraints (Definition)"]
         direction LR
-        P1["acceptor.agent.md<br/>skills: [共享8 + 专属4]<br/>不能写代码"]
-        P2["implementer.agent.md<br/>skills: [共享8 + 专属4]<br/>可以写代码"]
+        P1["acceptor.agent.md<br/>skills: [shared 8 + role 4]<br/>Cannot write code"]
+        P2["implementer.agent.md<br/>skills: [shared 8 + role 4]<br/>Can write code"]
     end
 
-    subgraph Layer2["第2层: Pre-Tool-Use Hook (强制)"]
+    subgraph Layer2["Layer 2: Pre-Tool-Use Hook (Enforcement)"]
         direction LR
-        H1["Reviewer 调用 rm?"]
+        H1["Reviewer calls rm?"]
         H2{agent-pre-tool-use.sh}
         H3["⛔ Deny: Reviewer<br/>cannot run write commands"]
         H4["✅ Allow"]
     end
 
-    subgraph Layer3["第3层: Auto-Dispatch (路由)"]
+    subgraph Layer3["Layer 3: Auto-Dispatch (Routing)"]
         direction LR
-        D1["状态变为 testing"]
+        D1["State changes to testing"]
         D2{auto-dispatch.sh}
-        D3["📨 消息 → tester inbox<br/>'请测试 T-042'"]
+        D3["📨 Message → tester inbox<br/>'Please test T-042'"]
     end
 
-    subgraph Analogy["🏢 类比"]
+    subgraph Analogy["🏢 Analogy"]
         direction TB
-        AN1["Skills 摘要 = 📖 目录<br/>(全员可见)"]
-        AN2["Skill 全文 = 📚 手册<br/>(按需查阅)"]
-        AN3["Agent Profile = 📋 岗位职责<br/>(含 skill 权限)"]
-        AN4["Hook = 🔒 门禁系统<br/>(运行时强制)"]
+        AN1["Skills Summary = 📖 Table of Contents<br/>(visible to all)"]
+        AN2["Skill Full Text = 📚 Manual<br/>(loaded on demand)"]
+        AN3["Agent Profile = 📋 Job Description<br/>(includes skill permissions)"]
+        AN4["Hook = 🔒 Access Control<br/>(runtime enforcement)"]
     end
 
-    Layer1 -->|"LLM 自觉遵守<br/>(软约束)"| Layer2
-    Layer2 -->|"Hook 运行时强制<br/>(硬约束)"| Layer3
+    Layer1 -->|"LLM self-compliance<br/>(soft constraint)"| Layer2
+    Layer2 -->|"Hook runtime enforcement<br/>(hard constraint)"| Layer3
 
     H1 --> H2
-    H2 -->|"违规"| H3
-    H2 -->|"合规"| H4
+    H2 -->|"Violation"| H3
+    H2 -->|"Compliant"| H4
     D1 --> D2 --> D3
 
     style Layer1 fill:#4a90d9,color:#fff
@@ -170,29 +170,29 @@ flowchart TB
     style Analogy fill:#ffd43b,color:#333
 ```
 
-## 5. 完整请求生命周期
+## 5. Complete Request Lifecycle
 
 ```mermaid
 sequenceDiagram
-    participant U as 👤 用户
+    participant U as 👤 User
     participant CC as Claude Code/Copilot
-    participant LLM as 🧠 大模型
+    participant LLM as 🧠 LLM
 
-    Note over CC: 📂 扫描 19 Skills → 构建摘要列表 (~1% token)<br/>+ Agent Profile (含 skills: 约束)
+    Note over CC: 📂 Scan 19 Skills → Build summary list (~1% token)<br/>+ Agent Profile (with skills: constraints)
 
-    U->>CC: "请把 T-042 状态改为 testing"
+    U->>CC: "Change T-042 status to testing"
 
-    CC->>LLM: System Prompt (摘要列表 + Agent Profile)<br/>+ 对话历史<br/>+ 用户消息
+    CC->>LLM: System Prompt (summary list + Agent Profile)<br/>+ Conversation history<br/>+ User message
 
-    Note over LLM: 🧠 LLM 从摘要中识别需要:<br/>1. agent-fsm → 按需加载全文<br/>2. agent-task-board → 按需加载全文<br/>3. 检查 skills: 约束 → 允许操作
+    Note over LLM: 🧠 LLM identifies from summary:<br/>1. agent-fsm → load full text on demand<br/>2. agent-task-board → load full text on demand<br/>3. Check skills: constraints → allow operation
 
-    LLM-->>CC: 调用 Write 工具修改 task-board.json
+    LLM-->>CC: Call Write tool to modify task-board.json
 
-    Note over CC: 🪝 Pre-Hook: implementer 可以写文件 ✅
-    Note over CC: 🔧 执行: 写入 task-board.json
-    Note over CC: 🪝 Post-Hook:<br/>1. FSM: implementing→testing ✅ 合法<br/>2. Doc Gate: ⚠️/⛔ 检查文档<br/>3. Dispatch: 📨 消息→tester<br/>4. Memory: 🧠 记录状态变化
+    Note over CC: 🪝 Pre-Hook: implementer can write files ✅
+    Note over CC: 🔧 Execute: Write task-board.json
+    Note over CC: 🪝 Post-Hook:<br/>1. FSM: implementing→testing ✅ valid<br/>2. Doc Gate: ⚠️/⛔ check docs<br/>3. Dispatch: 📨 message→tester<br/>4. Memory: 🧠 record state change
 
-    CC-->>LLM: 工具结果 + Hook 输出
+    CC-->>LLM: Tool result + Hook output
 
-    LLM-->>U: "已将 T-042 状态更改为 testing,<br/>已通知 tester 进行测试"
+    LLM-->>U: "T-042 status changed to testing,<br/>tester has been notified"
 ```

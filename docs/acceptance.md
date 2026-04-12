@@ -1,7 +1,7 @@
-# 验收文档
+# Acceptance Document
 
-> 维护者: 🎯 Acceptor | 更新时机: 验收完成后
+> Maintainer: 🎯 Acceptor | Updated: After acceptance is complete
 
 ---
 
-<!-- Acceptor 在验收后，在此追加验收结果 -->
+<!-- Acceptor appends acceptance results here after completing acceptance -->

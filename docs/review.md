@@ -1,7 +1,7 @@
-# 审阅文档
+# Review Document
 
-> 维护者: 🔍 Reviewer | 更新时机: 审查完成后
+> Maintainer: 🔍 Reviewer | Updated: After review is complete
 
 ---
 
-<!-- Reviewer 在完成审查后，在此追加审查结论和发现 -->
+<!-- Reviewer appends review conclusions and findings here -->

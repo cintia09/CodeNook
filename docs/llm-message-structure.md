@@ -1,8 +1,8 @@
-# LLM 请求报文结构
+# LLM Request Message Structure
 
-## 发送给大模型的消息结构
+## Message Structure Sent to LLM
 
-每次用户输入后，Claude Code / Copilot CLI 会组装一个完整的请求发送给 LLM。以下是这个"报文"的结构：
+After each user input, Claude Code / Copilot CLI assembles a complete request to the LLM. Here is the structure of that request:
 
 ```mermaid
 block-beta
@@ -15,66 +15,66 @@ block-beta
         C["temperature: 0"]
     end
 
-    block:system["📋 System Prompt (系统提示词)"]
+    block:system["📋 System Prompt"]
         columns 1
 
-        block:rules["🔧 第1层: 平台规则"]
+        block:rules["🔧 Layer 1: Platform Rules"]
             columns 1
-            R1["工具使用规则 (edit/bash/view/grep...)"]
-            R2["安全限制 (不能泄露密钥、不能执行危险操作)"]
-            R3["输出格式规则 (简洁回复、代码风格)"]
+            R1["Tool usage rules (edit/bash/view/grep...)"]
+            R2["Security constraints (no secret leaks, no dangerous ops)"]
+            R3["Output format rules (concise replies, code style)"]
         end
 
-        block:skills["📚 第2层: Skills 摘要 (发现列表)"]
+        block:skills["📚 Layer 2: Skills Summary (Discovery List)"]
             columns 1
-            SK1["agent-fsm — 状态机规则 (名称+描述, ≤250字符)"]
-            SK2["agent-messaging — 消息格式"]
-            SK3["agent-task-board — 任务管理"]
-            SK4["... 共 18 个 Skills 摘要列表"]
-            SK5["💡 调用时才加载 SKILL.md 全文"]
+            SK1["agent-fsm — State machine rules (name+desc, ≤250 chars)"]
+            SK2["agent-messaging — Message format"]
+            SK3["agent-task-board — Task management"]
+            SK4["... 18 skill summaries total"]
+            SK5["💡 Full SKILL.md loaded only on invocation"]
         end
 
-        block:agent["👤 第3层: Agent Profile"]
+        block:agent["👤 Layer 3: Agent Profile"]
             columns 1
-            AP1["当前角色: implementer"]
-            AP2["允许工具: [edit, bash, git]"]
-            AP3["行为约束: TDD 纪律、提交前验证"]
-            AP4["模型建议: model_hint: claude-sonnet"]
+            AP1["Current role: implementer"]
+            AP2["Allowed tools: [edit, bash, git]"]
+            AP3["Constraints: TDD discipline, pre-commit verify"]
+            AP4["Model hint: model_hint: claude-sonnet"]
         end
 
-        block:project["📋 第4层: 项目规则"]
+        block:project["📋 Layer 4: Project Rules"]
             columns 1
             PR1["CLAUDE.md / copilot-instructions.md"]
-            PR2["自定义规则: commit 格式、分支策略等"]
+            PR2["Custom rules: commit format, branch strategy, etc."]
         end
     end
 
-    block:messages["💬 Messages 数组 (对话历史)"]
+    block:messages["💬 Messages Array (Conversation History)"]
         columns 1
 
-        block:msg1["消息 1: user"]
+        block:msg1["Message 1: user"]
             columns 1
-            M1["'请把 T-042 状态改为 testing'"]
+            M1["'Change T-042 status to testing'"]
         end
 
-        block:msg2["消息 2: assistant (上一轮回复)"]
+        block:msg2["Message 2: assistant (previous reply)"]
             columns 1
-            M2["'好的，我来修改 task-board.json...'"]
+            M2["'OK, I will modify task-board.json...'"]
         end
 
-        block:msg3["消息 3: tool_use (工具调用)"]
+        block:msg3["Message 3: tool_use (tool invocation)"]
             columns 1
             M3["tool: edit<br/>file: .agents/task-board.json<br/>old_str: status: implementing<br/>new_str: status: testing"]
         end
 
-        block:msg4["消息 4: tool_result (工具+Hook结果)"]
+        block:msg4["Message 4: tool_result (tool + hook results)"]
             columns 1
-            M4["工具结果: 文件已修改<br/>+ Hook输出: '✅ FSM: implementing→testing 合法'<br/>+ Hook输出: '📨 消息已发送给 tester'<br/>+ Hook输出: '🧠 记忆快照已创建'"]
+            M4["Tool result: File modified<br/>+ Hook output: '✅ FSM: implementing→testing valid'<br/>+ Hook output: '📨 Message sent to tester'<br/>+ Hook output: '🧠 Memory snapshot created'"]
         end
 
-        block:msg5["消息 5: user (当前输入)"]
+        block:msg5["Message 5: user (current input)"]
             columns 1
-            M5["'继续下一步'"]
+            M5["'Continue to next step'"]
         end
     end
 
@@ -87,7 +87,7 @@ block-beta
     style messages fill:#ff922b,color:#fff
 ```
 
-## 简化视图 — 报文层次结构
+## Simplified View — Message Hierarchy
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -103,12 +103,12 @@ block-beta
 │  │  │  • Output format rules                            │  │ │
 │  │  └──────────────────────────────────────────────────┘  │ │
 │  │                                                         │ │
-│  │  ┌── 📚 Skills 摘要列表 (~1% token) ──────────────────┐  │ │
-│  │  │  agent-fsm:        "FSM 状态机 — 管理任务..."     │  │ │
-│  │  │  agent-messaging:  "消息系统 — Agent 间通信..."   │  │ │
-│  │  │  agent-task-board: "任务看板 — CRUD + 乐观锁..."  │  │ │
-│  │  │  ... 共 18 个, 每个 ≤250 字符描述                  │  │ │
-│  │  │  💡 全文按需加载到 Messages 数组 (非 System Prompt)│  │ │
+│  │  ┌── 📚 Skills Summary List (~1% token) ──────────────┐  │ │
+│  │  │  agent-fsm:        "FSM — Manage task states..."  │  │ │
+│  │  │  agent-messaging:  "Messaging — Inter-agent..."   │  │ │
+│  │  │  agent-task-board: "Task board — CRUD + lock..."  │  │ │
+│  │  │  ... 18 total, each ≤250 char description          │  │ │
+│  │  │  💡 Full text loaded on-demand into Messages[]     │  │ │
 │  │  └──────────────────────────────────────────────────┘  │ │
 │  │                                                         │ │
 │  │  ┌── 👤 Agent Profile (.agent.md) ─────────────────┐  │ │
@@ -126,47 +126,47 @@ block-beta
 │  ┌─── Messages[] ─────────────────────────────────────────┐ │
 │  │                                                         │ │
 │  │  [0] role: user                                        │ │
-│  │      content: "请把 T-042 改为 testing"                  │ │
+│  │      content: "Change T-042 to testing"                 │ │
 │  │                                                         │ │
 │  │  [1] role: assistant                                    │ │
-│  │      content: "好的，我来修改..."                         │ │
+│  │      content: "OK, modifying..."                        │ │
 │  │      tool_use: { name: "edit", input: {...} }           │ │
 │  │                                                         │ │
 │  │  [2] role: user (tool_result)                           │ │
-│  │      content: "文件已修改"                                │ │
-│  │      + hook_output: "✅ FSM 合法"                        │ │
-│  │      + hook_output: "📨 已通知 tester"                   │ │
-│  │      + hook_output: "🧠 记忆已创建"                      │ │
+│  │      content: "File modified"                           │ │
+│  │      + hook_output: "✅ FSM valid"                      │ │
+│  │      + hook_output: "📨 Notified tester"                │ │
+│  │      + hook_output: "🧠 Memory created"                 │ │
 │  │                                                         │ │
 │  │  [3] role: user                                         │ │
-│  │      content: "继续下一步"                                │ │
+│  │      content: "Continue to next step"                   │ │
 │  │                                                         │ │
 │  └─────────────────────────────────────────────────────────┘ │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Token 占比估算
+## Token Distribution Estimate
 
 ```mermaid
-pie title "一次 LLM 请求的 Token 占比"
+pie title "Token Distribution per LLM Request"
     "Platform Rules" : 15
-    "Skills 摘要列表" : 1
+    "Skills Summary List" : 1
     "Agent Profile" : 5
     "Project Rules" : 5
-    "对话历史 (含已调用 Skill 全文)" : 54
-    "当前用户输入" : 2
-    "Hook 输出" : 8
+    "Conversation History (incl. loaded Skill full text)" : 54
+    "Current User Input" : 2
+    "Hook Output" : 8
     "Custom Instructions" : 10
 ```
 
-> **两级加载机制说明**:
-> - **Skills 摘要列表 (~1%)**: 每轮 System Prompt 中只注入 skill 名称 + 截断到 250 字符的描述（非全文）
-> - **Skill 全文 (按需)**: 当 LLM 判断需要某 skill 或用户调用 `/skillname` 时，完整 `SKILL.md` 才被加载到对话历史中
-> - **Custom Instructions**: `copilot-instructions.md` / `CLAUDE.md` 是**每轮全量注入**的，与 Skills 不同
-> - Claude Code 和 Copilot CLI 均使用此机制，符合 [Agent Skills 开源标准](https://agentskills.io)
+> **Two-Level Loading Explanation**:
+> - **Skills Summary List (~1%)**: Each turn injects only skill name + description truncated to 250 chars (not full text) into System Prompt
+> - **Skill Full Text (on-demand)**: Complete `SKILL.md` is loaded into conversation history only when LLM determines a skill is needed or user invokes `/skillname`
+> - **Custom Instructions**: `copilot-instructions.md` / `CLAUDE.md` are **injected in full every turn**, unlike Skills
+> - Both Claude Code and Copilot CLI use this mechanism, following the [Agent Skills open standard](https://agentskills.io)
 
-## Hook 输出如何回流到 LLM
+## How Hook Output Flows Back to LLM
 
 ```mermaid
 sequenceDiagram
@@ -180,30 +180,30 @@ sequenceDiagram
     Hook-->>CC: ✅ Allow
 
     CC->>Tool: edit task-board.json
-    Tool-->>CC: 文件修改成功
+    Tool-->>CC: File modified successfully
 
     CC->>Hook: post-tool-use(tool=edit, result=success)
 
-    Note over Hook: 执行3个模块:
+    Note over Hook: Executes 3 modules:
     Hook->>Hook: 1️⃣ FSM: implementing→testing ✅
     Hook->>Hook: 2️⃣ Dispatch: 📨→tester inbox
     Hook->>Hook: 3️⃣ Memory: 🧠 snapshot
 
-    Hook-->>CC: stdout 输出:<br/>"✅ FSM 合法"<br/>"📨 已通知 tester"<br/>"🧠 记忆快照"
+    Hook-->>CC: stdout output:<br/>"✅ FSM valid"<br/>"📨 Notified tester"<br/>"🧠 Memory snapshot"
 
-    Note over CC: 将 Tool Result + Hook stdout<br/>组合成 tool_result 消息
+    Note over CC: Combines Tool Result + Hook stdout<br/>into tool_result message
 
-    CC->>LLM: messages: [..., {<br/>  role: "user",<br/>  content: [{<br/>    type: "tool_result",<br/>    content: "文件修改成功\n✅ FSM 合法\n📨 已通知 tester\n🧠 记忆快照"<br/>  }]<br/>}]
+    CC->>LLM: messages: [..., {<br/>  role: "user",<br/>  content: [{<br/>    type: "tool_result",<br/>    content: "File modified successfully\n✅ FSM valid\n📨 Notified tester\n🧠 Memory snapshot"<br/>  }]<br/>}]
 
-    Note over LLM: LLM 看到 Hook 输出,<br/>理解发生了什么,<br/>据此决定下一步
+    Note over LLM: LLM sees Hook output,<br/>understands what happened,<br/>decides next step accordingly
 
-    LLM-->>CC: "T-042 已改为 testing,<br/>tester 已收到通知,<br/>请切换到 tester 继续"
+    LLM-->>CC: "T-042 changed to testing,<br/>tester has been notified,<br/>please switch to tester to continue"
 ```
 
-## 关键洞察
+## Key Insights
 
-1. **Skills 是"知识"不是"代码"** — LLM 读了 SKILL.md 后**理解**了规则，不是在执行它
-2. **Hook 是真正的"执行"** — Shell 脚本在 LLM 之外运行，强制执行规则
-3. **Hook 输出回流** — Hook 的 stdout 被拼接进 tool_result，LLM 能看到这些信息
-4. **两级加载** — System Prompt 只含 skill 摘要列表（~1% token），全文在调用时按需加载到 Messages 中
-5. **Agent 切换 = 更换 Profile** — Skills 摘要列表不变，只是 Agent Profile 部分被替换；Skill 权限通过 prompt 约束实现
+1. **Skills are "knowledge" not "code"** — LLM **understands** rules after reading SKILL.md; it doesn't execute them
+2. **Hooks are the real "execution"** — Shell scripts run outside LLM, enforcing rules
+3. **Hook output flows back** — Hook stdout is appended to tool_result, visible to LLM
+4. **Two-level loading** — System Prompt only contains skill summary list (~1% tokens); full text is loaded on-demand into Messages
+5. **Agent switch = Profile swap** — Skills summary list stays the same; only the Agent Profile section is replaced; skill permissions are enforced via prompt constraints

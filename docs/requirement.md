@@ -1,7 +1,7 @@
-# 需求文档
+# Requirements Document
 
-> 维护者: 🎯 Acceptor | 更新时机: 创建任务后
+> Maintainer: 🎯 Acceptor | Updated: After task creation
 
 ---
 
-<!-- Acceptor 在创建每个任务后，在此追加任务需求 -->
+<!-- Acceptor appends task requirements here after creating each task -->
