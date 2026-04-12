@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Multi-Agent Framework v4.0 Installer
-# Usage: curl -sL https://raw.githubusercontent.com/cintia09/multi-agent-framework/main/install.sh | bash
+# CodeNook v4.0 Installer
+# Usage: curl -sL https://raw.githubusercontent.com/cintia09/CodeNook/main/install.sh | bash
 
 VERSION="latest"
-REPO="https://github.com/cintia09/multi-agent-framework.git"
-TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/multi-agent-framework.XXXXXX")
+REPO="https://github.com/cintia09/CodeNook.git"
+TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/CodeNook.XXXXXX")
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 # Colors
@@ -21,7 +21,7 @@ warn()  { echo -e "${YELLOW}⚠${NC} $1"; }
 error() { echo -e "${RED}✗${NC} $1"; exit 1; }
 
 usage() {
-    echo "Multi-Agent Framework Installer v${VERSION}"
+    echo "CodeNook Installer v${VERSION}"
     echo ""
     echo "Usage: $0 [OPTIONS]"
     echo ""
@@ -41,7 +41,7 @@ download() {
     local success=false
 
     # Method 1: Tarball (faster)
-    local TARBALL_URL="https://github.com/cintia09/multi-agent-framework/archive/refs/heads/main.tar.gz"
+    local TARBALL_URL="https://github.com/cintia09/CodeNook/archive/refs/heads/main.tar.gz"
     if curl -sL --connect-timeout 10 --max-time 60 "$TARBALL_URL" | tar xz -C "$TMP_DIR" --strip-components=1 2>/dev/null; then
         [ -f "$TMP_DIR/install.sh" ] && [ -d "$TMP_DIR/skills" ] && success=true
     fi
@@ -65,17 +65,17 @@ install_platform() {
 
     echo -e "  ${CYAN}${name}${NC} → ${dir}/skills/"
 
-    # agent-init (SKILL.md + templates/)
-    mkdir -p "${dir}/skills/agent-init/templates"
-    cp "${src}/agent-init/SKILL.md" "${dir}/skills/agent-init/"
-    cp "${src}/agent-init/templates/"*.agent.md "${dir}/skills/agent-init/templates/"
+    # codenook-init (SKILL.md + templates/)
+    mkdir -p "${dir}/skills/codenook-init/templates"
+    cp "${src}/codenook-init/SKILL.md" "${dir}/skills/codenook-init/"
+    cp "${src}/codenook-init/templates/"*.agent.md "${dir}/skills/codenook-init/templates/"
 
-    # agent-orchestrator (SKILL.md + hitl-adapters/)
-    mkdir -p "${dir}/skills/agent-orchestrator/hitl-adapters"
-    cp "${src}/agent-orchestrator/SKILL.md" "${dir}/skills/agent-orchestrator/"
-    cp "${src}/agent-orchestrator/hitl-adapters/"* "${dir}/skills/agent-orchestrator/hitl-adapters/"
-    chmod +x "${dir}/skills/agent-orchestrator/hitl-adapters/"*.sh 2>/dev/null || true
-    chmod +x "${dir}/skills/agent-orchestrator/hitl-adapters/"*.py 2>/dev/null || true
+    # codenook-engine (SKILL.md + hitl-adapters/)
+    mkdir -p "${dir}/skills/codenook-engine/hitl-adapters"
+    cp "${src}/codenook-engine/SKILL.md" "${dir}/skills/codenook-engine/"
+    cp "${src}/codenook-engine/hitl-adapters/"* "${dir}/skills/codenook-engine/hitl-adapters/"
+    chmod +x "${dir}/skills/codenook-engine/hitl-adapters/"*.sh 2>/dev/null || true
+    chmod +x "${dir}/skills/codenook-engine/hitl-adapters/"*.py 2>/dev/null || true
 }
 
 install() {
@@ -89,16 +89,16 @@ install() {
 
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "🤖 Multi-Agent Framework v${VERSION}"
+    echo "🤖 CodeNook v${VERSION}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
 
     if [ "$dry_run" = true ]; then
         echo "  [DRY RUN] Would install:"
-        echo "    ~/.copilot/skills/agent-init/"
-        echo "    ~/.copilot/skills/agent-orchestrator/"
-        echo "    ~/.claude/skills/agent-init/"
-        echo "    ~/.claude/skills/agent-orchestrator/"
+        echo "    ~/.copilot/skills/codenook-init/"
+        echo "    ~/.copilot/skills/codenook-engine/"
+        echo "    ~/.claude/skills/codenook-init/"
+        echo "    ~/.claude/skills/codenook-engine/"
         return
     fi
 
@@ -130,8 +130,8 @@ install() {
     info "Installed! v${VERSION}"
     echo ""
     echo "  What's installed:"
-    echo "    agent-init          — Initialize agent system in any project"
-    echo "    agent-orchestrator  — Task routing, HITL gates, memory"
+    echo "    codenook-init          — Initialize agent system in any project"
+    echo "    codenook-engine  — Task routing, HITL gates, memory"
     echo "    5 agent templates   — acceptor, designer, implementer, reviewer, tester"
     echo "    4 HITL adapters     — local-html, terminal, confluence, github-issue"
     echo ""
@@ -150,21 +150,21 @@ check_platform_v4() {
     local ok=true
     echo -e "  ${CYAN}${name}${NC}:"
 
-    # Check agent-init
-    if [ -f "${dir}/skills/agent-init/SKILL.md" ]; then
-        local templates=$(ls "${dir}/skills/agent-init/templates/"*.agent.md 2>/dev/null | wc -l | tr -d ' ')
-        echo "    agent-init:          ✅ (${templates} templates)"
+    # Check codenook-init
+    if [ -f "${dir}/skills/codenook-init/SKILL.md" ]; then
+        local templates=$(ls "${dir}/skills/codenook-init/templates/"*.agent.md 2>/dev/null | wc -l | tr -d ' ')
+        echo "    codenook-init:          ✅ (${templates} templates)"
     else
-        echo "    agent-init:          ❌ missing"
+        echo "    codenook-init:          ❌ missing"
         ok=false
     fi
 
-    # Check agent-orchestrator
-    if [ -f "${dir}/skills/agent-orchestrator/SKILL.md" ]; then
-        local adapters=$(ls "${dir}/skills/agent-orchestrator/hitl-adapters/"* 2>/dev/null | wc -l | tr -d ' ')
-        echo "    agent-orchestrator:  ✅ (${adapters} HITL adapters)"
+    # Check codenook-engine
+    if [ -f "${dir}/skills/codenook-engine/SKILL.md" ]; then
+        local adapters=$(ls "${dir}/skills/codenook-engine/hitl-adapters/"* 2>/dev/null | wc -l | tr -d ' ')
+        echo "    codenook-engine:  ✅ (${adapters} HITL adapters)"
     else
-        echo "    agent-orchestrator:  ❌ missing"
+        echo "    codenook-engine:  ❌ missing"
         ok=false
     fi
 
@@ -196,13 +196,13 @@ check_install() {
 # ── Uninstall v4.0 ───────────────────────────────────────
 
 uninstall() {
-    echo "🗑️ Uninstalling Multi-Agent Framework v4.0..."
+    echo "🗑️ Uninstalling CodeNook v4.0..."
 
     for dir in "${HOME}/.copilot" "${HOME}/.claude"; do
-        if [ -d "${dir}/skills/agent-init" ] || [ -d "${dir}/skills/agent-orchestrator" ]; then
+        if [ -d "${dir}/skills/codenook-init" ] || [ -d "${dir}/skills/codenook-engine" ]; then
             echo "  Removing from ${dir}..."
-            rm -rf "${dir}/skills/agent-init"
-            rm -rf "${dir}/skills/agent-orchestrator"
+            rm -rf "${dir}/skills/codenook-init"
+            rm -rf "${dir}/skills/codenook-engine"
             info "Removed from $(basename $dir)"
         fi
     done
@@ -226,8 +226,8 @@ clean_v3() {
             for skill in "${dir}/skills/agent-"*; do
                 local name=$(basename "$skill")
                 # Keep v4.0 skills
-                [ "$name" = "agent-init" ] && continue
-                [ "$name" = "agent-orchestrator" ] && continue
+                [ "$name" = "codenook-init" ] && continue
+                [ "$name" = "codenook-engine" ] && continue
                 rm -rf "$skill"
                 removed=$((removed + 1))
             done

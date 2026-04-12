@@ -18,18 +18,18 @@ jobs:
       - name: Verify skills-v4 structure
         run: |
           # Check required files exist
-          test -f skills-v4/agent-init/SKILL.md
-          test -f skills-v4/agent-orchestrator/SKILL.md
-          test -f skills-v4/agent-init/templates/acceptor.agent.md
-          test -f skills-v4/agent-init/templates/designer.agent.md
-          test -f skills-v4/agent-init/templates/implementer.agent.md
-          test -f skills-v4/agent-init/templates/reviewer.agent.md
-          test -f skills-v4/agent-init/templates/tester.agent.md
+          test -f skills-v4/codenook-init/SKILL.md
+          test -f skills-v4/codenook-engine/SKILL.md
+          test -f skills-v4/codenook-init/templates/acceptor.agent.md
+          test -f skills-v4/codenook-init/templates/designer.agent.md
+          test -f skills-v4/codenook-init/templates/implementer.agent.md
+          test -f skills-v4/codenook-init/templates/reviewer.agent.md
+          test -f skills-v4/codenook-init/templates/tester.agent.md
           echo "✅ All skill files present"
 
       - name: Verify HITL adapters
         run: |
-          for f in skills-v4/agent-orchestrator/hitl-adapters/*.sh; do
+          for f in skills-v4/codenook-engine/hitl-adapters/*.sh; do
             bash -n "$f" && echo "✅ $f syntax OK"
           done
           echo "✅ All adapters valid"

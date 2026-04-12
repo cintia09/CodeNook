@@ -187,7 +187,7 @@ All state lives in files (JSON + SQLite), not in AI memory. Even if the CLI cras
 
 In Claude Code / GitHub Copilot, say:
 
-> "Follow the instructions in the cintia09/multi-agent-framework repo to install agents locally."
+> "Follow the instructions in the cintia09/CodeNook repo to install agents locally."
 
 The AI assistant auto-installs 14 Skills, 5 Agents, and 13 Hooks.
 
@@ -237,6 +237,6 @@ And the interesting part? This framework itself was built by Agents.
 
 ---
 
-> 🔗 Project: [github.com/cintia09/multi-agent-framework](https://github.com/cintia09/multi-agent-framework)
+> 🔗 Project: [github.com/cintia09/CodeNook](https://github.com/cintia09/CodeNook)
 > 
 > Zero dependencies, pure Markdown + JSON, works out of the box.

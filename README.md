@@ -1,13 +1,13 @@
 <p align="center">
-  <img src="blog/images/architecture.png" alt="Multi-Agent Framework" width="680" />
+  <img src="blog/images/architecture.png" alt="CodeNook" width="680" />
 </p>
 
-<h1 align="center">🤖 Multi-Agent Software Development Framework</h1>
+<h1 align="center">🤖 CodeNook — Multi-Agent Development Framework</h1>
 
 <p align="center">
-  <a href="https://github.com/cintia09/multi-agent-framework/releases"><img src="https://img.shields.io/github/v/release/cintia09/multi-agent-framework?style=for-the-badge&color=6366f1" alt="Release"></a>
+  <a href="https://github.com/cintia09/CodeNook/releases"><img src="https://img.shields.io/github/v/release/cintia09/CodeNook?style=for-the-badge&color=6366f1" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
-  <a href="https://github.com/cintia09/multi-agent-framework/stargazers"><img src="https://img.shields.io/github/stars/cintia09/multi-agent-framework?style=for-the-badge&color=f59e0b" alt="Stars"></a>
+  <a href="https://github.com/cintia09/CodeNook/stargazers"><img src="https://img.shields.io/github/stars/cintia09/CodeNook?style=for-the-badge&color=f59e0b" alt="Stars"></a>
 </p>
 
 <p align="center">
@@ -48,7 +48,7 @@ Five specialized AI agents collaborate through an orchestrator that routes tasks
 
 ## Core Features
 
-- **2 Skills** — `agent-init` (project setup) + `agent-orchestrator` (workflow engine)
+- **2 Skills** — `codenook-init` (project setup) + `codenook-engine` (workflow engine)
 - **Subagent Architecture** — Each agent runs in a separate context window, spawned on demand
 - **HITL After Every Phase** — 4 adapters (local-html, terminal, github-issue, confluence)
 - **Task Board** — Single JSON file as source of truth; 10 statuses with deterministic routing
@@ -64,7 +64,7 @@ Five specialized AI agents collaborate through an orchestrator that routes tasks
 ### Option 1: One-Line Install
 
 ```bash
-curl -sL https://raw.githubusercontent.com/cintia09/multi-agent-framework/main/install.sh | bash
+curl -sL https://raw.githubusercontent.com/cintia09/CodeNook/main/install.sh | bash
 ```
 
 Installs 2 skills globally. Auto-detects Claude Code / Copilot CLI.
@@ -75,8 +75,8 @@ Copy the two skill directories to your platform's skills folder:
 
 | Platform | Target |
 |----------|--------|
-| Copilot CLI | `~/.copilot/skills/agent-init/` and `~/.copilot/skills/agent-orchestrator/` |
-| Claude Code | `~/.claude/skills/agent-init/` and `~/.claude/skills/agent-orchestrator/` |
+| Copilot CLI | `~/.copilot/skills/codenook-init/` and `~/.copilot/skills/codenook-engine/` |
+| Claude Code | `~/.claude/skills/codenook-init/` and `~/.claude/skills/codenook-engine/` |
 
 Each skill directory contains `SKILL.md` plus supporting files (templates, HITL adapters).
 
@@ -94,7 +94,7 @@ In any project directory, tell your AI assistant:
 
 > "Initialize the agent system"
 
-The `agent-init` skill walks you through 4 prompts:
+The `codenook-init` skill walks you through 4 prompts:
 
 | Prompt | Options |
 |--------|---------|

@@ -1,5 +1,5 @@
 ---
-name: agent-orchestrator
+name: codenook-engine
 description: "Orchestrate multi-agent development workflow. Routes tasks to subagents, manages HITL gates, handles memory and context."
 ---
 

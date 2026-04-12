@@ -1,11 +1,11 @@
 ---
-name: agent-init
+name: codenook-init
 description: "Initialize the multi-agent development framework in a project. Detects platform, generates agent profiles, creates task board and config."
 ---
 
 # Agent System Initialization (v4.0)
 
-> Trigger: "initialize agent system" | "agent init" | "agent-init"
+> Trigger: "initialize agent system" | "agent init" | "codenook-init"
 
 ## Step 1 — Platform Detection
 
@@ -123,7 +123,7 @@ Plus platform-specific instructions file (see Step 1 table).
 ### Agent Profile Templates
 
 Read templates from the `templates/` subdirectory relative to this SKILL.md file.
-The path is typically `~/.copilot/skills/agent-init/templates/` or `~/.claude/skills/agent-init/templates/`.
+The path is typically `~/.copilot/skills/codenook-init/templates/` or `~/.claude/skills/codenook-init/templates/`.
 
 For each template:
 1. Read the file content
@@ -175,7 +175,7 @@ This project uses the multi-agent development framework.
 1. All development tasks flow through the task board (task-board.json)
 2. Each phase is handled by a specialized subagent (designer → implementer → reviewer → tester → acceptor)
 3. HITL gates pause between every phase for human approval
-4. Use the `agent-orchestrator` skill for task management
+4. Use the `codenook-engine` skill for task management
 
 ### Quick Commands
 - "Create task <title>" — add a new task
