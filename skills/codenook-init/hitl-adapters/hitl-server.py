@@ -7,16 +7,20 @@ Usage:
     python3 hitl-server.py <port> <task_id> <role> <content_file> <feedback_dir>
 
 Features:
-- Renders markdown documents as HTML
+- Renders markdown documents as HTML (markdown lib with fallback)
+- Mermaid diagram rendering via CDN
+- Inline image support
+- Code syntax highlighting (highlight.js CDN)
 - Multi-round feedback: comment → Agent revises → refresh to see new version
+- Feedback history: shows both human feedback and agent responses
 - Approve / Request Changes buttons
-- Feedback history display
 - Writes feedback JSON for Agent polling
 """
 
 import http.server
 import json
 import os
+import re as _re
 import sys
 import urllib.parse
 from datetime import datetime
@@ -63,68 +67,149 @@ def read_history():
         return []
 
 
+def _extract_mermaid_blocks(md_text):
+    """Extract mermaid code blocks before markdown processing, replace with placeholders."""
+    blocks = []
+    def replace_mermaid(m):
+        blocks.append(m.group(1))
+        return f"\n<!--MERMAID_{len(blocks) - 1}-->\n"
+    text = _re.sub(r"```mermaid\n(.*?)```", replace_mermaid, md_text, flags=_re.S)
+    return text, blocks
+
+
+def _restore_mermaid_blocks(html, blocks):
+    """Restore mermaid blocks as rendered divs in HTML."""
+    for i, block in enumerate(blocks):
+        placeholder = f"<!--MERMAID_{i}-->"
+        mermaid_html = f'<div class="mermaid">{block}</div>'
+        html = html.replace(placeholder, mermaid_html)
+        html = html.replace(f"<p>{placeholder}</p>", mermaid_html)
+    return html
+
+
+def _fix_indented_fences(raw_md):
+    """Fix indented fenced code blocks that the markdown library cannot parse."""
+    placeholder_map = {}
+    counter = [0]
+    def replace_fence(m):
+        indent = m.group(1)
+        lang = m.group(2) or ''
+        code = m.group(3)
+        lines = code.split('\n')
+        dedented = []
+        for line in lines:
+            if line.startswith(indent):
+                dedented.append(line[len(indent):])
+            else:
+                dedented.append(line)
+        code_html = '\n'.join(dedented).strip()
+        code_html = code_html.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        lang_attr = f' class="language-{lang}"' if lang else ''
+        key = f'CODEPLACEHOLDER{counter[0]}'
+        counter[0] += 1
+        placeholder_map[key] = f'<pre><code{lang_attr}>{code_html}</code></pre>'
+        return f'\n{key}\n'
+    fixed = _re.sub(
+        r'^([ \t]+)```(\w*)\n(.*?)^\1```',
+        replace_fence,
+        raw_md,
+        flags=_re.M | _re.S
+    )
+    return fixed, placeholder_map
+
+
 def md_to_html(md_text):
-    """Basic markdown to HTML conversion (Python 3.13 compatible)."""
-    import re
-    html = md_text
-    # Escape HTML
-    html = html.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    # Code blocks FIRST — protect contents from further processing
-    code_blocks = []
-    def stash_code(m):
-        lang = m.group(1)
-        content = m.group(2)
-        if lang == "mermaid":
-            # Mermaid diagrams: render as interactive diagram via CDN
-            code_blocks.append(f'<div class="mermaid">{content}</div>')
-        else:
+    """Convert markdown to HTML. Uses markdown library if available, falls back to regex."""
+    # Extract mermaid blocks first (before any processing)
+    md_text, mermaid_blocks = _extract_mermaid_blocks(md_text)
+
+    try:
+        import markdown
+        # Fix indented fences
+        md_text, placeholders = _fix_indented_fences(md_text)
+        html = markdown.markdown(
+            md_text,
+            extensions=['tables', 'fenced_code', 'toc']
+        )
+
+        # Restore indented fence placeholders
+        for key, code_html in placeholders.items():
+            html = html.replace(key, code_html)
+            html = html.replace(f'<p>{key}</p>', code_html)
+
+        # Post-process: render ```markdown blocks as preview
+        def render_markdown_block(match):
+            raw = match.group(1)
+            raw = raw.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"')
+            raw, inner_ph = _fix_indented_fences(raw)
+            inner_html = markdown.markdown(raw, extensions=['tables', 'fenced_code'])
+            for k, v in inner_ph.items():
+                inner_html = inner_html.replace(k, v)
+                inner_html = inner_html.replace(f'<p>{k}</p>', v)
+            return f'<div class="md-preview"><div class="md-preview-label">📄 Markdown Preview</div>{inner_html}</div>'
+
+        html = _re.sub(
+            r'<pre><code class="language-markdown">(.*?)</code></pre>',
+            render_markdown_block,
+            html,
+            flags=_re.S
+        )
+
+    except ImportError:
+        # Fallback: regex-based conversion
+        html = md_text
+        html = html.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        # Code blocks
+        code_blocks = []
+        def stash_code(m):
+            lang = m.group(1)
+            content = m.group(2)
             code_blocks.append(f"<pre><code>{content}</code></pre>")
-        return f"$$CODE_BLOCK_{len(code_blocks) - 1}$$"
-    html = re.sub(r"```(\w*)\n(.*?)```", stash_code, html, flags=re.S)
-    # Images: ![alt](url)
-    html = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)",
-                  r'<img src="\2" alt="\1" style="max-width:100%;border-radius:4px;margin:1rem 0;">',
-                  html)
-    # Headers (h6 → h1 order to avoid ### matching before ######)
-    html = re.sub(r"^###### (.+)$", r"<h6>\1</h6>", html, flags=re.M)
-    html = re.sub(r"^##### (.+)$", r"<h5>\1</h5>", html, flags=re.M)
-    html = re.sub(r"^#### (.+)$", r"<h4>\1</h4>", html, flags=re.M)
-    html = re.sub(r"^### (.+)$", r"<h3>\1</h3>", html, flags=re.M)
-    html = re.sub(r"^## (.+)$", r"<h2>\1</h2>", html, flags=re.M)
-    html = re.sub(r"^# (.+)$", r"<h1>\1</h1>", html, flags=re.M)
-    # Bold
-    html = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", html)
-    # Inline code
-    html = re.sub(r"`(.+?)`", r"<code>\1</code>", html)
-    # Lists
-    html = re.sub(r"^- (.+)$", r"<li>\1</li>", html, flags=re.M)
-    # Tables (basic) — escape hyphen in character class for Python 3.13+
-    lines = html.split("\n")
-    in_table = False
-    result = []
-    for line in lines:
-        if "|" in line and line.strip().startswith("|"):
-            if not in_table:
-                result.append("<table>")
-                in_table = True
-            if re.match(r"^\|[\s\-|]+\|$", line.strip()):
-                continue  # Skip separator rows
-            cells = [c.strip() for c in line.strip().split("|")[1:-1]]
-            result.append("<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>")
-        else:
-            if in_table:
-                result.append("</table>")
-                in_table = False
-            result.append(line)
-    if in_table:
-        result.append("</table>")
-    html = "\n".join(result)
-    # Restore code blocks (includes mermaid divs and regular pre/code)
-    for i, block in enumerate(code_blocks):
-        html = html.replace(f"$$CODE_BLOCK_{i}$$", block)
-    # Paragraphs
-    html = re.sub(r"\n\n", r"</p><p>", html)
-    html = f"<p>{html}</p>"
+            return f"$$CODE_BLOCK_{len(code_blocks) - 1}$$"
+        html = _re.sub(r"```(\w*)\n(.*?)```", stash_code, html, flags=_re.S)
+        # Images
+        html = _re.sub(r"!\[([^\]]*)\]\(([^)]+)\)",
+                       r'<img src="\2" alt="\1" style="max-width:100%;border-radius:4px;margin:1rem 0;">',
+                       html)
+        # Headers h6->h1
+        for i in range(6, 0, -1):
+            pat = r"^" + "#" * i + r" (.+)$"
+            html = _re.sub(pat, rf"<h{i}>\1</h{i}>", html, flags=_re.M)
+        # Bold, inline code
+        html = _re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", html)
+        html = _re.sub(r"`(.+?)`", r"<code>\1</code>", html)
+        # Lists
+        html = _re.sub(r"^- (.+)$", r"<li>\1</li>", html, flags=_re.M)
+        # Tables
+        lines = html.split("\n")
+        in_table = False
+        result = []
+        for line in lines:
+            if "|" in line and line.strip().startswith("|"):
+                if not in_table:
+                    result.append("<table>")
+                    in_table = True
+                if _re.match(r"^\|[\s\-|]+\|$", line.strip()):
+                    continue
+                cells = [c.strip() for c in line.strip().split("|")[1:-1]]
+                result.append("<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>")
+            else:
+                if in_table:
+                    result.append("</table>")
+                    in_table = False
+                result.append(line)
+        if in_table:
+            result.append("</table>")
+        html = "\n".join(result)
+        # Restore code blocks
+        for i, block in enumerate(code_blocks):
+            html = html.replace(f"$$CODE_BLOCK_{i}$$", block)
+        # Paragraphs
+        html = _re.sub(r"\n\n", r"</p><p>", html)
+        html = f"<p>{html}</p>"
+
+    # Restore mermaid blocks (works for both paths)
+    html = _restore_mermaid_blocks(html, mermaid_blocks)
     return html
 
 
@@ -201,9 +286,20 @@ def generate_page():
   .content th,.content td {{ padding:.5rem; border:1px solid var(--accent); text-align:left; font-size:.9rem; }}
   .content th {{ background:var(--accent); }}
   .content code {{ background:rgba(255,255,255,.1); padding:.15rem .4rem; border-radius:3px; font-size:.9rem; }}
-  .content pre {{ background:rgba(0,0,0,.3); padding:1rem; border-radius:4px; overflow-x:auto; }}
+  .content pre {{ background:#0d1117; padding:1rem; border-radius:6px; overflow-x:auto; border:1px solid #30363d; margin:1rem 0; font-family:'SF Mono','Fira Code',Menlo,Monaco,monospace; font-size:.85rem; line-height:1.5; }}
+  .content pre code {{ background:none; padding:0; color:#c9d1d9; }}
   .content .mermaid {{ background:rgba(255,255,255,.05); padding:1rem; border-radius:4px; margin:1rem 0; text-align:center; }}
   .content img {{ max-width:100%; border-radius:4px; margin:1rem 0; }}
+  .content .md-preview {{ background:#0d1117; border:1px solid #30363d; border-radius:8px; padding:1.2rem 1.5rem; margin:1rem 0; position:relative; }}
+  .content .md-preview .md-preview-label {{ position:absolute; top:-0.7rem; left:1rem; background:#0d1117; padding:0 0.5rem; font-size:.75rem; color:#8b949e; border:1px solid #30363d; border-radius:4px; }}
+  .content .md-preview h1,.content .md-preview h2,.content .md-preview h3,.content .md-preview h4 {{ color:#58a6ff; border-bottom:1px solid #21262d; padding-bottom:0.3rem; }}
+  .content .md-preview pre {{ background:#161b22; border:1px solid #30363d; }}
+  .content .md-preview code {{ background:rgba(110,118,129,.4); }}
+  .content .md-preview pre code {{ background:none; }}
+  .content blockquote {{ border-left:3px solid var(--blue); padding:.5rem 1rem; margin:1rem 0; background:rgba(33,150,243,.1); }}
+  .content hr {{ border:none; border-top:1px solid var(--accent); margin:1.5rem 0; }}
+  .content ul,.content ol {{ padding-left:1.5rem; margin:.5rem 0; }}
+  .content li {{ margin:.25rem 0; }}
   .feedback-form {{ background:var(--card); padding:2rem; border-radius:8px; margin-bottom:2rem; }}
   .feedback-form h2 {{ color:#7ec8e3; margin-bottom:1rem; }}
   textarea {{ width:100%; min-height:150px; background:rgba(0,0,0,.3); color:var(--text); border:1px solid var(--accent); border-radius:4px; padding:.8rem; font-family:inherit; font-size:.95rem; resize:vertical; }}
@@ -223,6 +319,7 @@ def generate_page():
   .result {{ padding:1rem; border-radius:4px; margin-top:1rem; font-weight:600; background:rgba(76,175,80,.2); border:1px solid var(--green); }}
   .refresh-hint {{ text-align:center; color:#888; font-size:.85rem; margin-top:2rem; }}
 </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 </head>
 <body>
 <div class="container">
@@ -265,8 +362,16 @@ def generate_page():
     <br>Or click 🔄 Refresh above.
   </div>
 </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-<script>mermaid.initialize({{startOnLoad:true, theme:'dark'}});</script>
+<script>
+  hljs.highlightAll();
+  document.querySelectorAll('pre code.hljs').forEach(el => {{
+    el.style.background = 'transparent';
+    el.style.padding = '0';
+  }});
+  mermaid.initialize({{startOnLoad:true, theme:'dark'}});
+</script>
 </body>
 </html>'''
 
@@ -275,6 +380,7 @@ class HITLHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
         self.end_headers()
         self.wfile.write(generate_page().encode("utf-8"))
 
