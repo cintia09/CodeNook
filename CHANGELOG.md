@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.5.0] - 2025-07-24
+
+### 🌐 Full English Internationalization (i18n)
+
+- **Entire codebase translated from Chinese to English** — ~70 files, ~7000 lines
+- All 20 skill docs (`skills/agent-*/SKILL.md`) — translated + optimized
+- All 5 agent profiles (`agents/*.agent.md`) — fully translated
+- All 11 documentation files (`docs/*.md`) — translated
+- Global instructions (`copilot-instructions.md`, `CLAUDE.md`, `agent-rules.md`) — translated
+- Task board descriptions (`.agents/task-board.json`) — 19 fields translated
+- Project-level skills, DFMEA template, blog post, HITL server comments — translated
+- 8 design docs and 10 review reports in runtime workspace — translated
+- `agent-switch` preserves bilingual trigger keywords for Chinese-speaking users
+- Zero Chinese characters remain in any active framework file
+
+### 🔧 Maintenance
+
+- Deduplicated `install.sh` guard logic + minimized global instructions (3712→46 lines)
+- Fixed `install.sh` guard string to match both Chinese and English headers
+
 ## [3.4.1] - 2025-04-11
 
 ### 🔒 HITL Hook Enforcement
