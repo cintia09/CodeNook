@@ -149,7 +149,7 @@ Create the full tree under `<root>`:
 ```
 <root>/
 ├── agents/
-│   ├── acceptor.agent.md      ← from template, ${MODEL} replaced
+│   ├── acceptor.agent.md      ← from template
 │   ├── designer.agent.md
 │   ├── implementer.agent.md
 │   ├── reviewer.agent.md
@@ -178,8 +178,9 @@ The path is typically `~/.copilot/skills/codenook-init/templates/` or `~/.claude
 
 For each template:
 1. Read the file content
-2. Replace `${MODEL}` with the user's model choice for that agent
-3. Write to `<root>/agents/<role>.agent.md`
+2. Write to `<root>/agents/<role>.agent.md`
+
+Models are NOT embedded in agent profiles. They are configured in `config.json` → `models` map and resolved by the orchestrator at spawn time.
 
 ### HITL Adapter Scripts
 

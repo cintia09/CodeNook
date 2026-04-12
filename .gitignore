@@ -34,3 +34,7 @@ docs/.rawinput
 # Claude Code projects
 .claude/agents/
 .claude/codenook/
+
+# Python
+__pycache__/
+*.pyc

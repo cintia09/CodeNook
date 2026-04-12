@@ -143,7 +143,9 @@ function orchestrate(task_id):
     feedback = pending feedback from previous HITL (if any)
     prompt   = build_context(task, role, memory, upstream, feedback)
 
-    result = task(agent_type=role, prompt=prompt)
+    # Model resolution (priority: task override > config.json > platform default)
+    model = task.model_override or config.models[role] or None
+    result = task(agent_type=role, prompt=prompt, model=model)
     # If agent fails: report to user, pause loop
 
     task.artifacts[role] = summary of result
