@@ -27,10 +27,10 @@ Detect which AI coding platform is available:
 
 Platform determines the **root directory** for all generated files:
 
-| Platform     | Root Dir   | Agents Dir             | Instructions Target                                    |
-|--------------|------------|------------------------|--------------------------------------------------------|
-| copilot-cli  | `.github/` | `.github/agents/`      | `.github/instructions/agent-framework.instructions.md` |
-| claude-code  | `.claude/` | `.claude/agents/`      | Append to project-root `CLAUDE.md`                     |
+| Platform     | Root Dir   | Agents Dir             | CodeNook Dir             | Instructions Target                                    |
+|--------------|------------|------------------------|--------------------------|--------------------------------------------------------|
+| copilot-cli  | `.github/` | `.github/agents/`      | `.github/codenook/`      | `.github/instructions/codenook.instructions.md`        |
+| claude-code  | `.claude/` | `.claude/agents/`      | `.claude/codenook/`      | Append to project-root `CLAUDE.md`                     |
 
 ---
 
@@ -90,13 +90,10 @@ If **Custom**: loop through 5 agents, ask model for each.
 > Choices: `Yes ★` · `No`
 
 Items to append (relative to project root):
-- `<root>/agents/` — agent profile files
-- `<root>/memory/` — phase snapshots
-- `<root>/task-board.json` — runtime state
-- `<root>/task-board.json.bak` — backup
-- `<root>/config.json` — framework config
+- `<root>/codenook/` — entire runtime directory (memory, task-board, config)
 
 Where `<root>` is `.github/` or `.claude/` depending on platform.
+Agent profiles at `<root>/agents/` are also ignored by default.
 The entire agent system is treated as a dev tool — not committed to project source.
 
 ---
@@ -113,9 +110,10 @@ Create the full tree under `<root>`:
 │   ├── implementer.agent.md
 │   ├── reviewer.agent.md
 │   └── tester.agent.md
-├── memory/                    ← empty directory (with .gitkeep)
-├── task-board.json            ← seed content below
-└── config.json                ← seed content below
+└── codenook/
+    ├── memory/                ← empty directory (with .gitkeep)
+    ├── task-board.json        ← seed content below
+    └── config.json            ← seed content below
 ```
 
 Plus platform-specific instructions file (see Step 1 table).

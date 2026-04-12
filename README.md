@@ -113,16 +113,17 @@ It then generates project-level files:
 │   ├── implementer.agent.md
 │   ├── reviewer.agent.md
 │   └── tester.agent.md
-├── memory/
-├── task-board.json
-└── config.json
+└── codenook/
+    ├── memory/
+    ├── task-board.json
+    └── config.json
 ```
 
 ### 2. Create a Task
 
 > "Create task: Implement user authentication"
 
-The orchestrator adds it to `task-board.json` with status `created`.
+The orchestrator adds it to `codenook/task-board.json` with status `created`.
 
 ### 3. Run the Task
 
@@ -148,8 +149,9 @@ You approve or provide feedback at each HITL gate. That's it.
 ┌─────────────────────────────────────────────────────────┐
 │              ORCHESTRATOR (main session)                  │
 │                                                          │
-│  ┌──────────────┐   ┌────────────┐   ┌───────────────┐  │
-│  │ task-board.json│   │ config.json│   │ memory/*.md   │  │
+│  ┌───────────────────┐   ┌────────────┐   ┌───────────────┐  │
+│  │ codenook/         │   │ codenook/  │   │ codenook/     │  │
+│  │ task-board.json   │   │ config.json│   │ memory/*.md   │  │
 │  │ (source of    │   │ (platform, │   │ (phase        │  │
 │  │  truth)       │   │  models,   │   │  snapshots)   │  │
 │  │              │   │  hitl)     │   │              │  │
@@ -168,7 +170,7 @@ You approve or provide feedback at each HITL gate. That's it.
 └───────┘ └───────┘ └───────┘ └───────┘ └───────┘
 ```
 
-**Key principle:** The orchestrator is the sole writer of `task-board.json`. Subagents receive context in their prompt and return results in their response — no file-based messaging.
+**Key principle:** The orchestrator is the sole writer of `codenook/task-board.json`. Subagents receive context in their prompt and return results in their response — no file-based messaging.
 
 ## Task Lifecycle
 
@@ -226,11 +228,11 @@ You approve or provide feedback at each HITL gate. That's it.
 
 ## HITL Multi-Adapter System
 
-Every phase transition passes through a human review gate. The adapter is auto-detected or configured in `config.json`.
+Every phase transition passes through a human review gate. The adapter is auto-detected or configured in `codenook/config.json`.
 
 ### Detection Priority
 
-1. `config.json` → `hitl.adapter` (explicit setting)
+1. `codenook/config.json` → `hitl.adapter` (explicit setting)
 2. `$SSH_TTY` set → terminal
 3. `$DISPLAY` set or macOS → local-html
 4. `/.dockerenv` exists → terminal
@@ -305,7 +307,7 @@ Each `.agent.md` file contains:
 
 ## Memory
 
-Each phase writes a memory snapshot to `memory/<task_id>-<role>-memory.md`. The orchestrator manages the memory chain — each agent receives all upstream memories:
+Each phase writes a memory snapshot to `codenook/memory/<task_id>-<role>-memory.md`. The orchestrator manages the memory chain — each agent receives all upstream memories:
 
 ```
 designer memory                                    → implementer
@@ -318,7 +320,7 @@ Memory snapshots include: input summary, key decisions, artifacts produced, issu
 
 ## Configuration
 
-After initialization, `config.json` lives in the project root directory (`.github/` or `.claude/`):
+After initialization, `codenook/config.json` lives under the platform directory (`.github/codenook/` or `.claude/codenook/`):
 
 ```json
 {
@@ -353,10 +355,10 @@ After initialization, `config.json` lives in the project root directory (`.githu
 
 ### Platform Directories
 
-| Platform | Root | Agents | Skills |
-|----------|------|--------|--------|
-| Copilot CLI | `.github/` | `.github/agents/` | `~/.copilot/skills/` |
-| Claude Code | `.claude/` | `.claude/agents/` | `~/.claude/skills/` |
+| Platform | Root | Agents | CodeNook Dir | Skills |
+|----------|------|--------|--------------|--------|
+| Copilot CLI | `.github/` | `.github/agents/` | `.github/codenook/` | `~/.copilot/skills/` |
+| Claude Code | `.claude/` | `.claude/agents/` | `.claude/codenook/` | `~/.claude/skills/` |
 
 ## Error Handling
 
@@ -365,10 +367,10 @@ After initialization, `config.json` lives in the project root directory (`.githu
 | Subagent timeout | Report to user; offer retry or skip |
 | Subagent crash | Report error; offer retry with different model |
 | HITL no response (10 min) | Reminder; 30 min → save state and pause |
-| `task-board.json` corrupt | Recover from `.bak`; report if unrecoverable |
+| `codenook/task-board.json` corrupt | Recover from `.bak`; report if unrecoverable |
 | Memory file missing | Warn and continue with reduced context |
 
-The orchestrator backs up `task-board.json` to `task-board.json.bak` before every write. On restart, it reads the task board and resumes from the current status — no in-memory state needed.
+The orchestrator backs up `codenook/task-board.json` to `codenook/task-board.json.bak` before every write. On restart, it reads the task board and resumes from the current status — no in-memory state needed.
 
 ## Migrating from v3.x
 
@@ -382,15 +384,15 @@ v4.0 is a ground-up simplification. Key changes:
 | 11-state FSM | 10-status task-board routing |
 | File-based messaging (`inbox.json`) | Orchestrator context passing |
 | `agent-hitl-gate` skill | Multi-adapter HITL (4 adapters) |
-| `events.db` SQLite audit | Feedback history in `task-board.json` |
-| `.agents/` project directory | `.github/` or `.claude/` (platform-native) |
+| `events.db` SQLite audit | Feedback history in `codenook/task-board.json` |
+| `.agents/` project directory | `.github/codenook/` or `.claude/codenook/` (platform-native) |
 
 **Migration steps:**
 
 1. Remove old global skills, hooks, and rules from `~/.claude/` or `~/.copilot/`
 2. Install v4.0 (`curl` one-liner or manual copy)
 3. In your project, run "initialize agent system" to generate new files
-4. Migrate existing tasks manually if needed (copy goals to new `task-board.json`)
+4. Migrate existing tasks manually if needed (copy goals to new `codenook/task-board.json`)
 
 > 📖 See [MIGRATION.md](docs/MIGRATION.md) for a detailed migration guide.
 

@@ -12,8 +12,8 @@ and enforce human-in-the-loop (HITL) gates between every phase.
 
 ## Task Board — Single Source of Truth
 
-All state lives in `task-board.json` (in `.github/` or `.claude/` depending on platform).
-Read `config.json` from the same directory to determine platform and preferences.
+All state lives in `codenook/task-board.json` (in `.github/codenook/` or `.claude/codenook/` depending on platform).
+Read `codenook/config.json` from the same directory to determine platform and preferences.
 
 ```json
 {
@@ -35,7 +35,7 @@ Read `config.json` from the same directory to determine platform and preferences
 }
 ```
 
-Rules: you are the sole writer of task-board.json. Every status change updates `updated_at`.
+Rules: you are the sole writer of codenook/task-board.json. Every status change updates `updated_at`.
 `feedback_history` accumulates all HITL decisions for audit.
 
 ## Status Routing Table
@@ -93,7 +93,7 @@ For each task, execute this loop:
 
 ```
 function orchestrate(task_id):
-  task = read task-board.json → find task by id
+  task = read codenook/task-board.json → find task by id
 
   while task.status != "done":
     route = ROUTING[task.status]
@@ -107,11 +107,11 @@ function orchestrate(task_id):
       if decision == "approve":   task.status = route.approve
       if decision == "feedback":  task.status = route.reject; save feedback for next agent
       if decision == "reject":    task.status = route.reject; save feedback
-      save task-board.json; continue
+      save codenook/task-board.json; continue
 
     # ── Agent Phase ──
     role = route.agent
-    memory   = load memory/<task_id>-<role>-memory.md (if exists)
+    memory   = load codenook/memory/<task_id>-<role>-memory.md (if exists)
     upstream = collect all upstream artifacts from task.artifacts
     feedback = pending feedback from previous HITL (if any)
     prompt   = build_context(task, role, memory, upstream, feedback)
@@ -122,8 +122,8 @@ function orchestrate(task_id):
     task.artifacts[role] = summary of result
     task.status = route.next
     clear pending feedback
-    save task-board.json
-    save memory/<task_id>-<role>-memory.md
+    save codenook/task-board.json
+    save codenook/memory/<task_id>-<role>-memory.md
     # Loop continues → next iteration hits HITL gate
 ```
 
@@ -132,7 +132,7 @@ To start: user says "run task T-XXX" or "orchestrate T-XXX".
 
 ## Memory Management
 
-Each phase writes a snapshot to `memory/<task_id>-<role>-memory.md`:
+Each phase writes a snapshot to `codenook/memory/<task_id>-<role>-memory.md`:
 
 ```markdown
 # Memory — T-001 / designer
@@ -197,7 +197,7 @@ Respond to these user commands:
 
 | Command | Action |
 |---------|--------|
-| "create task <title>" | Add task to task-board.json with status "created" |
+| "create task <title>" | Add task to codenook/task-board.json with status "created" |
 | "show task board" / "task list" | Display all tasks with status |
 | "run task T-XXX" / "orchestrate T-XXX" | Start orchestration loop |
 | "task status T-XXX" | Show detailed status + artifacts + history |
@@ -212,10 +212,10 @@ Respond to these user commands:
 | Subagent timeout | Report to user; offer retry or skip |
 | Subagent crash | Report error; offer retry with different model |
 | HITL no response 10m | Reminder; 30m → save state and pause |
-| task-board.json corrupt | Recover from `.bak`; report if unrecoverable |
+| codenook/task-board.json corrupt | Recover from `.bak`; report if unrecoverable |
 | Memory file missing | Warn and continue with reduced context |
 
-**Backup:** Before every write — copy task-board.json to task-board.json.bak first.
+**Backup:** Before every write — copy codenook/task-board.json to codenook/task-board.json.bak first.
 
-**Resumption:** On restart, read task-board.json and resume from current status.
+**Resumption:** On restart, read codenook/task-board.json and resume from current status.
 No in-memory state matters — the file is the complete truth.
