@@ -64,24 +64,28 @@ def read_history():
 
 
 def md_to_html(md_text):
-    """Basic markdown to HTML conversion."""
+    """Basic markdown to HTML conversion (Python 3.13 compatible)."""
     import re
     html = md_text
     # Escape HTML
     html = html.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    # Code blocks FIRST — protect contents from further processing
+    code_blocks = []
+    def stash_code(m):
+        code_blocks.append(m.group(2))
+        return f"$$CODE_BLOCK_{len(code_blocks) - 1}$$"
+    html = re.sub(r"```(\w*)\n(.*?)```", stash_code, html, flags=re.S)
     # Headers
     html = re.sub(r"^### (.+)$", r"<h3>\1</h3>", html, flags=re.M)
     html = re.sub(r"^## (.+)$", r"<h2>\1</h2>", html, flags=re.M)
     html = re.sub(r"^# (.+)$", r"<h1>\1</h1>", html, flags=re.M)
     # Bold
     html = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", html)
-    # Code blocks
-    html = re.sub(r"```(\w*)\n(.*?)```", r"<pre><code>\2</code></pre>", html, flags=re.S)
     # Inline code
     html = re.sub(r"`(.+?)`", r"<code>\1</code>", html)
     # Lists
     html = re.sub(r"^- (.+)$", r"<li>\1</li>", html, flags=re.M)
-    # Tables (basic)
+    # Tables (basic) — escape hyphen in character class for Python 3.13+
     lines = html.split("\n")
     in_table = False
     result = []
@@ -90,7 +94,7 @@ def md_to_html(md_text):
             if not in_table:
                 result.append("<table>")
                 in_table = True
-            if re.match(r"^\|[\s-|]+\|$", line.strip()):
+            if re.match(r"^\|[\s\-|]+\|$", line.strip()):
                 continue  # Skip separator rows
             cells = [c.strip() for c in line.strip().split("|")[1:-1]]
             result.append("<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>")
@@ -102,6 +106,9 @@ def md_to_html(md_text):
     if in_table:
         result.append("</table>")
     html = "\n".join(result)
+    # Restore code blocks
+    for i, block in enumerate(code_blocks):
+        html = html.replace(f"$$CODE_BLOCK_{i}$$", f"<pre><code>{block}</code></pre>")
     # Paragraphs
     html = re.sub(r"\n\n", r"</p><p>", html)
     html = f"<p>{html}</p>"
