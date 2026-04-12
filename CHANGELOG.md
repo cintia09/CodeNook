@@ -2,6 +2,59 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.0.0] - 2026-04-12
+
+### 🚀 v4.0 — Subagent Architecture Redesign
+
+Complete architectural overhaul: from 20 global skills + 13 hooks to 2 skills + subagent delegation.
+
+#### ✨ New Architecture
+- **2 skills** replace 20: `agent-init` (initialization + 5 templates) and `agent-orchestrator` (routing + HITL + memory)
+- **Subagent delegation**: All agents run in separate context windows, spawned by the orchestrator
+- **Project-level agents**: `agent-init` generates `.github/agents/` (Copilot) or `.claude/agents/` (Claude Code)
+- **task-board.json**: Simple status-based routing replaces 11-state FSM
+- **Multi-adapter HITL**: Auto-detects environment → local-html / terminal / confluence / github-issue
+- **Hard constraints via frontmatter**: `tools`/`disallowedTools` in agent profiles replace hook enforcement
+- **Memory management**: Orchestrator saves/loads markdown snapshots between phases
+
+#### 🗑️ Removed (v3.x → v4.0)
+- 18 global skills (agent-fsm, agent-switch, agent-messaging, agent-hooks, etc.)
+- 13 shell hook scripts + hooks.json
+- Session-level role switching (`/agent <name>` in main session)
+- File-based messaging (inbox.json)
+- `.agents/` runtime directory (events.db, state.json, workspace/)
+- Global agent profiles (`~/.copilot/agents/`, `~/.claude/agents/`)
+- Complex FSM state machine with guards
+
+#### 📦 New File Structure
+```
+skills-v4/
+├── agent-init/
+│   ├── SKILL.md              — Initialization logic
+│   └── templates/            — 5 agent profile templates
+│       ├── acceptor.agent.md
+│       ├── designer.agent.md
+│       ├── implementer.agent.md
+│       ├── reviewer.agent.md
+│       └── tester.agent.md
+└── agent-orchestrator/
+    ├── SKILL.md              — Orchestration engine
+    └── hitl-adapters/        — 4 HITL adapters
+```
+
+#### 📊 Size Comparison
+| Metric | v3.x | v4.0 |
+|--------|------|------|
+| Skills | 20 | 2 |
+| Hooks | 13 | 0 |
+| Total lines | ~7,000 | ~1,200 |
+| Install files | 40+ | 12 |
+| Context per invocation | ~1,300 lines | ~200-350 lines |
+
+#### 🔧 Updated
+- `install.sh` rewritten for v4.0 (--install, --check, --uninstall, --clean-v3)
+- HITL server `hitl-server.py` fixed: Python 3.13 regex compatibility + code block rendering
+
 ## [3.5.0] - 2025-07-24
 
 ### 🌐 Full English Internationalization (i18n)
