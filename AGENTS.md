@@ -1,29 +1,29 @@
 # Multi-Agent Software Development Framework
 
-## 安装指引
+## Installation Guide
 
-当用户说 "根据 multi-agent-framework 里的指引, 安装到本地" 或类似意图时, **自动执行以下步骤**:
+When the user says "install from multi-agent-framework" or similar, **automatically execute these steps**:
 
-> ⚠️ **重要**: 必须先 clone 仓库再用 `cp` 命令复制文件。**禁止**用 `cat > file << EOF` 或其他方式重新创建文件内容 — 必须从仓库原文件复制, 确保内容一致。
+> ⚠️ **Important**: Clone the repo first, then use `cp` to copy files. **Do NOT** use `cat > file << EOF` or other methods to recreate file contents — always copy from repo source to ensure consistency.
 
-### Step 1: Clone 到临时目录
+### Step 1: Clone to Temporary Directory
 ```bash
 git clone --depth 1 git@github.com:cintia09/multi-agent-framework.git /tmp/multi-agent-framework
 ```
 
-### Step 2: 复制 Skills (必须用 cp, 禁止 heredoc)
+### Step 2: Copy Skills (must use cp, no heredoc)
 ```bash
 mkdir -p ~/.claude/skills
 cp -r /tmp/multi-agent-framework/skills/agent-* ~/.claude/skills/
 ```
 
-### Step 3: 复制 Agent Profiles (必须用 cp, 禁止 heredoc)
+### Step 3: Copy Agent Profiles (must use cp, no heredoc)
 ```bash
 mkdir -p ~/.claude/agents
 cp /tmp/multi-agent-framework/agents/*.agent.md ~/.claude/agents/
 ```
 
-### Step 4: 安装 Hooks (必须用 cp, 禁止 heredoc)
+### Step 4: Install Hooks (must use cp, no heredoc)
 ```bash
 mkdir -p ~/.claude/hooks
 cp /tmp/multi-agent-framework/hooks/*.sh ~/.claude/hooks/
@@ -31,7 +31,7 @@ chmod +x ~/.claude/hooks/agent-*.sh
 chmod +x ~/.claude/hooks/security-scan.sh
 ```
 
-如果 `~/.claude/hooks/hooks.json` 已存在, 需要**合并** hook 配置而非覆盖:
+If `~/.claude/hooks/hooks.json` already exists, **merge** hook config rather than overwriting:
 ```bash
 if [ -f ~/.claude/hooks/hooks.json ]; then
   echo "⚠️ hooks.json already exists — merge hooks/hooks.json manually"
@@ -40,7 +40,7 @@ else
 fi
 ```
 
-### Step 5: 追加协作规则 (幂等)
+### Step 5: Append Collaboration Rules (idempotent)
 ```bash
 # Legacy: append to CLAUDE.md
 if ! grep -q "## Agent Collaboration Rules" ~/.claude/CLAUDE.md 2>/dev/null; then
@@ -53,42 +53,42 @@ mkdir -p ~/.claude/rules
 cp /tmp/multi-agent-framework/rules/*.md ~/.claude/rules/
 ```
 
-### Step 6: 验证安装结果
+### Step 6: Verify Installation
 ```bash
 echo "Skills:" && ls -d ~/.claude/skills/agent-* | wc -l
 echo "Agents:" && ls ~/.claude/agents/*.agent.md | wc -l
 echo "Hooks:" && ls ~/.claude/hooks/*.sh | wc -l
 echo "hooks.json:" && [ -f ~/.claude/hooks/hooks.json ] && echo "✅" || echo "❌"
 ```
-预期: Skills 15 个目录, Agents 5 个文件, Hooks 13 个脚本, hooks.json 存在。
+Expected: 15 skill directories, 5 agent files, 13 hook scripts, hooks.json present.
 
-### Step 7: 深度验证 (可选)
-如果需要更完整的验证（检查 Skill 格式、YAML frontmatter、文件权限等），可以运行验证脚本：
+### Step 7: Deep Verification (optional)
+For more thorough validation (skill format, YAML frontmatter, file permissions, etc.), run the verification scripts:
 ```bash
-# 验证安装完整性
+# Verify installation completeness
 bash /tmp/multi-agent-framework/scripts/verify-install.sh
 
-# 在项目中执行 /init 初始化后，验证 .agents/ 目录结构
+# After running /init in a project, verify .agents/ directory structure
 bash /tmp/multi-agent-framework/scripts/verify-init.sh
 ```
-> ⚠️ 需要在 Step 8 清理之前运行。
+> ⚠️ Must run before Step 8 cleanup.
 
-### Step 8: 清理
+### Step 8: Cleanup
 ```bash
 rm -rf /tmp/multi-agent-framework
 ```
 
-### Step 9: 输出结果
+### Step 9: Output Results
 ```
-✅ Multi-Agent Framework 安装完成
+✅ Multi-Agent Framework installation complete
 ━━━━━━━━━━━━━━━━━━━━━━━
-Skills:  15 个已安装到 ~/.claude/skills/
-Agents:  5 个已安装到 ~/.claude/agents/
-Hooks:   13 个已安装到 ~/.claude/hooks/ (boundary + audit + lifecycle + memory + scheduling)
-Rules:   已追加到 ~/.claude/CLAUDE.md + ~/.claude/rules/ (模块化规则)
+Skills:  15 installed to ~/.claude/skills/
+Agents:  5 installed to ~/.claude/agents/
+Hooks:   13 installed to ~/.claude/hooks/ (boundary + audit + lifecycle + memory + scheduling)
+Rules:   Appended to ~/.claude/CLAUDE.md + ~/.claude/rules/ (modular rules)
 ━━━━━━━━━━━━━━━━━━━━━━━
-使用方式:
-  /agent           → 选择角色
-  /agent acceptor  → 直接切换到验收者
-  "初始化 Agent 系统" → 在项目中初始化 .agents/ 目录
+Usage:
+  /agent           → Select a role
+  /agent acceptor  → Switch directly to Acceptor
+  "Initialize Agent system" → Initialize .agents/ directory in a project
 ```
