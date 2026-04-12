@@ -1,17 +1,17 @@
 ---
 name: agent-worktree
-description: "Git Worktree 并行任务管理: 为每个任务创建独立工作目录和分支。Use when creating parallel tasks, managing worktrees, or merging completed task branches."
+description: "Git Worktree parallel task management. Creates an isolated working directory and branch per task. Use when creating parallel tasks, managing worktrees, or merging completed task branches."
 ---
 
-# Skill: Git Worktree — 并行任务管理
+# Skill: Git Worktree — Parallel Task Management
 
-纯 Git Worktree 操作。每个任务获得独立的工作目录和分支，互不干扰。
+Pure Git Worktree operations. Each task gets an isolated working directory and branch.
 
-> ⚠️ 本 skill 只负责 git worktree 操作，不涉及 `.agents/` 系统初始化。
+> ⚠️ This skill only handles git worktree operations — it does not initialize the `.agents/` system.
 
-## 命令
+## Commands
 
-### create — 创建 Worktree
+### create — Create Worktree
 
 ```bash
 TASK_ID="$1"                    # e.g. T-042
@@ -23,25 +23,25 @@ BRANCH_NAME="task/${TASK_ID}"
 git worktree add "$WORKTREE_DIR" -b "$BRANCH_NAME"
 ```
 
-输出:
+Output:
 ```
-✅ Worktree 已创建
+✅ Worktree created
 ━━━━━━━━━━━━━━━━━━
-任务: T-042 | 分支: task/T-042
-目录: ../project--T-042
-下一步: cd ../project--T-042
+Task: T-042 | Branch: task/T-042
+Directory: ../project--T-042
+Next: cd ../project--T-042
 ```
 
-### list — 列出活跃 Worktree
+### list — List Active Worktrees
 
 ```bash
 git worktree list
 ```
 
-### status — Worktree 状态概览
+### status — Worktree Status Overview
 
 ```bash
-echo "📊 Worktree 状态:"
+echo "📊 Worktree Status:"
 git worktree list | while read -r dir commit branch; do
   branch="${branch//[\[\]]/}"
   if [[ "$branch" == task/* ]]; then
@@ -54,7 +54,7 @@ git worktree list | while read -r dir commit branch; do
 done
 ```
 
-### merge — 合并 & 清理
+### merge — Merge & Cleanup
 
 ```bash
 TASK_ID="$1"
@@ -63,32 +63,32 @@ PROJECT_NAME="$(basename "$PROJECT_DIR")"
 WORKTREE_DIR="${PROJECT_DIR}/../${PROJECT_NAME}--${TASK_ID}"
 BRANCH_NAME="task/${TASK_ID}"
 
-# 1. 回到主 worktree 并合并
+# 1. Return to main worktree and merge
 cd "$PROJECT_DIR"
 git merge "$BRANCH_NAME" --no-ff -m "Merge task/${TASK_ID}"
 
-# 2. 清理 worktree
+# 2. Cleanup worktree
 git worktree remove "$WORKTREE_DIR" --force
 git branch -d "$BRANCH_NAME"
 ```
 
-输出:
+Output:
 ```
-✅ 合并完成
-━━━━━━━━━━━━
-任务: T-042 | 分支: task/T-042 → main
-Worktree: 已清理 ✅
+✅ Merge complete
+━━━━━━━━━━━━━━━━
+Task: T-042 | Branch: task/T-042 → main
+Worktree: cleaned up ✅
 ```
 
-## 使用场景
+## Use Cases
 
-| 场景 | 命令 |
-|------|------|
-| 并行开发两个功能 | `create T-042` + `create T-043` |
-| 紧急修复插入 | `create T-FIX-001` |
-| A/B 方案对比 | 同一需求创建两个 worktree |
+| Scenario | Command |
+|----------|---------|
+| Parallel feature development | `create T-042` + `create T-043` |
+| Emergency hotfix | `create T-FIX-001` |
+| A/B approach comparison | Create two worktrees for the same requirement |
 
-## 约束
+## Constraints
 
-- 合并前建议 rebase: `cd ../project--T-042 && git rebase main`
-- Worktree 目录命名规则: `<project-name>--<task-id>`
+- Rebase before merging: `cd ../project--T-042 && git rebase main`
+- Worktree directory naming: `<project-name>--<task-id>`

@@ -5,9 +5,9 @@ description: "Orchestrator Daemon. Autonomous background process that drives tas
 
 # Agent Orchestrator — Workflow Daemon
 
-> ⚠️ **v3.4.0 更新**: 原 3-Phase Orchestrator 已升级为统一 FSM 编排器。
-> 3-Phase 的 18 状态已合并为 11 状态统一 FSM (参见 `agent-fsm/SKILL.md`)。
-> 旧任务的 3-Phase 状态会自动映射到统一 FSM 状态。
+> ⚠️ **v3.4.0 Update**: The 3-Phase Orchestrator has been upgraded to a Unified FSM Orchestrator.
+> The original 18 states are consolidated into an 11-state Unified FSM (see `agent-fsm/SKILL.md`).
+> Legacy 3-Phase states are automatically mapped to Unified FSM states.
 
 Background shell script that autonomously drives tasks through the unified FSM workflow:
 1. Reads task state from `task-board.json`, determines next step via FSM
