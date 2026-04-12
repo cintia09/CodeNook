@@ -34,17 +34,57 @@ Platform determines the **root directory** for all generated files:
 
 ---
 
-## Step 2 — Idempotency Check
+## Step 2 — Idempotency Check & Upgrade
 
-Before creating anything, check if the root directory already exists:
+Before creating anything, check if the system already exists:
 
 ```
-IF <root>/config.json exists:
-  ask_user "Agent system already initialized. Reinitialize?"
+IF <root>/codenook/config.json exists:
+  # Existing installation detected
+  existing_version = config.json → "version"
+
+  ask_user "CodeNook v{existing_version} detected. What would you like to do?"
     choices:
-      Merge  → regenerate agent profiles; preserve task-board.json & memory/
-      Fresh  → rm -rf <root>; proceed as new install
-      Cancel → abort
+      "Upgrade (recommended)" → upgrade mode
+      "Fresh install"         → rm -rf everything; proceed as new install
+      "Cancel"                → abort
+
+  IF upgrade mode:
+    # ── Preserve runtime data ──
+    # These files contain task history and context — NEVER overwrite:
+    PRESERVE = [
+      "<root>/codenook/task-board.json",       # task history
+      "<root>/codenook/task-board.json.bak",   # backup
+      "<root>/codenook/config.json",           # user preferences (models, HITL, etc.)
+      "<root>/codenook/memory/*",              # all memory snapshots
+      "<root>/codenook/reviews/*",             # HITL review history
+    ]
+
+    # ── Regenerate framework files ──
+    # These are "code" that ships with the framework — always update:
+    REGENERATE = [
+      "<root>/agents/*.agent.md",              # agent profiles (with current templates)
+      "<root>/codenook/hitl-adapters/*",        # HITL scripts
+      "<root>/instructions/codenook.instructions.md",  # engine (Copilot CLI)
+      # For Claude Code: re-append engine block to CLAUDE.md
+    ]
+
+    # ── Merge config.json ──
+    # Read existing config, merge with latest defaults:
+    # - Keep existing: models, hitl.adapter, preferences.*
+    # - Update: version field → new version
+    # - Add: any new keys from seed template (with defaults)
+    # This ensures new features are available without losing settings.
+
+    # ── Model refresh ──
+    # When regenerating agent profiles, use models from existing config.json
+    # (not defaults), so user's custom model choices are preserved.
+
+    # ── Skip questions Q1-Q4 ──
+    # All preferences already exist in config.json. Skip interactive prompts.
+    # Proceed directly to Step 4 (file generation) in upgrade mode.
+
+    Proceed to Step 4 (upgrade mode)
 ```
 
 ---
@@ -100,6 +140,10 @@ The entire agent system is treated as a dev tool — not committed to project so
 
 ## Step 4 — Directory & File Generation
 
+> **Upgrade mode:** Skip creating directories and seed files that already exist.
+> Only regenerate agent profiles, HITL scripts, and engine instructions.
+> Runtime data (task-board.json, memory/, config.json) is preserved.
+
 Create the full tree under `<root>`:
 
 ```
@@ -154,6 +198,9 @@ memory management, task commands. It is automatically loaded as part of every se
 No separate global skill needed — the engine lives entirely in the project.
 
 ### Seed: `task-board.json`
+
+> **Upgrade mode:** SKIP — preserve existing task history.
+
 ```json
 {
   "version": "4.0",
@@ -162,6 +209,10 @@ No separate global skill needed — the engine lives entirely in the project.
 ```
 
 ### Seed: `config.json`
+
+> **Upgrade mode:** MERGE — read existing config, update `version` field,
+> add any new keys from template with defaults, preserve all user settings.
+
 ```json
 {
   "version": "4.0",
@@ -196,7 +247,7 @@ After all files are written:
 3. **Print summary** to the user:
 
 ```
-✅ Agent system initialized!
+✅ Agent system initialized!                    # or "✅ Agent system upgraded!" in upgrade mode
 
 Platform:  Copilot CLI
 Directory: .github/
@@ -209,6 +260,10 @@ Models:
   implementer: claude-sonnet-4
   reviewer:    claude-sonnet-4
   tester:      claude-haiku-4.5
+
+# Upgrade mode only:
+Preserved: task-board.json (N tasks), memory/ (M snapshots), config.json
+Updated:   5 agent profiles, 6 HITL scripts, engine instructions
 
 Next steps:
   1. Say "create task <title>" to create your first task
