@@ -165,15 +165,22 @@ For each template:
 The framework instructions file (Copilot) or CLAUDE.md append block contains:
 
 ```markdown
-## Multi-Agent Framework v4.0
+## Multi-Agent Framework v4.0 (CodeNook)
 
-This project uses the multi-agent development framework.
+This project uses the CodeNook multi-agent development framework.
 
 ### Orchestration Rules
-1. All development tasks flow through the task board (task-board.json)
+1. All development tasks flow through the task board (codenook/task-board.json)
 2. Each phase is handled by a specialized subagent (designer → implementer → reviewer → tester → acceptor)
-3. HITL gates pause between every phase for human approval
-4. Use the `codenook-engine` skill for task management
+3. **HITL gates are MANDATORY** — pause between every phase for human approval
+4. Use the `codenook-engine` skill for task management and orchestration
+5. NEVER advance task status from *_done without completing the HITL gate first
+
+### HITL Enforcement
+- Statuses ending in `_done` and `accepted` are LOCKED states
+- You MUST present output to the human, collect approval, record in feedback_history
+- Run hitl-verify.sh before any status transition from a locked state
+- Skipping HITL is a framework violation — always pause for human review
 
 ### Quick Commands
 - "Create task <title>" — add a new task
@@ -207,8 +214,10 @@ Models:
   tester:      claude-haiku-4.5
 
 Next steps:
-  1. Tell me your requirements to create a task
-  2. Or say "create task <title>" to start manually
+  1. Use the `codenook-engine` skill to manage tasks
+  2. Say "create task <title>" to create your first task
+  3. Say "run task T-001" to start orchestration
+  4. HITL gates will pause for your approval between each phase
 ```
 
 If any file is missing or empty, report the failure and offer to retry.

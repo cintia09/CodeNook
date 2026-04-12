@@ -44,19 +44,26 @@ Rules: you are the sole writer of codenook/task-board.json. Every status change 
 Status              → Handler       → On Approve            → On Reject
 ─────────────────────────────────────────────────────────────────────────
 created             → designer      → designing_done         → (agent retries)
-designing_done      → [HITL]        → implementing           → created
+designing_done      → [HITL GATE]   → implementing           → created
 implementing        → implementer   → implementing_done      → (agent retries)
-implementing_done   → [HITL]        → reviewing              → implementing
+implementing_done   → [HITL GATE]   → reviewing              → implementing
 reviewing           → reviewer      → review_done            → (agent retries)
-review_done         → [HITL]        → testing                → implementing
+review_done         → [HITL GATE]   → testing                → implementing
 testing             → tester        → test_done              → (agent retries)
-test_done           → [HITL]        → accepting              → implementing
+test_done           → [HITL GATE]   → accepting              → implementing
 accepting           → acceptor      → accepted               → (agent retries)
-accepted            → [HITL]        → done                   → created
+accepted            → [HITL GATE]   → done                   → created
 ```
 
-**Principles:** HITL after every agent phase — no auto-advancement. Rejection routes backward.
-Subagent errors pause the FSM (status unchanged) and report to user.
+**CRITICAL — HITL gates are MANDATORY and ENFORCED:**
+- Every `_done` and `accepted` status is a **locked state** — it cannot advance without human approval.
+- Before advancing from ANY locked status, you MUST:
+  1. Execute the HITL adapter (publish → collect feedback)
+  2. Record the decision in `feedback_history`
+  3. Run `hitl-verify.sh` to validate before writing the new status
+- **NEVER** skip HITL gates. **NEVER** directly change status from `*_done` to the next phase.
+- If `hitl.enabled` is false in config.json, the verify script will allow passage.
+- Locked statuses: `designing_done`, `implementing_done`, `review_done`, `test_done`, `accepted`
 
 ## HITL Multi-Adapter System
 
@@ -94,20 +101,41 @@ For each task, execute this loop:
 ```
 function orchestrate(task_id):
   task = read codenook/task-board.json → find task by id
+  SKILL_DIR = directory containing this SKILL.md file
 
   while task.status != "done":
     route = ROUTING[task.status]
 
     if route has hitl:
-      # ── HITL Gate ──
+      # ── HITL GATE (MANDATORY — DO NOT SKIP) ──
+      # Step 1: Present output for human review
       adapter = detect_adapter()
       adapter.publish(task_id, last_role, latest_artifact)
-      decision = adapter.get_feedback(task_id)
-      record in feedback_history
+
+      # Step 2: Collect human decision
+      # For terminal adapter: use ask_user() with choices ["Approve", "Request Changes"]
+      # For other adapters: poll until decision received
+      decision, feedback = adapter.get_feedback(task_id)
+
+      # Step 3: Record decision in feedback_history (REQUIRED for verification)
+      task.feedback_history.append({
+        "from_status": task.status,
+        "decision": decision,         // "approve" or "feedback"
+        "feedback": feedback,
+        "at": ISO timestamp,
+        "role": last_role
+      })
+      save codenook/task-board.json
+
+      # Step 4: Verify HITL completion (programmatic enforcement)
+      bash SKILL_DIR/hitl-adapters/hitl-verify.sh <task_id> <task.status>
+      # If exit code != 0: STOP — do not advance. Report the error.
+
+      # Step 5: Advance status based on decision
       if decision == "approve":   task.status = route.approve
       if decision == "feedback":  task.status = route.reject; save feedback for next agent
-      if decision == "reject":    task.status = route.reject; save feedback
-      save codenook/task-board.json; continue
+      save codenook/task-board.json
+      continue
 
     # ── Agent Phase ──
     role = route.agent
@@ -126,6 +154,10 @@ function orchestrate(task_id):
     save codenook/memory/<task_id>-<role>-memory.md
     # Loop continues → next iteration hits HITL gate
 ```
+
+**ENFORCEMENT:** The `hitl-verify.sh` call in Step 4 is a hard gate.
+If you skip Steps 1-4 and try to advance directly, the verify script will block you
+when called on the next iteration. This prevents accidental HITL bypass.
 
 The loop **pauses at every HITL gate** and resumes when the user responds.
 To start: user says "run task T-XXX" or "orchestrate T-XXX".
