@@ -86,13 +86,18 @@ If **Custom**: loop through 5 agents, ask model for each.
 ★ = recommended default
 
 ### Q4 — Gitignore
-> "Add runtime files to .gitignore?"
+> "Add agent system files to .gitignore?"
 > Choices: `Yes ★` · `No`
 
-Items to append (relative to platform root, e.g. `.github/` or `.claude/`):
-- `memory/` — phase snapshots
-- `task-board.json` — runtime state
-- `task-board.json.bak` — backup
+Items to append (relative to project root):
+- `<root>/agents/` — agent profile files
+- `<root>/memory/` — phase snapshots
+- `<root>/task-board.json` — runtime state
+- `<root>/task-board.json.bak` — backup
+- `<root>/config.json` — framework config
+
+Where `<root>` is `.github/` or `.claude/` depending on platform.
+The entire agent system is treated as a dev tool — not committed to project source.
 
 ---
 
