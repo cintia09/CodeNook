@@ -3,7 +3,7 @@ name: codenook-init
 description: "Initialize the multi-agent development framework in a project. Detects platform, generates agent profiles, creates task board and config."
 ---
 
-# Agent System Initialization (v4.1)
+# Agent System Initialization (v4.2)
 
 > Trigger: "initialize agent system" | "agent init" | "codenook-init"
 
@@ -29,7 +29,7 @@ Platform determines the **root directory** for all generated files:
 
 | Platform     | Root Dir   | Agents Dir             | CodeNook Dir             | Instructions Target                                    |
 |--------------|------------|------------------------|--------------------------|--------------------------------------------------------|
-| copilot-cli  | `.github/` | `.github/agents/`      | `.github/codenook/`      | `.github/instructions/codenook.instructions.md`        |
+| copilot-cli  | `.github/` | `.github/agents/`      | `.github/codenook/`      | `.github/copilot-instructions.md` (prepend engine)     |
 | claude-code  | `.claude/` | `.claude/agents/`      | `.claude/codenook/`      | Append to project-root `CLAUDE.md`                     |
 
 ### Directory Confirmation (MANDATORY)
@@ -81,7 +81,7 @@ IF <root>/codenook/config.json exists:
     REGENERATE = [
       "<root>/agents/*.agent.md",              # agent profiles (with current templates)
       "<root>/codenook/hitl-adapters/*",        # HITL scripts
-      "<root>/instructions/codenook.instructions.md",  # engine (Copilot CLI)
+      "<root>/copilot-instructions.md",         # engine in copilot-instructions.md (Copilot CLI)
       # For Claude Code: re-append engine block to CLAUDE.md
     ]
 
@@ -145,7 +145,7 @@ If **Custom**: loop through 5 agents, ask model for each.
 Items to append (relative to project root):
 - `<root>/agents/` — agent profile files
 - `<root>/codenook/` — entire runtime directory (memory, reviews, task-board, config, hitl-adapters)
-- `<root>/instructions/` — orchestration engine (Copilot CLI only; skip for Claude Code)
+- `<root>/copilot-instructions.md` — orchestration engine + project instructions (Copilot CLI only)
 
 Where `<root>` is `.github/` or `.claude/` depending on platform.
 The entire agent system is treated as a dev tool — not committed to project source.
@@ -181,8 +181,7 @@ Create the full tree under `<root>`:
 │       ├── confluence.sh
 │       ├── hitl-server.py
 │       └── hitl-verify.sh
-└── instructions/              ← Copilot CLI only
-    └── codenook.instructions.md  ← orchestration engine (auto-loaded)
+└── copilot-instructions.md    ← orchestration engine prepended (Copilot CLI only)
 ```
 
 **docs/ directory structure** — created per-task during orchestration:
@@ -223,7 +222,12 @@ to `<root>/codenook/hitl-adapters/`. Ensure all `.sh` files are executable (chmo
 
 Read `templates/codenook.instructions.md` and replace `${ROOT}` with the platform root
 (`.github` or `.claude`), then write to the appropriate location:
-- **Copilot CLI:** Write to `<root>/instructions/codenook.instructions.md` (auto-loaded by platform)
+- **Copilot CLI:** Prepend the engine content to `<root>/copilot-instructions.md`.
+  This is the **only** instructions file generated — `.github/instructions/` is NOT used
+  because `copilot-instructions.md` is the most reliably loaded file across all CLI versions.
+  If `copilot-instructions.md` already exists, prepend the engine content followed by `---\n\n`
+  and the existing content. Add `<root>/copilot-instructions.md` to `.gitignore` alongside the
+  other codenook entries.
 - **Claude Code:** Append content to project-root `CLAUDE.md`
 
 This instructions file contains the **full orchestration engine**: routing table, HITL enforcement,
@@ -236,7 +240,7 @@ No separate global skill needed — the engine lives entirely in the project.
 
 ```json
 {
-  "version": "4.1",
+  "version": "4.2",
   "tasks": []
 }
 ```
@@ -248,7 +252,7 @@ No separate global skill needed — the engine lives entirely in the project.
 
 ```json
 {
-  "version": "4.1",
+  "version": "4.2",
   "platform": "<copilot-cli|claude-code>",
   "models": {
     "acceptor":    "<model>",
@@ -286,7 +290,7 @@ Platform:  Copilot CLI
 Directory: .github/
 Agents:    5 (acceptor, designer, implementer, reviewer, tester)
 HITL:      local-html (port 8765) — 10 gates per task cycle
-Engine:    .github/instructions/codenook.instructions.md (auto-loaded)
+Engine:    .github/copilot-instructions.md (auto-loaded, single source of truth)
 Workflow:  Document-driven (plan → approve → execute → report → approve)
 Models:
   acceptor:    claude-haiku-4.5
@@ -319,7 +323,9 @@ If any file is missing or empty, report the failure and offer to retry.
 3. If confirmed:
    - `rm -rf <root>/agents/`
    - `rm -rf <root>/codenook/`
-   - Remove `<root>/instructions/codenook.instructions.md` (Copilot) or the framework block from `CLAUDE.md` (Claude Code)
+   - Remove `<root>/copilot-instructions.md` if it contains the engine content (Copilot CLI only),
+     or remove only the engine block and preserve any project-specific content below the `---` separator
+   - For Claude Code: remove the framework block from `CLAUDE.md`
    - Remove agent-related entries from `.gitignore` (if added by init)
 4. Print: "✅ Agent system removed from project."
 
