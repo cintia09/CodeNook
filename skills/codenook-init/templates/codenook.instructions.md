@@ -9,6 +9,35 @@ and enforce human-in-the-loop (HITL) gates between every phase.
 before executing. Every phase ends with a HITL gate. Documents are stored to
 disk at `${ROOT}/codenook/docs/<task_id>/` for traceability and review.
 
+## MANDATORY Bootstrap Rule
+
+**When the user says anything related to agent roles** — including but not limited to
+"切换到测试者/实现者/设计者/审查者/验收者", "switch to tester/implementer/designer/reviewer/acceptor",
+"run task", "orchestrate", or any mention of the codenook workflow — you MUST:
+
+1. Read `${ROOT}/codenook/task-board.json` to check current task status
+2. Read `${ROOT}/codenook/config.json` for platform preferences
+3. Follow the **Status Routing Table** below to determine the correct next action
+4. **NEVER** spawn an agent or write code without checking the task board first
+5. **NEVER** skip the two-phase (plan → HITL → execute) workflow
+
+Failure to follow this rule is a critical workflow violation.
+
+## Agent Roles — Phase Summary
+
+Each agent operates in two phases. The orchestrator must know which phase to invoke.
+
+| Agent | Plan Phase → Document | Execute Phase → Document |
+|-------|----------------------|--------------------------|
+| **acceptor** | requirements → `requirement-doc.md` | accept-exec → `acceptance-report.md` |
+| **designer** | design → `design-doc.md` | — (single phase) |
+| **implementer** | plan → `implementation-doc.md` | execute → `dfmea-doc.md` |
+| **reviewer** | plan → `review-prep.md` | execute → `review-report.md` |
+| **tester** | plan → `test-plan.md` (test matrix, gap analysis, boundary cases) | execute → `test-report.md` (run tests, report defects) |
+
+**CRITICAL**: Never skip the plan phase. Never go directly to execute without
+an approved plan document and HITL gate.
+
 ## Task Board — Single Source of Truth
 
 All state lives in `${ROOT}/codenook/task-board.json`.
@@ -118,12 +147,68 @@ HITL adapter scripts are in `${ROOT}/codenook/hitl-adapters/`:
 
 | Adapter        | Publish                    | Feedback mechanism              |
 |----------------|----------------------------|---------------------------------|
-| **terminal**   | Print formatted summary    | `ask_user()` prompt             |
+| **terminal**   | Print formatted summary    | `record_feedback` script command |
 | **local-html** | HTTP server + open browser | Web UI buttons                  |
 | **confluence**  | Create/update page         | Poll page comments              |
 | **github-issue**| Create issue               | Poll reactions (👍 = approve)   |
 
-For terminal adapter, use `ask_user` directly instead of the script interface.
+All adapters follow the same bash-based interface (publish → poll → get_feedback).
+No adapter depends on `ask_user` or any LLM-specific tool.
+
+## HITL Execution — Concrete Steps (MUST FOLLOW)
+
+When executing the HITL gate (Step 4 of the orchestration loop), follow these
+**exact bash commands** based on the adapter configured in `config.json`:
+
+### If `hitl.adapter` == `"local-html"`:
+```bash
+# 1. Publish — starts a local HTTP server with review UI, opens browser
+REVIEW_URL=$(bash ${ROOT}/codenook/hitl-adapters/local-html.sh publish <task_id> <role> <doc_path>)
+# Returns a URL like http://127.0.0.1:8900 — tell the user to review there
+
+# 2. Poll — wait for user to click Approve/Request Changes in the browser
+while true; do
+  STATUS=$(bash ${ROOT}/codenook/hitl-adapters/local-html.sh poll <task_id> <role>)
+  if [ "$STATUS" != "pending_review" ]; then break; fi
+  sleep 5
+done
+
+# 3. Get feedback — read the decision JSON
+FEEDBACK=$(bash ${ROOT}/codenook/hitl-adapters/local-html.sh get_feedback <task_id> <role>)
+# Parse decision ("approve" or "feedback") and comments from JSON
+
+# 4. Stop server after feedback received
+bash ${ROOT}/codenook/hitl-adapters/local-html.sh stop <task_id> <role>
+```
+
+**DO NOT substitute `ask_user` for `local-html`.** The local-html adapter provides a
+rich review UI with markdown rendering, Mermaid diagrams, syntax highlighting, and
+multi-round feedback. Using `ask_user` loses all of this.
+
+### If `hitl.adapter` == `"terminal"`:
+```bash
+# 1. Publish — prints document to terminal for review
+bash ${ROOT}/codenook/hitl-adapters/terminal.sh publish <task_id> <role> <doc_path>
+
+# 2. Collect user decision — use ONE of these methods:
+#    a) If ask_user tool is available:
+#         response = ask_user("Approve or request changes?", choices=["Approve", "Request Changes"])
+#    b) Otherwise: output a prompt and wait for user to respond in chat
+
+# 3. Record the decision via script (this writes the feedback file)
+bash ${ROOT}/codenook/hitl-adapters/terminal.sh record_feedback <task_id> <role> <approve|changes> "<comment>"
+
+# 4. Get structured feedback
+FEEDBACK=$(bash ${ROOT}/codenook/hitl-adapters/terminal.sh get_feedback <task_id> <role>)
+```
+
+`ask_user` is an **optional convenience** for step 2, not a requirement. If it is not
+available, simply tell the user to approve or provide feedback, then use their response
+in the `record_feedback` call.
+
+### Adapter detection priority:
+1. Read `config.json` → `hitl.adapter` — **use this if set**
+2. Only fall back to auto-detection if `hitl.adapter` is not configured
 
 ## Orchestration Loop (Document-Driven)
 
@@ -178,7 +263,8 @@ function orchestrate(task_id):
 
     # Agent failure handling:
     if result.failed:
-      user_choice = ask_user("Agent failed: " + result.error,
+      # Use ask_user if available, otherwise prompt in chat
+      user_choice = get_user_decision("Agent failed: " + result.error,
                              ["Retry", "Retry with different model", "Skip"])
       if user_choice == "Retry": continue
       if user_choice == "Skip": task.status = route.approve; save; continue
@@ -208,9 +294,9 @@ function orchestrate(task_id):
     adapter = detect_adapter()
     adapter.publish(task_id, role, DOCS_DIR/{route.doc})
 
-    # Collect human decision
+    # Collect human decision via the adapter's own mechanism
     decision, feedback = adapter.get_feedback(task_id)
-    # For terminal adapter: use ask_user() with choices ["Approve", "Request Changes"]
+    # All adapters are self-contained — no dependency on ask_user or any LLM tool
 
     # Record human decision
     task.feedback_history.append({

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # HITL Terminal Adapter — Pure CLI review for headless/Docker environments
-# No browser needed. Agent writes feedback JSON, user reviews in terminal.
+# No browser needed. Fully self-contained — no dependency on ask_user or any LLM tool.
 #
 # Usage:
-#   bash scripts/hitl-adapters/terminal.sh publish <task_id> <role> <content_file>
-#   bash scripts/hitl-adapters/terminal.sh poll    <task_id> <role>
-#   bash scripts/hitl-adapters/terminal.sh get_feedback <task_id> <role>
+#   terminal.sh publish          <task_id> <role> <content_file>
+#   terminal.sh record_feedback  <task_id> <role> <decision> [<comment>]
+#   terminal.sh poll             <task_id> <role>
+#   terminal.sh get_feedback     <task_id> <role>
 #
-# The agent calls publish → user reviews document → agent polls for decision.
-# In terminal mode, the human interacts via the Agent's own ask_user mechanism.
+# Flow: publish → (orchestrator collects user response) → record_feedback → poll/get_feedback
 
 set -euo pipefail
 
@@ -86,10 +86,43 @@ EOF
     echo ""
     echo "--- End of Document ---"
     echo ""
-    echo "📌 To approve/reject, the Agent will ask you directly."
-    echo "   Respond with 'approve' or provide feedback text."
+    echo "📌 To record your decision, use:"
+    echo "   terminal.sh record_feedback ${task_id} ${role} approve"
+    echo "   terminal.sh record_feedback ${task_id} ${role} changes \"your feedback\""
     echo ""
     echo "terminal://${task_id}/${role}"
+    ;;
+
+  record_feedback)
+    if [ -z "$task_id" ] || [ -z "$role" ] || [ -z "$content_file" ]; then
+      echo "Usage: terminal.sh record_feedback <task_id> <role> <approve|changes> [comment]"
+      exit 1
+    fi
+
+    decision="$content_file"  # positional $4 reused
+    comment="${5:-}"
+
+    if [ "$decision" != "approve" ] && [ "$decision" != "changes" ]; then
+      echo "ERROR: decision must be 'approve' or 'changes'" >&2
+      exit 1
+    fi
+
+    feedback_file="$REVIEWS_DIR/${task_id}-${role}-feedback.json"
+    python3 -c "
+import json, sys
+fb = {
+    'task_id': sys.argv[1],
+    'role': sys.argv[2],
+    'decision': sys.argv[3],
+    'feedback': sys.argv[4] if len(sys.argv) > 4 else '',
+    'recorded_at': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+}
+with open(sys.argv[5], 'w') as f:
+    json.dump(fb, f, indent=2)
+" "$task_id" "$role" "$decision" "$comment" "$feedback_file"
+
+    echo "✅ Feedback recorded: $decision"
+    [ -n "$comment" ] && echo "   Comment: $comment"
     ;;
 
   poll)
@@ -122,7 +155,7 @@ EOF
     ;;
 
   *)
-    echo "Usage: terminal.sh <publish|poll|get_feedback> <task_id> <role> [content_file]"
+    echo "Usage: terminal.sh <publish|record_feedback|poll|get_feedback> <task_id> <role> [content_file|decision] [comment]"
     exit 1
     ;;
 esac
