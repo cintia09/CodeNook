@@ -187,24 +187,32 @@ multi-round feedback. Using `ask_user` loses all of this.
 
 ### If `hitl.adapter` == `"terminal"`:
 ```bash
-# 1. Publish — prints document to terminal for review
+# 1. Publish — prints FULL document content to terminal for review
+#    This is MANDATORY — DO NOT skip this step or substitute your own summary
 bash ${ROOT}/codenook/hitl-adapters/terminal.sh publish <task_id> <role> <doc_path>
 
-# 2. Collect user decision — use ONE of these methods:
+# 2. ALSO tell the user the document path so they can review it later:
+#    "📄 Full document saved to: <doc_path>"
+
+# 3. Collect user decision — use ONE of these methods:
 #    a) If ask_user tool is available:
 #         response = ask_user("Approve or request changes?", choices=["Approve", "Request Changes"])
 #    b) Otherwise: output a prompt and wait for user to respond in chat
 
-# 3. Record the decision via script (this writes the feedback file)
+# 4. Record the decision via script (this writes the feedback file)
 bash ${ROOT}/codenook/hitl-adapters/terminal.sh record_feedback <task_id> <role> <approve|changes> "<comment>"
 
-# 4. Get structured feedback
+# 5. Get structured feedback
 FEEDBACK=$(bash ${ROOT}/codenook/hitl-adapters/terminal.sh get_feedback <task_id> <role>)
 ```
 
-`ask_user` is an **optional convenience** for step 2, not a requirement. If it is not
-available, simply tell the user to approve or provide feedback, then use their response
-in the `record_feedback` call.
+**CRITICAL for terminal adapter:**
+- You MUST run `terminal.sh publish` which outputs the full document — do NOT substitute
+  your own formatted summary (table, bullet list, etc.) for the actual document content.
+- You MUST show the document file path so the user can review it outside the session.
+- `ask_user` is an **optional convenience** for step 3, not a requirement. If it is not
+  available, simply tell the user to approve or provide feedback, then use their response
+  in the `record_feedback` call.
 
 ### Adapter detection priority:
 1. Read `config.json` → `hitl.adapter` — **use this if set**
