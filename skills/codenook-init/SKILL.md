@@ -18,7 +18,7 @@ Ask the user to confirm the installation directory:
 ask_user "Install CodeNook agent system to: <project_root>/.claude/"
   choices:
     ".claude/ (Recommended)" → proceed
-    "Custom path"            → ask for custom root path
+    "Custom path"            → ask for custom root path (validate: reject paths with shell metacharacters $;&|`<>)
     "Cancel"                 → abort
 ```
 

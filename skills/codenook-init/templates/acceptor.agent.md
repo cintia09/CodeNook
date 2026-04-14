@@ -130,7 +130,7 @@ sections listed below. Every document MUST include at least one Mermaid diagram.
 
 ---
 
-### Phase `requirements` → Requirement Document
+### Phase `requirements` → Requirement Document (`requirement-doc.md`)
 
 #### Required Sections
 
@@ -172,7 +172,7 @@ graph TD
 
 ---
 
-### Phase `accept-plan` → Acceptance Plan Document
+### Phase `accept-plan` → Acceptance Plan Document (`acceptance-plan.md`)
 
 #### Required Sections
 
@@ -209,7 +209,7 @@ flowchart TD
 
 ---
 
-### Phase `accept-exec` → Acceptance Report
+### Phase `accept-exec` → Acceptance Report (`acceptance-report.md`)
 
 #### Required Sections
 

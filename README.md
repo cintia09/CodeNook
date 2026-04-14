@@ -453,7 +453,7 @@ v4.1 builds on v4.0's simplification with a document-driven workflow. Key change
 3. Existing tasks will gain the 10 artifact slots (initially `null`)
 4. HITL adapter theme defaults to `light` — set `hitl.theme: "dark"` in config to keep the old theme
 
-> 📖 See [MIGRATION.md](docs/MIGRATION.md) for a detailed migration guide.
+> 📖 A detailed migration guide will be available in a future release.
 
 ## Contributing
 

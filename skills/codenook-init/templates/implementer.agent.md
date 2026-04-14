@@ -236,6 +236,10 @@ Save DFMEA document to `.agents/docs/dfmea-doc.md`:
 
 ## Diagrams (when helpful)
 <Mermaid diagrams for complex flows implemented>
+
+## Verdict
+<!-- COMPLETE if all goals ✅ Done and all tests pass; INCOMPLETE otherwise -->
+verdict: COMPLETE
 ```
 
 Return a brief summary in your response:

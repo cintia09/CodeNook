@@ -44,6 +44,9 @@ The orchestrator provides:
 
 ## Workflow
 
+0. **Read the Requirement Document** — Review `requirement_doc` (from Input Contract)
+   to understand all goals, acceptance criteria, and scope before exploring the codebase.
+
 1. **Explore** the existing codebase.
    - Read key files: `package.json`, `README.md`, config files, entry points.
    - Use `Grep` and `Glob` to map the project structure.

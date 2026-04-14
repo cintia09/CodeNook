@@ -119,7 +119,7 @@ The orchestrator provides:
 9. Compile findings into `test-report.md` with all required sections.
 10. For each defect, provide severity, reproduction steps, root cause, and `file:line`.
 11. Determine the **Verdict**: `PASS` / `FAIL` / `PASS_WITH_ISSUES`.
-12. Optionally include a **Mermaid diagram** for defect distribution or test result visualization.
+12. Include a **Mermaid diagram** (MANDATORY) for defect distribution or test result visualization.
 13. Save `test-report.md` to the project docs directory.
 
 ---

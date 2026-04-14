@@ -1,4 +1,4 @@
-# CodeNook Orchestration Engine (v4.1)
+# CodeNook Orchestration Engine (v4.2)
 
 You are the **Orchestrator** — the main session agent that users interact with.
 All other agents (acceptor, designer, implementer, reviewer, tester) are subagents
@@ -45,7 +45,7 @@ Read `${ROOT}/codenook/config.json` from the same directory to determine platfor
 
 ```json
 {
-  "version": "4.1",
+  "version": "4.2",
   "tasks": [{
     "id": "T-001",
     "title": "Implement user authentication",
@@ -249,12 +249,22 @@ function orchestrate(task_id):
     role  = route.agent
     phase = route.phase      # "requirements", "design", "plan", "execute", "accept-plan", "accept-exec"
 
+    # ── Circuit Breaker ──
+    # Track how many times we've entered the same status. If > 3, ask user.
+    task.retry_counts[task.status] = (task.retry_counts[task.status] or 0) + 1
+    if task.retry_counts[task.status] > 3:
+      decision = ask_user "⚠️ Task has returned to '{task.status}' {count} times. Continue, skip, or abandon?"
+        choices: ["Continue", "Skip to done (with warning)", "Abandon task"]
+      if abandon: task.status = "abandoned"; break
+      if skip: task.status = "done"; break
+
     # ── Step 1: Build Context ──
     upstream_docs = {}
     for each artifact in task.artifacts:
       if artifact is not null:
         upstream_docs[key] = read DOCS_DIR/{filename}
-    memory   = load ${ROOT}/codenook/memory/<task_id>-<role>-memory.md (if exists)
+    memory   = load ${ROOT}/codenook/memory/<task_id>-<role>-<phase>-memory.md (if exists)
+    # Fallback: also check <task_id>-<role>-<prev_phase>-memory.md for cross-phase continuity
     feedback = pending feedback from previous HITL (if any)
     prompt   = build_context(task, role, phase, upstream_docs, memory, feedback)
 
@@ -306,7 +316,11 @@ function orchestrate(task_id):
     decision, feedback = adapter.get_feedback(task_id)
     # All adapters are self-contained — no dependency on ask_user or any LLM tool
 
-    # Record human decision
+    # Verify HITL completion FIRST (programmatic enforcement — before state mutation)
+    bash HITL_DIR/hitl-verify.sh <task_id> <task.status>
+    # If exit code != 0: STOP — do not advance. break out of loop.
+
+    # Record human decision (only after verification passes)
     task.feedback_history.append({
       "from_status": task.status,
       "decision": decision,         // "approve" or "feedback"
@@ -321,14 +335,10 @@ function orchestrate(task_id):
     # Also write to HITL history file for local-html UI display:
     # The ORCHESTRATOR writes to REVIEWS_DIR/<task_id>-<role>-history.json
 
-    # Verify HITL completion (programmatic enforcement)
-    bash HITL_DIR/hitl-verify.sh <task_id> <task.status>
-    # If exit code != 0: STOP — do not advance.
-
     # ── Step 5: Advance Status ──
     if decision == "approve":
-      # For execution phases with verdicts, check the document's verdict
-      if phase in ("execute", "accept-exec"):
+      # Verdict-based routing: only reviewer, tester, and acceptor produce verdicts
+      if phase == "accept-exec" or (phase == "execute" and role in ("reviewer", "tester")):
         verdict = extract verdict from document (APPROVED/CHANGES_REQUESTED/FAIL/REJECT)
         if verdict in ("CHANGES_REQUESTED", "FAIL"):
           task.status = "impl_planned"    # back to implementer

@@ -320,6 +320,7 @@ pie title Issues by Category
 - [ ] The verdict matches the issues: `CHANGES_REQUESTED` if any critical
       issues exist; `APPROVED_WITH_NOTES` if only major/minor; `APPROVED`
       if clean.
+- [ ] Mermaid diagram is present (e.g., review coverage map or issue distribution).
 
 ---
 
