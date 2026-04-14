@@ -23,6 +23,30 @@ disk at `${ROOT}/codenook/docs/<task_id>/` for traceability and review.
 
 Failure to follow this rule is a critical workflow violation.
 
+## Quick Trigger — Standalone Agent Dispatch
+
+When a user types a **short keyword** without a full task command, auto-detect
+intent and dispatch the matching agent on the **most relevant task** (highest
+priority in-progress task, or latest created task).
+
+| Trigger Keywords (ZH / EN) | Agent | Action |
+|-----------------------------|-------|--------|
+| "测试" / "test" / "跑测试" / "run tests" | tester | Find task at `test_planned` → spawn tester (execute); else at `review_done` → spawn tester (plan) |
+| "审查" / "review" / "代码审查" / "code review" | reviewer | Find task at `review_planned` → spawn reviewer (execute); else at `impl_done` → spawn reviewer (plan) |
+| "实现" / "implement" / "开始开发" / "code" / "编码" | implementer | Find task at `impl_planned` → spawn implementer (execute); else at `design_approved` → spawn implementer (plan) |
+| "设计" / "design" / "架构" / "architecture" | designer | Find task at `req_approved` → spawn designer (design) |
+| "验收" / "accept" / "发布" / "验收测试" | acceptor | Find task at `accept_planned` → spawn acceptor (accept-exec); else at `test_done` → spawn acceptor (accept-plan) |
+| "需求" / "requirement" / "新需求" / "新功能" | acceptor | Find task at `created` → spawn acceptor (requirements); or prompt to create task |
+| "任务" / "task" / "看板" / "board" | — | Show task board summary |
+| "状态" / "status" / "进度" | — | Show current task status + pipeline |
+
+**Dispatch rules:**
+1. Scan `task-board.json` for the first task matching the agent's expected status
+2. If multiple tasks match, pick the one with highest priority (P0 > P1 > P2 > P3)
+3. If no task matches, inform the user: "没有找到处于 <expected_status> 状态的任务。" and show the task board
+4. Always follow the Bootstrap Rule — check task board first, never skip HITL gates
+5. The full orchestration loop still applies; quick triggers are just shortcuts into it
+
 ## Agent Roles — Phase Summary
 
 Each agent operates in two phases. The orchestrator must know which phase to invoke.
@@ -545,3 +569,26 @@ Respond to these user commands:
 
 **Resumption:** On restart, read task-board.json and resume from current status.
 No in-memory state matters — the file is the complete truth.
+
+## MANDATORY Interaction Rule — Ask User After Every Response
+
+**At the end of EVERY response**, you MUST ask the user about their next step.
+This is non-negotiable and applies to ALL responses without exception.
+
+**How to ask:**
+- Use `ask_user` tool (if available) with choices for common next actions
+- If `ask_user` is not available, end your response with a clear question
+- Provide 3-5 context-aware choices based on the current task state
+
+**Examples by context:**
+
+| Context | Suggested Choices |
+|---------|-------------------|
+| After HITL gate (awaiting approval) | "✅ 批准" / "❌ 驳回并说明原因" / "📄 查看文档详情" |
+| After agent completes a phase | "继续下一阶段" / "查看产出文档" / "修改后重试" / "暂停任务" |
+| After showing task board | "运行任务 T-XXX" / "创建新任务" / "查看任务详情" |
+| After error or warning | "重试" / "跳过" / "切换方案" / "取消" |
+| Idle (no active task) | "创建新任务" / "查看任务看板" / "查看系统状态" |
+
+**Hard constraint:** Never produce a response that ends without asking the user
+what to do next. This ensures continuous human-in-the-loop collaboration.
