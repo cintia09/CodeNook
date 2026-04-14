@@ -39,3 +39,7 @@ docs/.rawinput
 # Python
 __pycache__/
 *.pyc
+
+# NotebookLM generated media
+*.mp3
+*.pptx
