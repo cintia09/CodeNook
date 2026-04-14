@@ -43,7 +43,9 @@ priority in-progress task, or latest created task).
 **Dispatch rules:**
 1. Scan `task-board.json` for the first task matching the agent's expected status
 2. If multiple tasks match, pick the one with highest priority (P0 > P1 > P2 > P3)
-3. If no task matches, inform the user: "没有找到处于 <expected_status> 状态的任务。" and show the task board
+3. If no task matches, inform the user: "没有找到处于 <expected_status> 状态的任务。" and offer:
+   - Show the task board
+   - Create a lightweight task for the requested agent (e.g., "测试" → "test only" pipeline)
 4. Always follow the Bootstrap Rule — check task board first, never skip HITL gates
 5. The full orchestration loop still applies; quick triggers are just shortcuts into it
 
@@ -101,6 +103,56 @@ Read `${ROOT}/codenook/config.json` from the same directory to determine platfor
 Rules: you are the sole writer of task-board.json. Every status change updates `updated_at`.
 `feedback_history` accumulates all HITL decisions for audit.
 All document files live in `${ROOT}/codenook/docs/<task_id>/`.
+
+## Task Modes
+
+Tasks support two modes via the `mode` field in task-board.json:
+
+### Full Mode (default): `"mode": "full"`
+All 10 phases, 10 HITL gates. For production features, complex changes.
+
+### Lightweight Mode: `"mode": "lightweight"`
+Skip unnecessary phases. The task specifies which agents to include via `pipeline`.
+
+```json
+{
+  "id": "T-003",
+  "title": "Fix login button style",
+  "mode": "lightweight",
+  "pipeline": ["implementer", "tester"],
+  "status": "created",
+  ...
+}
+```
+
+**Predefined lightweight pipelines** (user can say these shortcuts):
+
+| Shortcut | Pipeline | Phases | Use Case |
+|----------|----------|--------|----------|
+| "quick fix" / "快速修复" | `["implementer"]` | plan → execute (2 phases, 2 HITL) | Typos, config changes, trivial fixes |
+| "develop" / "开发" | `["implementer", "tester"]` | impl-plan → impl-exec → test-plan → test-exec (4 phases, 4 HITL) | Small features, bug fixes |
+| "develop+review" / "开发+审查" | `["implementer", "reviewer", "tester"]` | 6 phases, 6 HITL | Medium features needing review |
+| "test only" / "仅测试" | `["tester"]` | test-plan → test-exec (2 phases, 2 HITL) | Run tests on existing code |
+| "review only" / "仅审查" | `["reviewer"]` | review-plan → review-exec (2 phases, 2 HITL) | Review existing changes |
+| "full" / "完整流程" | all 5 agents | 10 phases, 10 HITL (default) | Production features |
+
+**Lightweight routing logic:**
+- On `created`: if pipeline does NOT include `acceptor`, skip to first agent in pipeline's plan phase
+- Each agent in pipeline follows its normal plan → HITL → execute → HITL cycle
+- Agents NOT in pipeline are skipped entirely
+- The last agent's execute phase routes to `done` (no acceptor unless in pipeline)
+- HITL gates are NEVER skipped — even lightweight tasks require human approval at every phase
+
+**Example: `["implementer", "tester"]` pipeline:**
+```
+created → implementer (plan) → HITL → implementer (execute) → HITL
+        → tester (plan) → HITL → tester (execute) → HITL → done
+```
+
+**Creating lightweight tasks:**
+- User says "create task <title> --mode lightweight --pipeline implementer,tester"
+- Or shortcut: "quick fix: <title>", "开发: <title>", "test only: <title>"
+- Quick Trigger keywords also work: user says "测试" with no matching task → prompt to create a lightweight test-only task
 
 ## Status Routing Table (Document-Driven)
 
@@ -247,7 +299,7 @@ FEEDBACK=$(bash ${ROOT}/codenook/hitl-adapters/terminal.sh get_feedback <task_id
 For each task, execute this loop. Each iteration: spawn agent → save document → HITL gate.
 
 ```
-ROUTING = {
+FULL_ROUTING = {
   "created":         { agent: "acceptor",    phase: "requirements", doc: "requirement-doc.md",     key: "requirement_doc",    approve: "req_approved",    reject: "created"          },
   "req_approved":    { agent: "designer",    phase: "design",       doc: "design-doc.md",          key: "design_doc",         approve: "design_approved", reject: "req_approved"     },
   "design_approved": { agent: "implementer", phase: "plan",         doc: "implementation-doc.md",  key: "implementation_doc", approve: "impl_planned",    reject: "design_approved"  },
@@ -260,9 +312,41 @@ ROUTING = {
   "accept_planned":  { agent: "acceptor",    phase: "accept-exec",  doc: "acceptance-report.md",   key: "acceptance_report",  approve: "done",            reject: "design_approved"  },
 }
 
+# Lightweight pipeline routing — dynamically built from task.pipeline
+AGENT_PHASES = {
+  "acceptor":    [("requirements", "requirement-doc.md", "requirement_doc")],
+  "designer":    [("design", "design-doc.md", "design_doc")],
+  "implementer": [("plan", "implementation-doc.md", "implementation_doc"), ("execute", "dfmea-doc.md", "dfmea_doc")],
+  "reviewer":    [("plan", "review-prep.md", "review_prep"), ("execute", "review-report.md", "review_report")],
+  "tester":      [("plan", "test-plan.md", "test_plan"), ("execute", "test-report.md", "test_report")],
+}
+
+function build_lightweight_routing(pipeline):
+  routing = {}
+  steps = []
+  for agent in pipeline:
+    for (phase, doc, key) in AGENT_PHASES[agent]:
+      steps.append({ agent, phase, doc, key })
+  # Chain steps: each step's approve → next step's status, last → "done"
+  # First step starts from "created"
+  # Status names: "{agent}_{phase}" (e.g., "implementer_plan", "tester_execute")
+  prev_status = "created"
+  for i, step in enumerate(steps):
+    current_status = prev_status
+    next_status = "done" if i == len(steps) - 1 else f"{steps[i+1].agent}_{steps[i+1].phase}"
+    routing[current_status] = { ...step, approve: next_status, reject: current_status }
+    prev_status = next_status
+  return routing
+
 function orchestrate(task_id):
   task = read task-board.json → find task by id
   config = read ${ROOT}/codenook/config.json
+
+  # Select routing based on task mode
+  if task.mode == "lightweight" and task.pipeline:
+    ROUTING = build_lightweight_routing(task.pipeline)
+  else:
+    ROUTING = FULL_ROUTING
   HITL_DIR = ${ROOT}/codenook/hitl-adapters
   DOCS_DIR = ${ROOT}/codenook/docs/{task_id}
   REVIEWS_DIR = ${ROOT}/codenook/reviews
@@ -547,7 +631,12 @@ Respond to these user commands:
 
 | Command | Action |
 |---------|--------|
-| "create task <title>" | Add task to task-board.json with status "created" |
+| "create task <title>" | Add task to task-board.json with status "created" (full mode) |
+| "quick fix: <title>" / "快速修复: <title>" | Create lightweight task, pipeline: `["implementer"]` |
+| "develop: <title>" / "开发: <title>" | Create lightweight task, pipeline: `["implementer", "tester"]` |
+| "test only: <title>" / "仅测试: <title>" | Create lightweight task, pipeline: `["tester"]` |
+| "review only: <title>" / "仅审查: <title>" | Create lightweight task, pipeline: `["reviewer"]` |
+| "create task <title> --pipeline a,b,c" | Create lightweight task with custom pipeline |
 | "show task board" / "task list" | Display all tasks with status |
 | "run task T-XXX" / "orchestrate T-XXX" | Start orchestration loop |
 | "task status T-XXX" | Show detailed status + artifacts + history |
