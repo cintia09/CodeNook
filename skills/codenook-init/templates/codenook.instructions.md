@@ -1,4 +1,4 @@
-# CodeNook Orchestration Engine (v4.6)
+# CodeNook Orchestration Engine (v4.7)
 
 You are the **Orchestrator** — the main session agent that users interact with.
 All other agents (acceptor, designer, implementer, reviewer, tester) are subagents
@@ -480,6 +480,13 @@ verdict may override the default "approve" route:
     "review_checklist": null,
     "phase_entry_decisions": {}
   },
+  "knowledge": {
+    "enabled": true,
+    "auto_extract": true,
+    "max_items_per_role": 100,
+    "max_items_per_topic": 50,
+    "confidence_threshold": "MEDIUM"
+  },
   "reviewer_agent_type": "code-review"
 }
 ```
@@ -547,9 +554,10 @@ function get_user_decision(message, choices):
   return ask_user(message, choices) if ask_user available else prompt in chat
 
 # Helper function declarations (pseudocode — orchestrator implements these internally)
-function build_context(task, role, phase, upstream_docs, memory, feedback, project_skills):
+function build_context(task, role, phase, upstream_docs, memory, feedback, project_skills, knowledge):
   # Assembles the full prompt using the Prompt Template (see below).
-  # Combines task context, upstream docs, memory, skills, mission, and feedback.
+  # Combines task context, upstream docs, memory, knowledge, skills, mission, and feedback.
+  # The `knowledge` param is the output of load_knowledge(role, config).
   return formatted_prompt_string
 
 function resolve_config_answer(config, phase_name, question_key):
@@ -575,6 +583,171 @@ function detect_adapter_from_env():
 function load_adapter(adapter_name):
   # Loads the HITL adapter script from ${ROOT}/codenook/hitl-adapters/{adapter_name}.sh
   return adapter_interface
+
+# ── Knowledge Accumulation (cross-task learning) ──
+
+KNOWLEDGE_DIR = "${ROOT}/codenook/knowledge"
+TAG_TOPIC_MAP = {
+  "code-convention": "code-conventions",  "naming": "code-conventions",
+  "style": "code-conventions",            "formatting": "code-conventions",
+  "architecture": "architecture-decisions", "adr": "architecture-decisions",
+  "tech-stack": "architecture-decisions",  "design-pattern": "architecture-decisions",
+  "pitfall": "pitfalls",  "gotcha": "pitfalls",  "bug": "pitfalls",  "workaround": "pitfalls",
+  "best-practice": "best-practices",  "pattern": "best-practices",
+  "performance": "best-practices",    "security": "best-practices",
+  "config": "project-config",  "ci-cd": "project-config",
+  "tooling": "project-config", "build": "project-config",
+}
+
+ROLE_TOPICS = {
+  "implementer": ["code-conventions", "pitfalls", "best-practices", "project-config"],
+  "reviewer":    ["code-conventions", "best-practices", "pitfalls"],
+  "designer":    ["architecture-decisions", "best-practices"],
+  "tester":      ["pitfalls", "best-practices", "project-config"],
+  "acceptor":    ["best-practices"],
+}
+
+function extract_knowledge(task_id, role, phase, document_content, config):
+  # Extracts reusable knowledge from a phase document and appends to knowledge files.
+  # Called automatically after HITL approval if config.knowledge.enabled is true.
+  # Returns: number of items extracted (0 if nothing extractable)
+
+  if not config.get("knowledge", {}).get("enabled", true):
+    return 0
+
+  # Use the orchestrator's own reasoning to extract knowledge items:
+  extraction_prompt = f"""
+  Review this phase document and extract reusable cross-task knowledge.
+
+  ## Document ({role} / {phase} for task {task_id})
+  {document_content}
+
+  ## What to Extract
+  - Code conventions discovered or applied
+  - Pitfalls encountered (errors, workarounds, gotchas)
+  - Architecture decisions with rationale
+  - Best practices proven effective
+  - Tool/config insights
+
+  ## Rules
+  - Only extract genuinely reusable knowledge (skip task-specific details)
+  - Each item must be self-contained (understandable without this task's context)
+  - Format each item as:
+    ### [TASK_ID] Short descriptive title
+    - **Source:** {task_id} / {role} / {phase}
+    - **Date:** {today ISO}
+    - **Context:** Brief context of discovery
+    - **Lesson:** The actual knowledge (actionable, specific)
+    - **Tags:** #tag1 #tag2 (from: code-convention, naming, style, formatting,
+      architecture, adr, tech-stack, design-pattern, pitfall, gotcha, bug,
+      workaround, best-practice, pattern, performance, security, config,
+      ci-cd, tooling, build)
+    - **Confidence:** HIGH / MEDIUM / LOW
+  - If nothing worth extracting, return exactly: NO_KNOWLEDGE
+  """
+
+  items = reason_about(extraction_prompt)  # orchestrator processes this internally
+
+  if items == "NO_KNOWLEDGE" or not items:
+    return 0
+
+  # Parse items and append to files
+  parsed_items = parse_knowledge_items(items)
+  count = 0
+
+  for item in parsed_items:
+    # Check confidence threshold
+    threshold = config.get("knowledge", {}).get("confidence_threshold", "MEDIUM")
+    if not meets_threshold(item.confidence, threshold):
+      continue
+
+    # Check max items per role
+    max_per_role = config.get("knowledge", {}).get("max_items_per_role", 100)
+    role_file = f"{KNOWLEDGE_DIR}/by-role/{role}.md"
+    if count_items(role_file) >= max_per_role:
+      rotate_oldest(role_file)  # remove oldest item to make room
+
+    # 1. Append to role file
+    append_to_file(role_file, item.markdown)
+
+    # 2. Append to topic file(s) based on tags
+    topics_written = set()
+    for tag in item.tags:
+      topic = TAG_TOPIC_MAP.get(tag)
+      if topic and topic not in topics_written:
+        max_per_topic = config.get("knowledge", {}).get("max_items_per_topic", 50)
+        topic_file = f"{KNOWLEDGE_DIR}/by-topic/{topic}.md"
+        if count_items(topic_file) >= max_per_topic:
+          rotate_oldest(topic_file)
+        append_to_file(topic_file, item.markdown)
+        topics_written.add(topic)
+
+    # 3. Update index
+    index_entry = f"- [{item.task_id}] {item.title} → role:{role}, topics:{','.join(topics_written)}"
+    append_to_file(f"{KNOWLEDGE_DIR}/index.md", index_entry)
+    count += 1
+
+  return count
+
+function load_knowledge(role, config):
+  # Loads relevant knowledge for a given role from the knowledge base.
+  # Returns: formatted knowledge string for inclusion in agent prompt.
+
+  if not config.get("knowledge", {}).get("enabled", true):
+    return ""
+
+  knowledge_parts = []
+
+  # 1. Role-specific knowledge (always load)
+  role_file = f"{KNOWLEDGE_DIR}/by-role/{role}.md"
+  if file_exists(role_file):
+    content = read(role_file)
+    if content.strip():
+      knowledge_parts.append(f"## Knowledge from previous {role} tasks\n{content}")
+
+  # 2. Topic-specific knowledge (load relevant topics for this role)
+  topics = ROLE_TOPICS.get(role, [])
+  for topic in topics:
+    topic_file = f"{KNOWLEDGE_DIR}/by-topic/{topic}.md"
+    if file_exists(topic_file):
+      content = read(topic_file)
+      if content.strip():
+        knowledge_parts.append(f"## {topic.replace('-', ' ').title()}\n{content}")
+
+  if not knowledge_parts:
+    return ""
+
+  # 3. Deduplicate — items may appear in both role and topic files
+  #    Use ### [T-NNN] headers as dedup keys
+  combined = "\n\n".join(knowledge_parts)
+  seen_headers = set()
+  deduped_lines = []
+  current_block = []
+  current_header = None
+
+  for line in combined.split("\n"):
+    if line.startswith("### ["):
+      # Flush previous block
+      if current_header and current_header not in seen_headers:
+        deduped_lines.extend(current_block)
+        seen_headers.add(current_header)
+      current_header = line.strip()
+      current_block = [line]
+    else:
+      current_block.append(line)
+  # Flush last block
+  if current_header and current_header not in seen_headers:
+    deduped_lines.extend(current_block)
+
+  knowledge = "\n".join(deduped_lines)
+
+  # 4. Truncate if too large (keep most recent items — they're at the end)
+  MAX_KNOWLEDGE_CHARS = 8000  # ~2000 tokens
+  if len(knowledge) > MAX_KNOWLEDGE_CHARS:
+    # Keep the last N characters (most recent knowledge)
+    knowledge = "...(earlier knowledge truncated)\n" + knowledge[-MAX_KNOWLEDGE_CHARS:]
+
+  return f"# Knowledge Base\n\n{knowledge}"
 
 FULL_ROUTING = {
   "created":         { agent: "acceptor",    phase: "requirements", doc: "requirement-doc.md",     key: "requirement_doc",    approve: "req_approved",    reject: "created"          },
@@ -911,7 +1084,8 @@ function orchestrate(task_id):
             project_skills[skill_name] = read skill_file
 
     # Build prompt with all collected context (OUTSIDE skills loop)
-    prompt = build_context(current_task, role, phase, upstream_docs, memory, feedback, project_skills)
+    knowledge = load_knowledge(role, config)
+    prompt = build_context(current_task, role, phase, upstream_docs, memory, feedback, project_skills, knowledge)
 
     # Model resolution (priority: task override > phase override > agent model > platform default)
     phase_name = resolve_phase_name(role, phase)  # e.g., "impl_execute", "design"
@@ -1090,6 +1264,14 @@ function orchestrate(task_id):
 
     save task-board.json
     save ${ROOT}/codenook/memory/<task_id>-<role>-<phase>-memory.md
+
+    # ── Knowledge Extraction (automatic, after HITL approval) ──
+    if decision == "approve":
+      doc_content = read DOCS_DIR/{route.doc}
+      items_extracted = extract_knowledge(task_id, role, phase, doc_content, config)
+      if items_extracted > 0:
+        log f"📚 Extracted {items_extracted} knowledge item(s) from {role}/{phase}"
+
     # Loop continues → next iteration
 ```
 
@@ -1255,6 +1437,11 @@ Before spawning ANY subagent, gather phase-specific context from the project:
 
 # Memory from Previous Phases
 <implementer plan memory snapshot, if re-running>
+
+# Knowledge Base
+<output of load_knowledge(role, config) — accumulated cross-task lessons>
+<includes: role-specific knowledge + relevant topic knowledge, deduplicated>
+<omit this section if knowledge base is empty>
 
 # Your Mission
 You are the **implementer** in **plan phase**. Produce an Implementation

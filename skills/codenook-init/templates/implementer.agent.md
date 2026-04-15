@@ -324,3 +324,6 @@ Return a brief summary in your response:
     owned by the tester. You may add new tests during TDD, but you MUST NOT
     modify or delete tests written by the tester without documenting the
     reason in your Notes section and obtaining approval.
+12. **Knowledge Base** — If a "Knowledge Base" section is included in your prompt,
+    reference it for known code conventions, past pitfalls, and proven implementation
+    patterns. Apply relevant lessons to avoid repeating past mistakes.

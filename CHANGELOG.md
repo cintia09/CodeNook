@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.7.0] - 2025-07-28
+
+### 🧠 v4.7.0 — Knowledge Accumulation System
+
+Agents now automatically extract and persist cross-task knowledge, becoming smarter
+over time. New tasks benefit from accumulated experience — code conventions, pitfalls,
+architecture decisions, and best practices are captured after each phase.
+
+#### ✨ New Features
+- **Automatic Knowledge Extraction**: After each HITL-approved phase, the orchestrator
+  scans the phase document for reusable lessons and saves them to the knowledge base
+- **Dual-Dimension Knowledge Base**: Knowledge indexed by role (`by-role/`) AND by
+  topic (`by-topic/`) — 5 role files + 5 topic files + master index
+- **Knowledge Loading**: Relevant knowledge automatically injected into agent prompts
+  via `load_knowledge()` — agents see lessons from their own past tasks + relevant topics
+- **Deduplication**: Knowledge items tracked by `[T-NNN]` headers to prevent duplicates
+- **Confidence Threshold**: Configurable minimum confidence level for extracted items
+  (HIGH/MEDIUM/LOW)
+- **Capacity Management**: Per-role and per-topic max item limits with oldest-first rotation
+
+#### 📁 New Directory Structure
+```
+codenook/knowledge/
+├── by-role/          (implementer.md, reviewer.md, designer.md, tester.md, acceptor.md)
+├── by-topic/         (code-conventions.md, architecture-decisions.md, pitfalls.md,
+│                      best-practices.md, project-config.md)
+└── index.md
+```
+
+#### 🔧 Config
+```json
+{ "knowledge": { "enabled": true, "auto_extract": true,
+  "max_items_per_role": 100, "max_items_per_topic": 50,
+  "confidence_threshold": "MEDIUM" } }
+```
+
+#### 📝 Agent Template Updates
+- All 5 agent templates updated with Knowledge Base constraint — agents instructed
+  to reference accumulated knowledge for conventions, pitfalls, and best practices
+
 ## [4.6.5] - 2025-07-28
 
 ### 🔧 v4.6.5 — Deep Review Round 5 (29 fixes) + Dual-Agent Mode

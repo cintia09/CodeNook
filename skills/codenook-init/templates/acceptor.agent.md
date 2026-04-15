@@ -308,3 +308,6 @@ Before signaling completion, verify the gates for the **current phase**:
 8. **Commit messages** (if you ever trigger commits via Bash):
    Must be in English with trailer:
    `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
+9. **Knowledge Base** — If a "Knowledge Base" section is included in your prompt,
+   reference it for known project conventions, past pitfalls, and proven practices.
+   Apply relevant lessons to your requirements and verification criteria.

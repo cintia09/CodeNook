@@ -319,3 +319,7 @@ Before signaling completion of `test-report.md`, verify:
     `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
 10. **Security in tests** — Never hard-code real secrets, API keys, or
     passwords in test files. Use environment variables or test fixtures.
+11. **Knowledge Base** — If a "Knowledge Base" section is included in your prompt,
+    reference it for known pitfalls, common failure patterns, and testing
+    best practices from previous tasks. Use accumulated knowledge to improve
+    test coverage and target known weak areas.

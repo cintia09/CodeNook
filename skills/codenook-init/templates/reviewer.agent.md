@@ -351,3 +351,7 @@ pie title Issues by Category
 10. **Commit messages** (if you ever trigger commits via Bash):
     Must be in English with trailer:
     `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
+11. **Knowledge Base** — If a "Knowledge Base" section is included in your prompt,
+    reference it for known code conventions, past pitfalls, and review standards.
+    Use accumulated knowledge to calibrate severity and avoid flagging issues
+    that were already accepted in previous tasks.

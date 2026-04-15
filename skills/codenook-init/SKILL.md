@@ -305,6 +305,20 @@ Create the full tree under `.claude/`:
 └── codenook/
     ├── docs/                  ← document artifacts per task (created per-task)
     ├── memory/                ← empty directory (with .gitkeep)
+    ├── knowledge/             ← cross-task knowledge base (auto-populated)
+    │   ├── by-role/           ← per-agent accumulated knowledge
+    │   │   ├── implementer.md
+    │   │   ├── reviewer.md
+    │   │   ├── designer.md
+    │   │   ├── tester.md
+    │   │   └── acceptor.md
+    │   ├── by-topic/          ← knowledge indexed by topic
+    │   │   ├── code-conventions.md
+    │   │   ├── architecture-decisions.md
+    │   │   ├── pitfalls.md
+    │   │   ├── best-practices.md
+    │   │   └── project-config.md
+    │   └── index.md           ← master index of all knowledge items
     ├── reviews/               ← empty directory (with .gitkeep), HITL history files
     ├── skills/                ← populated by Q4 skill provisioning; sub-agent prompt injection (with .gitkeep)
     ├── task-board.json        ← seed content below
@@ -405,6 +419,13 @@ memory management, task commands. It is automatically loaded as part of every se
     "agent_mapping": {}
   },
   "phase_defaults": {},
+  "knowledge": {
+    "enabled": true,
+    "auto_extract": true,
+    "max_items_per_role": 100,
+    "max_items_per_topic": 50,
+    "confidence_threshold": "MEDIUM"
+  },
   "preferences": {
     "autoGitignore": true
   }

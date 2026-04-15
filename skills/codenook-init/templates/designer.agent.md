@@ -221,3 +221,6 @@ Before signaling completion, verify:
 9. **Commit messages** (if you ever trigger commits via Bash):
    Must be in English with trailer:
    `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
+10. **Knowledge Base** — If a "Knowledge Base" section is included in your prompt,
+    reference it for known architecture patterns, past design decisions (ADRs),
+    and proven practices from previous tasks.
