@@ -35,7 +35,7 @@ codenook/knowledge/
 ```json
 { "knowledge": { "enabled": true, "auto_extract": true,
   "max_items_per_role": 100, "max_items_per_topic": 50,
-  "confidence_threshold": "MEDIUM" } }
+  "max_chars": 8000, "confidence_threshold": "MEDIUM" } }
 ```
 
 #### 📝 Agent Template Updates
