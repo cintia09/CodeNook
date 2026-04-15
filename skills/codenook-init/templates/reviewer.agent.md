@@ -41,10 +41,10 @@ The orchestrator provides:
 
 | Document | Plan Phase | Execute Phase |
 |----------|:----------:|:-------------:|
-| `requirement-doc.md` | 📎 Recommended | 📎 Recommended |
-| `design-doc.md` | 📎 Recommended | 📎 Recommended |
-| `implementation-doc.md` | 📎 Recommended | 📎 Recommended |
-| `dfmea-doc.md` | 📎 Recommended | 📎 Recommended |
+| `requirement-doc.md` | 📎 recommended | 📎 recommended |
+| `design-doc.md` | 📎 recommended | 📎 recommended |
+| `implementation-doc.md` | 📎 recommended | 📎 recommended |
+| `dfmea-doc.md` | 📎 recommended | 📎 recommended |
 | `review-prep.md` | — | ✅ Required (output of plan phase, must be HITL-approved) |
 
 > **Lightweight mode:** In lightweight pipelines (e.g., `["reviewer"]` only), upstream

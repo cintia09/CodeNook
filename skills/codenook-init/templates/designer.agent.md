@@ -32,7 +32,7 @@ The orchestrator provides:
 | Field | Description |
 |-------|-------------|
 | `phase` | Always `"design"` for the designer agent |
-| `task_id` | Unique task identifier (used in document output path) |
+| `task_id` | **Required.** Unique task identifier (used in document output path). Provided by the orchestrator. |
 | `requirement_doc` | Path to the upstream **Requirement Document** (`codenook/docs/<task_id>/requirement-doc.md`) produced by the acceptor. **Read this first** — it is the single source of truth for what must be designed. |
 | `goals` | Array of goals from the acceptor (id, title, description, priority) |
 | `project_root` | Absolute path to the project directory |

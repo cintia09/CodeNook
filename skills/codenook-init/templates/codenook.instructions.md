@@ -294,7 +294,8 @@ function build_lightweight_routing(pipeline):
 
   # Chain steps: each step's approve → next step's status, last → "done"
   # First step starts from "created"
-  # Status names: "{agent}_{phase}" (e.g., "implementer_plan", "tester_execute")
+  # Status names: "{agent}_{phase}" with hyphens preserved
+  # Examples: "implementer_plan", "tester_execute", "acceptor_accept-plan"
   prev_status = "created"
   for i, step in enumerate(steps):
     current_status = prev_status
@@ -302,13 +303,23 @@ function build_lightweight_routing(pipeline):
     # Reject routing: plan phases → retry (same status); execute phases → back to plan
     if step.phase in ("execute", "accept-exec"):
       # Find this agent's plan phase status in the routing
-      plan_status = find_plan_status_for(step.agent, routing)  # e.g., "implementer_plan"
+      plan_status = None
+      for s, r in routing.items():
+        if r.agent == step.agent and r.phase not in ("execute", "accept-exec"):
+          plan_status = s
       reject_status = plan_status if plan_status else current_status
     else:
       reject_status = current_status  # plan phase: retry
     routing[current_status] = { ...step, approve: next_status, reject: reject_status }
     prev_status = next_status
   return routing
+
+# Helper: find the first routing entry for a given agent
+function find_status_for_agent(agent_name, routing):
+  for status, route in routing.items():
+    if route.agent == agent_name:
+      return status
+  return None
 
 function orchestrate(task_id):
   task = read task-board.json → find task by id
@@ -331,10 +342,14 @@ function orchestrate(task_id):
 
     # ── Circuit Breaker ──
     # Track how many times we've entered the same status. If > 3, ask user.
+    # ── Circuit Breaker ──
+    # Per-status retry limit + global iteration limit
     status_label = f"{role}/{phase}" if task.mode == "lightweight" else task.status
     task.retry_counts[task.status] = (task.retry_counts[task.status] or 0) + 1
-    if task.retry_counts[task.status] > 3:
-      decision = ask_user f"⚠️ Task has returned to '{status_label}' {count} times. Continue, skip, or abandon?"
+    task.total_iterations = (task.total_iterations or 0) + 1
+    if task.retry_counts[task.status] > 3 or task.total_iterations > 30:
+      reason = f"status '{status_label}' retried {task.retry_counts[task.status]}x" if task.retry_counts[task.status] > 3 else f"total iterations reached {task.total_iterations}"
+      decision = ask_user f"⚠️ Circuit breaker: {reason}. Continue, skip, or abandon?"
         choices: ["Continue", "Skip to done (with warning)", "Abandon task"]
       if abandon: task.status = "abandoned"; break
       if skip: task.status = "done"; break
@@ -490,6 +505,11 @@ acceptor (accept-plan)   → gets: all documents produced so far
 acceptor (accept-exec)   → gets: all documents + acceptance-plan.md
 ```
 
+> **Lightweight mode:** Agents only receive documents from agents included in the
+> pipeline. For pipeline `["implementer", "tester"]`, tester gets: implementation-doc.md
+> and dfmea-doc.md — but NOT review-report.md (reviewer was not in pipeline).
+> Missing upstream documents are simply omitted, not treated as errors.
+
 ## Context Building
 
 When spawning a subagent, build the prompt with **phase-specific intelligence**:
@@ -607,16 +627,16 @@ If context exceeds model limits: summarize older memories, truncate large docume
 
 ## Task Management Commands
 
-Respond to these user commands:
+Respond to these user commands (see **Task Modes** section for full pipeline definitions):
 
 | Command | Action |
 |---------|--------|
 | "create task <title>" | Add task to task-board.json with status "created" (full mode) |
-| "quick fix: <title>" / "快速修复: <title>" | Create lightweight task, pipeline: `["implementer"]` |
-| "develop: <title>" / "开发: <title>" | Create lightweight task, pipeline: `["implementer", "tester"]` |
-| "test only: <title>" / "仅测试: <title>" | Create lightweight task, pipeline: `["tester"]` |
-| "review only: <title>" / "仅审查: <title>" | Create lightweight task, pipeline: `["reviewer"]` |
-| "create task <title> --pipeline a,b,c" | Create lightweight task with custom pipeline |
+| "quick fix: <title>" / "快速修复: <title>" | Lightweight: `["implementer"]` (2 phases) |
+| "develop: <title>" / "开发: <title>" | Lightweight: `["implementer", "tester"]` (4 phases) |
+| "test only: <title>" / "仅测试: <title>" | Lightweight: `["tester"]` (2 phases) |
+| "review only: <title>" / "仅审查: <title>" | Lightweight: `["reviewer"]` (2 phases) |
+| "create task <title> --pipeline a,b,c" | Lightweight with custom pipeline |
 | "show task board" / "task list" | Display all tasks with status |
 | "run task T-XXX" / "orchestrate T-XXX" | Start orchestration loop |
 | "task status T-XXX" | Show detailed status + artifacts + history |
