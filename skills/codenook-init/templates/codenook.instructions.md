@@ -610,277 +610,98 @@ ROLE_TOPICS = {
 
 CONFIDENCE_LEVELS = { "HIGH": 3, "MEDIUM": 2, "LOW": 1 }
 
-# ── Knowledge Helper Functions ──
+# ── Knowledge Utility Functions (signatures only — standard file/parse operations) ──
 
-function ensure_knowledge_dirs():
-  # Creates knowledge directory structure if it doesn't exist.
-  # Called before any knowledge read/write operation.
-  dirs = [KNOWLEDGE_DIR, f"{KNOWLEDGE_DIR}/by-role", f"{KNOWLEDGE_DIR}/by-topic"]
-  for d in dirs:
-    mkdir -p d  # no-op if exists
-
-  # Create empty files if missing
-  for role in ["acceptor", "designer", "implementer", "reviewer", "tester"]:
-    touch f"{KNOWLEDGE_DIR}/by-role/{role}.md"
-  for topic in ["code-conventions", "architecture-decisions", "pitfalls", "best-practices", "project-config"]:
-    touch f"{KNOWLEDGE_DIR}/by-topic/{topic}.md"
-  touch f"{KNOWLEDGE_DIR}/index.md"
-
-function reason_about(prompt):
-  # The orchestrator processes this internally using its own LLM context.
-  # This is NOT a sub-agent call — the orchestrator reasons in its main context.
-  # Returns: extracted knowledge items as markdown string, or "NO_KNOWLEDGE"
-  return orchestrator_internal_reasoning(prompt)
-
-function parse_knowledge_items(markdown_text):
-  # Splits markdown text by "### [" headers into structured objects.
-  # Each item: { task_id, title, tags[], confidence, markdown }
-  items = []
-  current_lines = []
-  for line in markdown_text.split("\n"):
-    if line.startswith("### [") and current_lines:
-      items.append(parse_single_item("\n".join(current_lines)))
-      current_lines = [line]
-    else:
-      current_lines.append(line)
-  if current_lines:
-    items.append(parse_single_item("\n".join(current_lines)))
-  return [i for i in items if i is not None]
-
-function parse_single_item(block):
-  # Parses a single knowledge block into { task_id, title, tags, confidence, markdown }
-  # Returns None if the block is not a valid knowledge item.
-  header_match = regex_match(block, r"### \[(.+?)\] (.+)")
-  if not header_match: return None
-  task_id = header_match.group(1)
-  title = header_match.group(2)
-  tags = [t.lstrip("#") for t in regex_findall(block, r"#[\w-]+")]
-  confidence = "MEDIUM"  # default
-  if "**Confidence:** HIGH" in block: confidence = "HIGH"
-  elif "**Confidence:** LOW" in block: confidence = "LOW"
-  return { task_id, title, tags, confidence, markdown: block.strip() }
-
-function meets_threshold(confidence, threshold):
-  # Returns true if confidence meets or exceeds threshold.
-  return CONFIDENCE_LEVELS.get(confidence, 0) >= CONFIDENCE_LEVELS.get(threshold, 0)
-
-function count_items(file_path):
-  # Counts "### [" headers in file. Returns 0 if file doesn't exist.
-  if not file_exists(file_path): return 0
-  content = read(file_path)
-  return content.count("### [")
-
-function rotate_oldest(file_path):
-  # Removes the first "### [" block from the file (oldest item).
-  content = read(file_path)
-  parts = content.split("### [", 2)  # split into at most 3 parts
-  if len(parts) >= 3:
-    # Remove first item, keep header and rest
-    write(file_path, parts[0] + "### [" + "### [".join(parts[2:]))
-
-function item_exists_in_file(file_path, task_id):
-  # Checks if a knowledge item with the given task_id already exists in the file.
-  if not file_exists(file_path): return false
-  content = read(file_path)
-  return f"### [{task_id}]" in content
-
-function append_to_file(file_path, content):
-  # Appends content to file with a blank line separator.
-  # Creates file if it doesn't exist (parent dir must exist).
-  if file_exists(file_path):
-    existing = read(file_path)
-    write(file_path, existing.rstrip() + "\n\n" + content + "\n")
-  else:
-    write(file_path, content + "\n")
-
-function file_exists(path):
-  # Returns boolean. Standard file existence check.
-  return os.path.exists(path)
-
-function read(path):
-  # Returns file content as string. Returns "" if file doesn't exist.
-  if not file_exists(path): return ""
-  return read_file(path)
+| Function | Behavior |
+|----------|----------|
+| `ensure_knowledge_dirs()` | `mkdir -p` for `KNOWLEDGE_DIR/{by-role,by-topic}`, `touch` all 11 files (5 role + 5 topic + index.md) |
+| `reason_about(prompt)` | Orchestrator's internal LLM reasoning (NOT a sub-agent). Returns markdown string or `"NO_KNOWLEDGE"` |
+| `parse_knowledge_items(text)` | Split by `### [` headers → array of `{task_id, title, tags[], confidence, markdown}` |
+| `meets_threshold(conf, thresh)` | Compare via CONFIDENCE_LEVELS map (HIGH≥MEDIUM≥LOW) |
+| `count_items(path)` | Count `### [` headers in file. Returns 0 if file missing |
+| `rotate_oldest(path)` | Remove first `### [` block (oldest item) from file |
+| `item_exists_in_file(path, tid)` | Returns true if `### [{tid}]` found in file |
+| `append_to_file(path, content)` | Append with blank line separator; create if missing |
+| `file_exists(path)` / `read(path)` | Standard file ops; `read` returns `""` if missing |
 
 # ── Core Knowledge Functions ──
 
 function extract_knowledge(task_id, role, phase, document_content, config):
-  # Extracts reusable knowledge from a phase document and appends to knowledge files.
-  # Called automatically after HITL approval if config.knowledge is enabled.
   # Returns: number of items extracted (0 if nothing extractable)
-
-  if not config.get("knowledge", {}).get("enabled", true):
-    return 0
-  if not config.get("knowledge", {}).get("auto_extract", true):
-    return 0  # Manual extraction only — skip automatic
-
-  if not document_content or not document_content.strip():
-    return 0  # Nothing to extract from empty document
-
+  if not config.get("knowledge", {}).get("enabled", true): return 0
+  if not config.get("knowledge", {}).get("auto_extract", true): return 0
+  if not document_content or not document_content.strip(): return 0
   ensure_knowledge_dirs()
 
-  extraction_prompt = f"""
-  Review this phase document and extract reusable cross-task knowledge.
-
-  ## Document ({role} / {phase} for task {task_id})
-  {document_content}
-
-  ## What to Extract
-  - Code conventions discovered or applied
-  - Pitfalls encountered (errors, workarounds, gotchas)
-  - Architecture decisions with rationale
-  - Best practices proven effective
-  - Tool/config insights
-
-  ## Rules
-  - Only extract genuinely reusable knowledge (skip task-specific details)
-  - Each item must be self-contained (understandable without this task's context)
-  - Format each item as:
-    ### [{task_id}] Short descriptive title
-    - **Source:** {task_id} / {role} / {phase}
-    - **Date:** {today ISO}
-    - **Context:** Brief context of discovery
-    - **Lesson:** The actual knowledge (actionable, specific)
-    - **Tags:** #tag1 #tag2 (from: code-convention, naming, style, formatting,
-      architecture, adr, tech-stack, design-pattern, pitfall, gotcha, bug,
-      workaround, best-practice, pattern, performance, security, config,
-      ci-cd, tooling, build)
-    - **Confidence:** HIGH / MEDIUM / LOW
-  - If nothing worth extracting, return exactly: NO_KNOWLEDGE
-  """
-
-  items = reason_about(extraction_prompt)
-
-  if items == "NO_KNOWLEDGE" or not items:
-    return 0
+  # Orchestrator internally reasons about the document to extract knowledge:
+  # Prompt: "Extract reusable cross-task knowledge from this {role}/{phase} document.
+  #   Format: ### [{task_id}] Title + Source/Date/Context/Lesson/Tags/Confidence fields.
+  #   Tags from: code-convention, naming, style, architecture, adr, pitfall, gotcha,
+  #   best-practice, performance, security, config, ci-cd, tooling, build.
+  #   Return NO_KNOWLEDGE if nothing worth extracting."
+  items = reason_about(extraction_prompt_with(document_content, task_id, role, phase))
+  if items == "NO_KNOWLEDGE" or not items: return 0
 
   parsed_items = parse_knowledge_items(items)
+  threshold = config.get("knowledge", {}).get("confidence_threshold", "MEDIUM")
+  max_per_role = config.get("knowledge", {}).get("max_items_per_role", 100)
+  max_per_topic = config.get("knowledge", {}).get("max_items_per_topic", 50)
   count = 0
 
   for item in parsed_items:
-    # Check confidence threshold
-    threshold = config.get("knowledge", {}).get("confidence_threshold", "MEDIUM")
-    if not meets_threshold(item.confidence, threshold):
-      continue
-
-    # Skip if this item already exists (prevents duplicates on re-run)
+    if not meets_threshold(item.confidence, threshold): continue
     role_file = f"{KNOWLEDGE_DIR}/by-role/{role}.md"
-    if item_exists_in_file(role_file, item.task_id):
-      continue
+    if item_exists_in_file(role_file, item.task_id): continue
 
-    # Check capacity and rotate if needed
-    max_per_role = config.get("knowledge", {}).get("max_items_per_role", 100)
-    if count_items(role_file) >= max_per_role:
-      rotate_oldest(role_file)
-
-    # 1. Append to role file
+    # Rotate oldest if at capacity, then append
+    if count_items(role_file) >= max_per_role: rotate_oldest(role_file)
     append_to_file(role_file, item.markdown)
 
-    # 2. Append to topic file(s) based on tags
+    # Write to topic files based on tags (via TAG_TOPIC_MAP)
     topics_written = set()
-    unmapped_tags = []
     for tag in item.tags:
       topic = TAG_TOPIC_MAP.get(tag)
       if topic and topic not in topics_written:
-        max_per_topic = config.get("knowledge", {}).get("max_items_per_topic", 50)
         topic_file = f"{KNOWLEDGE_DIR}/by-topic/{topic}.md"
         if not item_exists_in_file(topic_file, item.task_id):
-          if count_items(topic_file) >= max_per_topic:
-            rotate_oldest(topic_file)
+          if count_items(topic_file) >= max_per_topic: rotate_oldest(topic_file)
           append_to_file(topic_file, item.markdown)
           topics_written.add(topic)
       elif not topic:
-        unmapped_tags.append(tag)
+        log f"⚠️ Unmapped tag: {tag}"
 
-    if unmapped_tags:
-      log f"⚠️ Unmapped knowledge tags: {unmapped_tags} — consider adding to TAG_TOPIC_MAP"
-
-    # 3. Update index (use "### [" format for consistency with knowledge items)
-    index_entry = f"### [{item.task_id}] {item.title}\n- **Role:** {role} | **Topics:** {', '.join(topics_written) or 'none'} | **Confidence:** {item.confidence}"
-    append_to_file(f"{KNOWLEDGE_DIR}/index.md", index_entry)
+    # Update index
+    append_to_file(f"{KNOWLEDGE_DIR}/index.md",
+      f"### [{item.task_id}] {item.title}\n- **Role:** {role} | **Topics:** {', '.join(topics_written) or 'none'}")
     count += 1
-
   return count
 
 function load_knowledge(role, config):
-  # Loads relevant knowledge for a given role from the knowledge base.
-  # Returns: formatted knowledge string for inclusion in agent prompt.
+  # Returns: formatted knowledge string for agent prompt, or ""
+  if not config.get("knowledge", {}).get("enabled", true): return ""
+  if not file_exists(KNOWLEDGE_DIR): return ""
 
-  if not config.get("knowledge", {}).get("enabled", true):
-    return ""
-
-  if not file_exists(KNOWLEDGE_DIR):
-    return ""
-
+  # 1. Load role file + relevant topic files
   knowledge_parts = []
-
-  # 1. Role-specific knowledge (always load)
   role_file = f"{KNOWLEDGE_DIR}/by-role/{role}.md"
-  if file_exists(role_file):
-    content = read(role_file)
-    if content.strip():
-      knowledge_parts.append(f"## Knowledge from previous {role} tasks\n{content}")
-
-  # 2. Topic-specific knowledge (load relevant topics for this role)
-  topics = ROLE_TOPICS.get(role, [])
-  for topic in topics:
+  if file_exists(role_file) and read(role_file).strip():
+    knowledge_parts.append(f"## {role.title()} Knowledge\n{read(role_file)}")
+  for topic in ROLE_TOPICS.get(role, []):
     topic_file = f"{KNOWLEDGE_DIR}/by-topic/{topic}.md"
-    if file_exists(topic_file):
-      content = read(topic_file)
-      if content.strip():
-        knowledge_parts.append(f"## {topic.replace('-', ' ').title()}\n{content}")
+    if file_exists(topic_file) and read(topic_file).strip():
+      knowledge_parts.append(f"## {topic.replace('-', ' ').title()}\n{read(topic_file)}")
+  if not knowledge_parts: return ""
 
-  if not knowledge_parts:
-    return ""
-
-  # 3. Deduplicate — items may appear in both role and topic files.
-  #    Use "### [task_id]" headers as dedup keys. Preserve ## section headers.
+  # 2. Deduplicate by "### [task_id]" headers, preserving ## section headers
+  # Walk combined text; for each ### [ block, skip if header already seen.
+  # Keeps first occurrence of each item, preserves ## sections that have content.
   combined = "\n\n".join(knowledge_parts)
-  seen_headers = set()
-  deduped_lines = []
-  current_section = None     # tracks current ## section header
-  current_block = []
-  current_header = None
+  knowledge = deduplicate_by_item_headers(combined)  # uses seen_headers set on "### [" lines
 
-  for line in combined.split("\n"):
-    if line.startswith("## "):
-      # Flush previous knowledge block
-      if current_header and current_header not in seen_headers:
-        if current_section:
-          deduped_lines.append(current_section)
-          current_section = None
-        deduped_lines.extend(current_block)
-        seen_headers.add(current_header)
-      current_section = line  # remember section header
-      current_block = []
-      current_header = None
-    elif line.startswith("### ["):
-      # Flush previous knowledge block
-      if current_header and current_header not in seen_headers:
-        if current_section:
-          deduped_lines.append(current_section)
-          current_section = None
-        deduped_lines.extend(current_block)
-        seen_headers.add(current_header)
-      current_header = line.strip()
-      current_block = [line]
-    else:
-      current_block.append(line)
-
-  # Flush last block
-  if current_header and current_header not in seen_headers:
-    if current_section:
-      deduped_lines.append(current_section)
-    deduped_lines.extend(current_block)
-
-  knowledge = "\n".join(deduped_lines)
-
-  # 4. Truncate if too large (keep most recent items — appended at end)
-  # Recent knowledge is more contextually relevant; foundational items are
-  # likely to be duplicated or superseded by later refinements.
-  MAX_KNOWLEDGE_CHARS = config.get("knowledge", {}).get("max_chars", 8000)
-  if len(knowledge) > MAX_KNOWLEDGE_CHARS:
-    knowledge = "...(earlier knowledge truncated)\n" + knowledge[-MAX_KNOWLEDGE_CHARS:]
+  # 3. Truncate to max_chars (keep tail = most recent items)
+  max_chars = config.get("knowledge", {}).get("max_chars", 8000)
+  if len(knowledge) > max_chars:
+    knowledge = "...(truncated)\n" + knowledge[-max_chars:]
 
   return f"# Knowledge Base\n\n{knowledge}"
 
