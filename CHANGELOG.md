@@ -2,6 +2,53 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.3.0] - 2025-07-28
+
+### ⚡ v4.3 — Quick Trigger, Lightweight Mode & Deep Review Sweep
+
+Three new orchestration features plus comprehensive quality fixes from two rounds of deep code review (26 issues total).
+
+#### ✨ New Features
+- **Quick Trigger Dispatch**: Keyword-based agent activation (ZH/EN) — say "测试" or "test" to invoke tester directly, with automatic task context detection
+- **Mandatory Ask-User Rule**: Orchestrator MUST call `ask_user` at the end of every response with context-aware choices
+- **Lightweight Task Mode**: Custom agent pipelines for focused workflows — predefined shortcuts (quick fix, develop, test only, review only) plus custom `--pipeline a,b,c` syntax
+  - Dynamic routing via `build_lightweight_routing(pipeline)` — chains only specified agents
+  - 6 predefined pipeline shortcuts with ZH/EN aliases
+  - HITL gates enforced in both full and lightweight modes
+
+#### 🐛 Bug Fixes (26 issues from 2 rounds of deep review)
+
+**Round 1 — Engine (11 fixes):**
+- Complete AGENT_PHASES table with all 5 agents and all phases
+- Fix reject routing: plan phases → retry same status, execute phases → back to plan
+- Adapt circuit breaker for lightweight mode with human-readable labels
+- Merge redundant HITL enforcement sections
+- Make verdict routing mode-aware (full vs lightweight)
+- Add verdict → routing mapping table for clarity
+- Update Agent Roles table with phase and document columns
+
+**Round 1 — Agent Templates (8 fixes):**
+- Tester/reviewer: upstream docs changed from required → 📎 recommended
+- Implementer: fix all `.agents/docs/` paths → `codenook/docs/<task_id>/`
+- Implementer: add verdict quality gate (COMPLETE only when all tests pass)
+- All agents: explicit document save paths
+
+**Round 2 — Engine (4 fixes):**
+- Replace undefined `find_plan_status_for()` with inline logic + `find_status_for_agent()`
+- Add global iteration counter (max 30) to circuit breaker
+- Add lightweight mode note to document chain section
+- Cross-reference Task Modes from Task Management Commands
+
+**Round 2 — Agent Templates (3 fixes):**
+- Standardize "📎 recommended" capitalization across reviewer template
+- Clarify status name construction in lightweight routing comments
+- Mark designer `task_id` as required in context table
+
+#### 🔄 Changed
+- Engine instructions: net change -20 lines after all features and fixes (683 lines)
+- Task Management Commands: shortcut descriptions now reference Task Modes section
+- Circuit breaker: dual trigger (per-status >3 OR global >30 iterations)
+
 ## [4.2.0] - 2025-07-27
 
 ### 🛡️ v4.2 — HITL Enforcement & Adapter Fixes
