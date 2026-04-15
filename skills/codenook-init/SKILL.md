@@ -3,7 +3,7 @@ name: codenook-init
 description: "Initialize the multi-agent development framework in a project. Generates agent profiles, creates task board and config for Claude Code."
 ---
 
-# Agent System Initialization (v4.3)
+# Agent System Initialization (v4.3.1)
 
 > Trigger: "initialize agent system" | "agent init" | "codenook-init"
 

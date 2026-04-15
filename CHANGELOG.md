@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.3.1] - 2025-07-28
+
+### 🔧 v4.3.1 — Deep Review Rounds 3 & 4
+
+Two additional rounds of deep code review, fixing 14 more issues (40 total across all 4 rounds).
+
+#### 🐛 Bug Fixes
+
+**Round 3 — Engine (6 fixes):**
+- Bump version reference from v4.2 to v4.3 in engine title
+- Add `mode`, `pipeline`, `retry_counts`, `total_iterations` to task-board schema example
+- Record skip decision in `feedback_history` when agent fails (HITL audit trail)
+- Quick Trigger now matches lightweight status names (agent_name prefix)
+- Fix `build_lightweight_routing` acceptor filtering for duplicate pipeline entries
+- Remove duplicate Circuit Breaker comment (edit leftover)
+
+**Round 3 — Templates (3 fixes):**
+- Designer and tester: upgrade to 4-backtick code fences for nested mermaid blocks
+- Implementer: add lightweight mode guidance note (matches reviewer/tester)
+- Implementer and tester: add `task_id` to input contract (matches designer)
+
+**Round 4 — Engine (5 fixes):**
+- Handle "Retry with different model" option in agent failure block (was falling through)
+- Bump task-board schema version from 4.2 to 4.3 (new fields)
+- Define `get_user_decision` helper and use consistently (replaces mixed `ask_user` usage)
+- Add `"abandoned"` to while loop exit conditions for robustness
+- Add routing lookup fallback with error message for unknown status
+
+#### 📊 Deep Review Statistics (4 rounds total)
+| Round | Issues | CRITICAL | HIGH | MEDIUM | LOW |
+|-------|--------|----------|------|--------|-----|
+| R1 | 19 | 2 | 6 | 5 | 6 |
+| R2 | 7 | 1 | 1 | 2 | 3 |
+| R3 | 9 | 0 | 1 | 7 | 1 |
+| R4 | 5 | 0 | 1 | 1 | 3 |
+| **Total** | **40** | **3** | **9** | **15** | **13** |
+
 ## [4.3.0] - 2025-07-28
 
 ### ⚡ v4.3 — Quick Trigger, Lightweight Mode & Deep Review Sweep
