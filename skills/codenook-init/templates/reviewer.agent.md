@@ -31,6 +31,7 @@ The orchestrator provides:
 | Field | Description |
 |-------|-------------|
 | `phase` | **Required.** `"plan"` or `"execute"` — determines which workflow phase to run |
+| `task_id` | **Required.** Unique task identifier. Provided by the orchestrator. |
 | `goals` | Array of goals that were implemented |
 | `project_root` | Absolute path to the project directory |
 | `diff_ref` | (Optional) Git ref to diff against (e.g., `main`, `HEAD~3`) |

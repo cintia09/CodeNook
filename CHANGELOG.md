@@ -2,6 +2,89 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.6.5] - 2025-07-28
+
+### 🔧 v4.6.5 — Deep Review Round 5 (29 fixes) + Dual-Agent Mode
+
+Comprehensive deep review sweep (29 issues: 3 CRITICAL, 7 HIGH, 11 MEDIUM, 8 LOW)
+plus two new orchestration features.
+
+#### ✨ New Features
+- **Dual-Agent Parallel Mode**: Two agents (different models) execute same phase in parallel,
+  cross-examine each other's work, and a third agent synthesizes the final document.
+  Configurable per-task or globally via `dual_mode` config.
+- **Per-Phase Model Configuration**: `phase_models` field allows different model pairs
+  for each workflow phase (e.g., Opus+GPT for design, Sonnet+Codex for implementation).
+
+#### 🐛 Bug Fixes
+
+**Engine (17 fixes):**
+- **[C1]** Circuit breaker "Continue" now resets retry_counts (prevents infinite loop)
+- **[C1+H1]** Circuit breaker `break` saves task-board.json before breaking
+- **[C2]** Rename `task` variable to `current_task` in orchestrate() (variable collision)
+- **[H2]** Add `paused` status handler at top of while loop (resume or exit)
+- **[H3]** Fix synthesis fallback comment (was misleading about heuristic)
+- **[M1]** Remove duplicate PHASE_KEYS, reuse PHASE_NAME_MAP via resolve_phase_name()
+- **[M2]** Add `abandoned` and lightweight dynamic statuses to exhaustive list
+- **[M3]** Define prev_phase lookup using AGENT_PHASES backward walk
+- **[M4]** Add `record_feedback` and `stop` to adapter interface table
+- **[M5]** Add config.json complete schema example
+- **[M6]** Add "develop+review" shortcut to commands table
+- **[M7]** Add early check for `hitl.enabled = false` → auto-approve
+- **[L2]** Add null validation for resolved agent_a/agent_b models
+- **[L3]** Add retry-aware phase decisions re-ask prompt
+- **[L4]** Add unknown decision value error handling
+- Fix stale `<task.status>` reference → `<current_task.status>`
+- Close else block for HITL enabled/disabled check
+
+**Templates (12 fixes):**
+- **[H4]** Acceptor: add `task_id` to all 3 phase input contracts
+- **[H5]** Reviewer: add `task_id` to input contract
+- **[H6]** Designer: add lightweight mode awareness note
+- **[H7]** README: add Create to tester tools list
+- **[M1]** install.sh: update version comment to v4.6.5
+- **[M2]** SKILL.md: update title version to v4.6.5
+- **[M3]** Acceptor: add lightweight mode note
+- **[M4]** Seed version strings: update from 4.6 to 4.6.5
+- **[L1]** CHANGELOG: fix v3.x dates (2026 → 2025 typos)
+- **[L2]** Acceptor: output contract formatting consistency
+- **[L3]** README: fix tester description to include "create"
+- **[C3]** CHANGELOG: add missing entries for v4.4.0–v4.6.5
+
+## [4.6.0] - 2025-07-28
+
+### ⚡ v4.6 — Multi-Task Management, Phase Entry Decisions, Deep Review Round 2
+
+Major orchestration improvements: multi-task management with parallel task support,
+mandatory phase entry decisions, and conversation-triggered commands.
+
+#### ✨ New Features
+- **Multi-Task Management**: switch, pause, resume active tasks; `depends_on` for task dependencies
+- **Any-Phase Entry**: `--start-at` flag to create tasks at any phase in the workflow
+- **Phase Entry Decisions**: mandatory questions before each phase with config persistence
+- **Conversation Triggers**: natural-language commands for task/framework operations
+
+#### 🐛 Bug Fixes
+- Deep review round 2: 10 critical/medium findings fixed
+- Auto-persist phase entry decisions to config
+- Fix pseudocode consistency (round 3 nits)
+
+## [4.5.0] - 2025-07-28
+
+### 🔧 v4.5 — Per-Phase Model & HITL Adapter Configuration
+
+#### ✨ New Features
+- Per-phase model configuration for fine-grained control
+- Per-phase HITL adapter overrides
+
+## [4.4.0] - 2025-07-28
+
+### 🔧 v4.4 — Skill Provisioning
+
+#### ✨ New Features
+- **Project-Level Skill Auto-Loading**: project-level skills in `codenook/skills/` automatically loaded to sub-agents
+- **Smart Skill Provisioning (Q4)**: skills provisioned based on agent role and task context
+
 ## [4.3.1] - 2025-07-28
 
 ### 🔧 v4.3.1 — Deep Review Rounds 3 & 4
@@ -240,7 +323,7 @@ skills-v4/
 - 30/30 tests passed across 6 test groups
 - Agent switching, role boundaries, HITL pipeline, mid-flow modifications, HITL disabled, memory isolation
 
-## [3.4.0] - 2026-04-13
+## [3.4.0] - 2025-04-13
 
 ### 🚀 Agent Experience Enhancement
 
@@ -290,7 +373,7 @@ skills-v4/
 - 7 tasks (T-038~T-044), 28 goals — all accepted
 - 36/36 tests passing | 20 skills (was 19)
 
-## [3.3.6] - 2026-04-11
+## [3.3.6] - 2025-04-11
 
 ### 🔒 Security Hardening — Hook Enforcement
 
@@ -319,7 +402,7 @@ skills-v4/
 - 51/51 total tests: framework 5/5 ✅, false-positive 15/15 ✅, virtual events 31/31 ✅
 - Live-tested cross-directory, chained command, and active-agent bypass scenarios
 
-## [3.3.5] - 2026-04-11
+## [3.3.5] - 2025-04-11
 
 ### Added
 - **Comprehensive hard constraints for all 5 agent roles** via `preToolUse` hook enforcement
@@ -336,7 +419,7 @@ skills-v4/
 - 44/44 hook enforcement test scenarios passed across all 5 roles
 - 8/8 live enforcement tests passed in real Copilot CLI session (tester role)
 
-## [3.3.4] - 2026-04-11
+## [3.3.4] - 2025-04-11
 
 ### Fixed
 - **agent-pre-tool-use.sh**: Fixed project root detection that failed when Copilot CLI session started from a non-project directory (e.g., `~`). Now walks up directory tree from both `cwd` and file path to find `.agents/` directory.
@@ -346,7 +429,7 @@ skills-v4/
 - Both `~/.copilot/hooks/hooks.json` and `config.json` inline hooks are executed
 - All 6 hook events documented by GitHub are supported: `sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`, `postToolUse`, `errorOccurred`
 
-## [3.2.0] - 2026-04-10
+## [3.2.0] - 2025-04-10
 
 ### 🚀 Skills Mechanism Optimization (T-SKILL-OPT)
 
@@ -368,7 +451,7 @@ skills-v4/
 - Added detailed manual install steps table (target directories per platform)
 - Updated skill count from 15 to 18
 
-## [3.1.5] - 2026-04-10
+## [3.1.5] - 2025-04-10
 
 ### 📝 Audit Round 10 — Convergence (2 doc fixes)
 
@@ -380,7 +463,7 @@ skills-v4/
 **LOW:**
 - `agent-hooks/SKILL.md`: Add 5 missing transitions to 3-Phase pseudocode (`design_review→test_scripting`, 4 hypothesis transitions)
 
-## [3.1.4] - 2026-04-10
+## [3.1.4] - 2025-04-10
 
 ### 🔒 Security Audit Round 9 (16 issues fixed)
 
@@ -406,7 +489,7 @@ skills-v4/
 - `cron-scheduler.sh`: Fix file handle leak in Python `json.load(open(...))` → `with open()`
 - `install.sh`: Add `trap 'rm -rf "$TMP_DIR"' EXIT` for cleanup on interrupt
 
-## [3.1.3] - 2026-04-09
+## [3.1.3] - 2025-04-09
 
 ### 🚀 Strict Document Gate Mode
 
@@ -416,7 +499,7 @@ skills-v4/
 - `skills/agent-fsm/SKILL.md`: Added document gate as guard #5 in FSM validation rules
 - `tests/test-integration.sh`: 2 new tests (strict blocks, warn allows) — 25 total
 
-## [3.1.2] - 2026-04-09
+## [3.1.2] - 2025-04-09
 
 ### 🔒 Security Audit Round 7 (10 issues fixed)
 
@@ -435,7 +518,7 @@ skills-v4/
 - `agent-pre-tool-use.sh`: Add tester bash restrictions (block git push, npm publish, docker run)
 - `install.sh`: Narrow chmod +x to `agent-*.sh` + `security-scan.sh` only
 
-## [3.1.1] - 2026-04-09
+## [3.1.1] - 2025-04-09
 
 ### 🔒 Security Audit Round 6 (16 issues fixed)
 
@@ -460,7 +543,7 @@ skills-v4/
 - `test-3phase-fsm.sh`: Removed redundant rm -rf (EXIT trap handles cleanup)
 - `fsm-validate.sh`: SQL-escape PT_* values in convergence gate JSON
 
-## [3.1.0] - 2026-04-09
+## [3.1.0] - 2025-04-09
 
 ### 🚀 Agent Teams — Bidirectional Messaging, Parallel Execution, Competitive Hypothesis
 
@@ -480,7 +563,7 @@ skills-v4/
 - README: Added "Agent Teams" section with architecture diagram, 3 features, usage scenarios
 - Integration tests expanded 21→23 (hypothesis transition + team dashboard)
 
-## [3.0.23] - 2026-04-09
+## [3.0.23] - 2025-04-09
 
 ### 🔒 Security Audit Round 5 (16 issues fixed)
 
@@ -505,7 +588,7 @@ skills-v4/
 - `verify-install.sh`: Replaced python3 path-injection-prone JSON check with jq (L4)
 - `cron-scheduler.sh`: Resolved subprocess paths relative to script directory (L5)
 
-## [3.0.22] - 2026-04-09
+## [3.0.22] - 2025-04-09
 
 ### 🔒 Security Audit Round 4 (22 issues fixed)
 
@@ -536,7 +619,7 @@ skills-v4/
 - `memory-index.sh`: track + report actual indexed count
 - `webhook-handler.sh`: validate CWD before writing files
 
-## [3.0.21] - 2026-04-09
+## [3.0.21] - 2025-04-09
 
 ### 🔒 Security Audit Round 3 (12 issues fixed)
 
@@ -556,7 +639,7 @@ skills-v4/
 - `agent-pre-tool-use.sh`: escape agent name in JSON error output
 - `agent-after-switch.sh`: replace unsafe `ls *.md` with `find -name "*.md"`
 
-## [3.0.20] - 2026-04-09
+## [3.0.20] - 2025-04-09
 
 ### ⚡ Performance Optimization
 
@@ -580,7 +663,7 @@ New tests: pre-tool-use agent boundaries (acceptor/implementer/reviewer), before
 
 - Added "Known Limitations & Troubleshooting" section
 
-## [3.0.19] - 2026-04-09
+## [3.0.19] - 2025-04-09
 
 ### 🔧 Hook Modularization
 
@@ -601,7 +684,7 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - `agent-init` skill now auto-creates `.agents/docs/` directory
 - README: added document pipeline section with flow diagram
 
-## [3.0.18] - 2026-04-09
+## [3.0.18] - 2025-04-09
 
 ### 📄 New Feature: Document Pipeline (`agent-docs` skill)
 
@@ -625,7 +708,7 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - All 5 agent profiles updated with explicit document input/output requirements
 - 3-Phase mode document mapping included
 
-## [3.0.17] - 2026-04-09
+## [3.0.17] - 2025-04-09
 
 ### 🐛 Deep Audit Round 2 (20 issues fixed)
 
@@ -654,7 +737,7 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - **README skill count** — badge updated 15→16, added `agent-config` to skills table
 - **Section anchor** — `#15-skills` → `#16-skills`
 
-## [3.0.16] - 2026-04-09
+## [3.0.16] - 2025-04-09
 
 ### 🐛 Critical Bug Fixes (Security & Reliability Audit)
 - **TIMESTAMP SQL injection** — validate timestamp is numeric before SQL insertion
@@ -664,7 +747,7 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - **TOOL_ARGS truncation order** — truncate before SQL escaping (not after) to prevent broken escape sequences
 - **CWD initialization** — add INPUT/CWD extraction to 5 hooks missing it (after-memory-write, after-task-status, before-compaction, on-goal-verified, after-switch)
 
-## [3.0.15] - 2026-04-09
+## [3.0.15] - 2025-04-09
 
 ### ✨ New Skill: agent-config
 - **CLI model configuration** — `config.sh model set <agent> <model>` to configure agent models
@@ -684,7 +767,7 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - **verify-install.sh** — updated skill count 15→16 (added agent-config)
 - **SKILL.md interactive workflow** — AI now mandated to run discovery commands first, not assume agent/model lists
 
-## [3.0.14] - 2026-04-09
+## [3.0.14] - 2025-04-09
 
 ### 🤝 Copilot Parity
 - **Full Copilot CLI support** — installer now detects `~/.copilot` and auto-installs agents + skills + hooks + rules (same as Claude Code)
@@ -696,14 +779,14 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - **Updated platform compatibility table** — README now shows full parity between Claude Code and Copilot CLI
 - **English usage instructions** — installer Done message now in English
 
-## [3.0.13] - 2026-04-09
+## [3.0.13] - 2025-04-09
 
 ### ✨ Features
 - **Per-agent model config** — added `model` and `model_hint` fields to all 5 agent profiles
 - **Project-type-aware init** — agent-init Step 1c classifies projects (ios/frontend/backend/systems/ai-ml/devops) and adapts skill generation per type
 - **Model resolution in agent-switch** — priority: task override → agent model → project config → system default
 
-## [3.0.12] - 2026-04-09
+## [3.0.12] - 2025-04-09
 
 ### ⚡ Performance
 - **Task-board cache** — cached task-board.json content in variable (15→1 disk reads per hook invocation)
@@ -714,13 +797,13 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 ### 🔧 CI/CD
 - **GitHub Actions CI** — added `.github/workflows/test.yml`, runs all tests on push/PR to main
 
-## [3.0.11] - 2026-04-09
+## [3.0.11] - 2025-04-09
 
 ### 📝 Documentation
 - **Add 3-Phase sections** to implementer, reviewer, tester SKILL.md — each role now documents its 3-Phase responsibilities, steps, and differences from Simple mode
 - **Trim monitoring diagrams** — replaced 48-line ASCII flowcharts with concise 5-step numbered lists (implementer −22 lines, tester −21 lines)
 
-## [3.0.10] - 2026-04-09
+## [3.0.10] - 2025-04-09
 
 ### 🐛 Critical Fix
 - **Fix undefined variables in auto-memory-capture** — `OLD_STATUS_SQL`/`NEW_STATUS_SQL`/`TASK_ID_SQL` were from a separate pipe subshell; memory events were never logged
@@ -731,7 +814,7 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 ### 🔧 Improvements
 - **Improved uninstall()** — now removes security-scan.sh, rules/ files, restores hooks.json from `.bak`, cleans up Copilot installation
 
-## [3.0.9] - 2026-04-09
+## [3.0.9] - 2025-04-09
 
 ### 🔧 Improvements
 - **Standardize hook paths** — all 7 hooks with bare `.agents/` paths now use `AGENTS_DIR="${CWD:-.}/.agents"` variable
@@ -741,7 +824,7 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 ### 🧪 Tests
 - **test-hooks.sh expanded** — JSON validity checks for both hooks.json files, event count parity, rules/ validation, shebang + pipefail enforcement
 
-## [3.0.8] - 2026-04-09
+## [3.0.8] - 2025-04-09
 
 ### 🐛 Critical Fix
 - **Fix variable use-before-define** in `agent-post-tool-use.sh` — `OLD_STATUS_SQL`/`NEW_STATUS_SQL` were referenced before assignment, causing FSM validation to silently skip; also fixed self-referencing `sql_escape()` calls
@@ -750,7 +833,7 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - **Complete Copilot hooks.json**: Added 6 missing event types (agentSwitch, taskCreate, taskStatusChange, memoryWrite, compaction, goalVerified) — Copilot users now get full hook coverage
 - **verify-install.sh hardened**: Shebang → `#!/usr/bin/env bash`, error handling → `set -euo pipefail`
 
-## [3.0.7] - 2026-04-09
+## [3.0.7] - 2025-04-09
 
 ### 🐛 Bug Fixes
 - **README.md**: Fixed unclosed code fence after task lifecycle diagram — headings and text were rendered inside code block
@@ -760,7 +843,7 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 ### 🔧 Improvements
 - **hooks.json backup+replace**: Install now backs up existing hooks.json before overwriting (creates `.bak`) instead of skipping — applies to both Claude and Copilot platforms
 
-## [3.0.6] - 2026-04-08
+## [3.0.6] - 2025-04-08
 
 ### 🔒 Security
 - **CRITICAL: Fix SQL injection** in 11 sqlite3 calls across 6 hooks — all variables now escaped via `sql_escape()` helper
@@ -772,13 +855,13 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - **SQLite error handling**: All hooks now log warnings on insert failure instead of silent suppression
 - **.gitignore hardened**: Add agent runtime files (events.db, state.json, inbox.json, snapshots, logs, backups)
 
-## [3.0.5] - 2026-04-08
+## [3.0.5] - 2025-04-08
 
 ### ⚡ Performance
 - **SKILL.md context reduction**: agent-init 680→173 (−75%), agent-switch 588→141 (−76%)
 - Total across 4 files: 3654→1116 lines (−69%, ~10K tokens/session)
 
-## [3.0.4] - 2026-04-08
+## [3.0.4] - 2025-04-08
 
 ### 📦 New Features
 - **FSM unblock validation**: `blocked→X` now restricted to `blocked→blocked_from` state only (prevents state-skipping)
@@ -792,7 +875,7 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - **Consolidated hooks**: Merged memory-index trigger from agent-after-task-status.sh into agent-post-tool-use.sh (single source of truth)
 - **SQLite error handling**: agent-after-task-status.sh now logs warnings on failure
 
-## [3.0.3] - 2026-04-08
+## [3.0.3] - 2025-04-08
 
 ### ⚡ Performance
 - **jq loop optimization**: Auto-dispatch now uses pipe-delimited parsing (3 jq calls → 1 per task)
@@ -807,7 +890,7 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 ### 📦 New Features
 - **Orphan task detection**: Staleness check now flags blocked tasks with no activity >48h (🔴 warning)
 
-## [3.0.2] - 2026-04-08
+## [3.0.2] - 2025-04-08
 
 ### 🐛 Bug Fixes
 - **CRITICAL**: Fix missing `accepting→accept_fail` FSM transition in Simple mode validation — previously blocked all acceptance failure flows
@@ -836,7 +919,7 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 ### 🧪 Tests
 - Expand test-hooks.sh from 5 to 13 hooks (full v2.0 coverage)
 
-## [3.0.0] - 2026-04-12
+## [3.0.0] - 2025-04-12
 
 ### 🚀 Major Release — 3-Phase Engineering Closed Loop
 
@@ -868,7 +951,7 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - Workflow Modes: **2** (simple + 3-phase)
 - Feedback Safety Limit: 10 loops per task
 
-## [2.0.0] - 2026-04-07
+## [2.0.0] - 2025-04-07
 
 ### 🚀 Major Release — 5 New Phases
 
@@ -908,7 +991,7 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - Hooks: 5 scripts / 3 events → **13 scripts / 9 events**
 - Scripts: 2 → **6** (+memory-index, memory-search, cron-scheduler, webhook-handler)
 
-## [1.0.0] - 2026-04-06
+## [1.0.0] - 2025-04-06
 
 ### 🎉 Initial Release
 

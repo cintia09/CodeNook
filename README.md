@@ -45,7 +45,7 @@ Five specialized AI agents collaborate through an orchestrator that routes tasks
 | **Designer** | 🏗️ | Architecture design (ADR format), API specs, test specifications | Read, Bash, Grep, Glob, WebFetch | claude-sonnet-4 |
 | **Implementer** | 💻 | TDD development (red-green-refactor), DFMEA risk analysis | Read, Edit, Create, Bash, Grep, Glob | claude-sonnet-4 |
 | **Reviewer** | 🔍 | Code review, OWASP security checklist, severity rating | Read, Bash, Grep, Glob | claude-sonnet-4 |
-| **Tester** | 🧪 | Test execution, coverage analysis, issue reporting | Read, Bash, Grep, Glob, Edit | claude-haiku-4.5 |
+| **Tester** | 🧪 | Test execution, coverage analysis, issue reporting | Read, Bash, Grep, Glob, Edit, Create | claude-haiku-4.5 |
 
 ## Core Features
 
@@ -401,7 +401,7 @@ disallowedTools: Agent
 | 🏗️ Designer | Read, Bash, Grep, Glob, WebFetch | Edit, Create, Agent | Read-only + web research |
 | 💻 Implementer | Read, Edit, Create, Bash, Grep, Glob | Agent | Full code access, no sub-spawning |
 | 🔍 Reviewer | Read, Bash, Grep, Glob | Edit, Create, Agent | Read-only, no code changes |
-| 🧪 Tester | Read, Bash, Grep, Glob, Edit | Agent | Can edit test files, no sub-spawning |
+| 🧪 Tester | Read, Bash, Grep, Glob, Edit, Create | Agent | Can create/edit test files, no sub-spawning |
 
 All agents have `disallowedTools: Agent` — preventing sub-subagent spawning. Only the orchestrator can spawn subagents.
 

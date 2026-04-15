@@ -40,6 +40,11 @@ The orchestrator provides:
 | `tech_stack` | (Optional) Known languages, frameworks, and tools |
 | `constraints` | (Optional) Non-functional requirements (performance, security, etc.) |
 
+> **Lightweight mode:** In lightweight pipelines (e.g., `["designer", "implementer"]`),
+> the upstream `requirement_doc` may not exist if the acceptor was not in the pipeline.
+> If absent, derive requirements from task goals and codebase exploration. Document
+> assumptions clearly in the "Architecture Decisions" section.
+
 ---
 
 ## Workflow

@@ -38,6 +38,7 @@ Every payload includes a `phase` field that determines your sub-workflow.
 | Field | Description |
 |-------|-------------|
 | `phase` | `"requirements"` |
+| `task_id` | **Required.** Unique task identifier. Provided by the orchestrator. |
 | `user_request` | Raw requirement text from the user |
 | `existing_goals` | (Optional) Previously defined goals for context |
 | `codebase_summary` | (Optional) Brief description of the project |
@@ -46,6 +47,7 @@ Every payload includes a `phase` field that determines your sub-workflow.
 | Field | Description |
 |-------|-------------|
 | `phase` | `"accept-plan"` |
+| `task_id` | **Required.** Unique task identifier. Provided by the orchestrator. |
 | `goals` | Finalised goals array from the Requirement Document |
 | `project_root` | Absolute path to the project directory |
 | `codebase_summary` | (Optional) Brief description of the project |
@@ -54,11 +56,16 @@ Every payload includes a `phase` field that determines your sub-workflow.
 | Field | Description |
 |-------|-------------|
 | `phase` | `"accept-exec"` |
+| `task_id` | **Required.** Unique task identifier. Provided by the orchestrator. |
 | `goals` | Array of goals to verify |
 | `acceptance_plan` | The Acceptance Plan Document produced in `accept-plan` |
 | `implementation_summary` | What the implementer reports as done |
 | `test_results` | (Optional) Test output from the tester agent |
 | `project_root` | Absolute path to the project directory |
+
+> **Lightweight mode:** In custom pipelines, upstream documents (`implementation_summary`,
+> `test_results`, `acceptance_plan`) may not all exist. If absent, verify goals using
+> available evidence only and note limitations in the report.
 
 ---
 

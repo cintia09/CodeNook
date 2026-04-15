@@ -164,7 +164,9 @@ Read `${ROOT}/codenook/config.json` from the same directory to determine platfor
 `created` → `req_approved` → `design_approved` → `impl_planned` → `impl_done` →
 `review_planned` → `review_done` → `test_planned` → `test_done` →
 `accept_planned` → `done`
-Plus: `paused` (excludes from auto-routing; `paused_from` preserves original status for resume).
+Plus: `paused` (excludes from auto-routing; `paused_from` preserves original status for resume)
+and `abandoned` (terminal state from circuit breaker or user cancellation).
+Lightweight mode generates dynamic status names like `implementer_plan`, `tester_execute`.
 
 Rules: you are the sole writer of task-board.json. Every status change updates `updated_at`.
 `feedback_history` accumulates all HITL decisions for audit.
@@ -443,6 +445,45 @@ verdict may override the default "approve" route:
 - **NEVER** skip HITL gates. **NEVER** directly change status without human approval.
 - If `hitl.enabled` is false in config.json, the verify script will allow passage.
 
+### Complete `config.json` Schema
+
+```json
+{
+  "version": "4.6.5",
+  "platform": "claude-code",
+  "models": {
+    "acceptor":    "claude-haiku-4.5",
+    "designer":    "claude-sonnet-4",
+    "implementer": "claude-sonnet-4",
+    "reviewer":    "claude-sonnet-4",
+    "tester":      "claude-haiku-4.5"
+  },
+  "hitl": {
+    "enabled": true,
+    "adapter": "local-html",
+    "port": 8765,
+    "auto_open_browser": true,
+    "phase_overrides": {}
+  },
+  "dual_mode": {
+    "enabled": false,
+    "phases": ["all"],
+    "models": {
+      "agent_a": "claude-sonnet-4",
+      "agent_b": "gpt-5.1",
+      "synthesizer": null
+    },
+    "phase_models": {}
+  },
+  "preferences": {
+    "coding_conventions": null,
+    "review_checklist": null,
+    "phase_entry_decisions": {}
+  },
+  "reviewer_agent_type": "code-review"
+}
+```
+
 ## HITL Adapter System & Execution
 
 Resolve which adapter to use for this phase:
@@ -466,6 +507,10 @@ HITL adapter scripts are in `${ROOT}/codenook/hitl-adapters/`. All follow the sa
 | `adapter.sh publish <task_id> <role> <file>` | Present document for review     |
 | `adapter.sh poll <task_id> <role>`           | Check if human has responded    |
 | `adapter.sh get_feedback <task_id> <role>`   | Return decision + comments      |
+| `adapter.sh record_feedback <task_id> <role> <decision> <feedback_file>` | Persist decision to adapter storage |
+| `adapter.sh stop`                            | Gracefully shut down (e.g., stop HTTP server for local-html) |
+| `adapter.sh record_feedback <task_id> <role> <decision> <comment>` | Record decision (terminal adapter) |
+| `adapter.sh stop <task_id>`                  | Stop adapter server (local-html) |
 
 No adapter depends on `ask_user` or any LLM-specific tool.
 
@@ -697,19 +742,8 @@ function find_status_for_agent(agent_name, routing):
   return None
 
 # Phase key for dual_mode.phases matching
-# Maps (agent, phase) → dual_mode phase name
-PHASE_KEYS = {
-  ("acceptor", "requirements"):  "requirements",
-  ("designer", "design"):        "design",
-  ("implementer", "plan"):       "impl_plan",
-  ("implementer", "execute"):    "impl_execute",
-  ("reviewer", "plan"):          "review_plan",
-  ("reviewer", "execute"):       "review_execute",
-  ("tester", "plan"):            "test_plan",
-  ("tester", "execute"):         "test_execute",
-  ("acceptor", "accept-plan"):   "accept_plan",
-  ("acceptor", "accept-exec"):   "accept_execute",
-}
+# Reuses PHASE_NAME_MAP (defined above) to avoid DRY violation.
+# resolve_dual_mode uses resolve_phase_name() for phase key lookup.
 
 # Resolve dual-mode config for a given route. Returns resolved config dict or None.
 # Merges phase_models override into models for the specific phase.
@@ -717,7 +751,7 @@ function resolve_dual_mode(task, config, route):
   # Task-level overrides global
   dual = task.dual_mode or config.get("dual_mode")
   if not dual or not dual.get("enabled"): return None
-  phase_key = PHASE_KEYS.get((route.agent, route.phase))
+  phase_key = resolve_phase_name(route.agent, route.phase)
   if not phase_key: return None
   if "all" not in dual.phases and phase_key not in dual.phases:
     return None
@@ -729,11 +763,14 @@ function resolve_dual_mode(task, config, route):
     "agent_b":     phase_override.get("agent_b")     or base_models.get("agent_b"),
     "synthesizer": phase_override.get("synthesizer") or base_models.get("synthesizer"),
   }
+  # Validate resolved models — disable dual mode if either agent model is missing
+  if not resolved_models["agent_a"] or not resolved_models["agent_b"]:
+    return None
   return { ...dual, models: resolved_models }
 
 # Execute one phase in dual-agent mode.
 # Returns the synthesized result (same shape as a normal agent result).
-function orchestrate_dual_phase(task, route, dual_config, base_prompt, DOCS_DIR, config):
+function orchestrate_dual_phase(current_task, route, dual_config, base_prompt, DOCS_DIR, config):
   role = route.agent
   phase = route.phase
   model_a = dual_config.models.agent_a
@@ -780,21 +817,20 @@ function orchestrate_dual_phase(task, route, dual_config, base_prompt, DOCS_DIR,
   synth_result = task(agent_type=role, prompt=synth_prompt, model=model_synth)
 
   if synth_result.failed:
-    # Synthesis failed — fall back to the higher-quality initial document
-    # (prefer the one whose critique rated the other as NEEDS_IMPROVEMENT)
-    return result_a  # fallback heuristic
+    # Synthesis failed — fall back to agent A's document (arbitrary; both are valid)
+    return result_a
 
   # Save final synthesized document as the canonical artifact
   write synth_result.document → DOCS_DIR/{route.doc}
   return synth_result
 
 function orchestrate(task_id):
-  task = read task-board.json → find task by id
+  current_task = read task-board.json → find task by id
   config = read ${ROOT}/codenook/config.json
 
   # Select routing based on task mode
-  if task.mode == "lightweight" and task.pipeline:
-    ROUTING = build_lightweight_routing(task.pipeline)
+  if current_task.mode == "lightweight" and current_task.pipeline:
+    ROUTING = build_lightweight_routing(current_task.pipeline)
   else:
     ROUTING = FULL_ROUTING
   HITL_DIR = ${ROOT}/codenook/hitl-adapters
@@ -802,8 +838,21 @@ function orchestrate(task_id):
   REVIEWS_DIR = ${ROOT}/codenook/reviews
   mkdir -p DOCS_DIR
 
-  while task.status not in ("done", "abandoned"):
-    route = ROUTING.get(task.status)
+  while current_task.status not in ("done", "abandoned"):
+    # Handle paused tasks — offer to resume or exit
+    if current_task.status == "paused":
+      decision = get_user_decision(
+        f"Task {task_id} is paused (was at '{current_task.paused_from}'). Resume or exit?",
+        ["Resume from " + current_task.paused_from, "Keep paused and exit"])
+      if decision.startswith("Resume"):
+        current_task.status = current_task.paused_from
+        current_task.paused_from = None
+        save task-board.json
+        continue
+      else:
+        break
+
+    route = ROUTING.get(current_task.status)
     if not route:
       report error f"Unknown status '{task.status}' — not in routing table. Check task-board.json."
       break
@@ -812,23 +861,30 @@ function orchestrate(task_id):
 
     # ── Circuit Breaker ──
     # Per-status retry limit + global iteration limit
-    status_label = f"{role}/{phase}" if task.mode == "lightweight" else task.status
-    task.retry_counts[task.status] = (task.retry_counts[task.status] or 0) + 1
-    task.total_iterations = (task.total_iterations or 0) + 1
-    if task.retry_counts[task.status] >= 3 or task.total_iterations >= 30:
-      reason = f"status '{status_label}' retried {task.retry_counts[task.status]}x" if task.retry_counts[task.status] >= 3 else f"total iterations reached {task.total_iterations}"
+    status_label = f"{role}/{phase}" if current_task.mode == "lightweight" else current_task.status
+    current_task.retry_counts[current_task.status] = (current_task.retry_counts[current_task.status] or 0) + 1
+    current_task.total_iterations = (current_task.total_iterations or 0) + 1
+    if current_task.retry_counts[current_task.status] >= 3 or current_task.total_iterations >= 30:
+      reason = f"status '{status_label}' retried {current_task.retry_counts[current_task.status]}x" if current_task.retry_counts[current_task.status] >= 3 else f"total iterations reached {current_task.total_iterations}"
       decision = get_user_decision(f"⚠️ Circuit breaker: {reason}. Continue, skip, or abandon?",
         ["Continue", "Skip to done (with warning)", "Abandon task"])
-      if decision == "Abandon task": task.status = "abandoned"; break
-      if decision == "Skip to done (with warning)": task.status = "done"; break
+      if decision == "Abandon task": task.status = "abandoned"; save task-board.json; break
+      if decision == "Skip to done (with warning)": task.status = "done"; save task-board.json; break
+      if decision == "Continue": current_task.retry_counts[current_task.status] = 0; continue
 
     # ── Step 1: Build Context ──
     upstream_docs = {}
-    for each artifact in task.artifacts:
+    for each artifact in current_task.artifacts:
       if artifact is not null:
         upstream_docs[key] = read DOCS_DIR/{filename}
     memory   = load ${ROOT}/codenook/memory/<task_id>-<role>-<phase>-memory.md (if exists)
-    # Fallback: also check <task_id>-<role>-<prev_phase>-memory.md for cross-phase continuity
+    # Fallback: for cross-phase continuity, walk AGENT_PHASES backward for the same role
+    # to find the previous phase name, then check <task_id>-<role>-<prev_phase>-memory.md
+    if not memory:
+      prev_phases = [p for (p, _, _) in AGENT_PHASES.get(role, []) if p != phase]
+      for prev in reversed(prev_phases):
+        alt_memory = load ${ROOT}/codenook/memory/<task_id>-<role>-<prev>-memory.md
+        if alt_memory: memory = alt_memory; break
     feedback = pending feedback from previous HITL (if any)
 
     # ── Step 1b: Load Project Skills ──
@@ -855,11 +911,11 @@ function orchestrate(task_id):
             project_skills[skill_name] = read skill_file
 
     # Build prompt with all collected context (OUTSIDE skills loop)
-    prompt = build_context(task, role, phase, upstream_docs, memory, feedback, project_skills)
+    prompt = build_context(current_task, role, phase, upstream_docs, memory, feedback, project_skills)
 
     # Model resolution (priority: task override > phase override > agent model > platform default)
     phase_name = resolve_phase_name(role, phase)  # e.g., "impl_execute", "design"
-    model = (task.model_override
+    model = (current_task.model_override
              or config.models.get("phase_overrides", {}).get(phase_name)
              or config.models.get(role)
              or None)
@@ -867,8 +923,14 @@ function orchestrate(task_id):
     # ── Step 1c: Phase Entry Decision ──
     # Before spawning, check if this phase requires user decisions that aren't
     # configured. Each phase has entry questions; skip if already answered in config
-    # or in task.phase_decisions. Store decisions for audit and prompt context.
-    phase_decisions = task.get("phase_decisions", {}).get(phase_name, {})
+    # or in current_task.phase_decisions. Store decisions for audit and prompt context.
+    phase_decisions = current_task.get("phase_decisions", {}).get(phase_name, {})
+    is_retry = current_task.retry_counts.get(current_task.status, 0) > 1
+    if phase_decisions and is_retry:
+      # On retry, offer to revise previous phase decisions
+      revise = get_user_decision("Phase decisions exist from previous attempt. Revise?",
+        ["Keep current decisions", "Revise decisions"])
+      if revise == "Revise decisions": phase_decisions = {}
     if not phase_decisions:
       entry_qs = PHASE_ENTRY_QUESTIONS.get(phase_name, [])
       if entry_qs:
@@ -898,8 +960,8 @@ function orchestrate(task_id):
             save config.json   # persist to disk
 
         # Persist NEW decisions in task board
-        if "phase_decisions" not in task: task["phase_decisions"] = {}
-        task["phase_decisions"][phase_name] = phase_decisions
+        if "phase_decisions" not in task: current_task["phase_decisions"] = {}
+        current_task["phase_decisions"][phase_name] = phase_decisions
         save task-board.json
 
     # ALWAYS inject phase decisions into prompt (whether fresh or cached)
@@ -907,9 +969,9 @@ function orchestrate(task_id):
       prompt = prompt + "\n\n# Phase Decisions\n" + yaml(phase_decisions)
 
     # ── Step 2: Spawn Agent (single or dual mode) ──
-    dual_config = resolve_dual_mode(task, config, route)
+    dual_config = resolve_dual_mode(current_task, config, route)
     if dual_config:
-      result = orchestrate_dual_phase(task, route, dual_config, prompt, DOCS_DIR, config)
+      result = orchestrate_dual_phase(current_task, route, dual_config, prompt, DOCS_DIR, config)
     else:
       # For reviewer execute phase: consider "code-review" agent_type
       agent_type = role
@@ -927,8 +989,8 @@ function orchestrate(task_id):
         task.model_override = alt_model; save task-board.json; continue
       if user_choice == "Skip":
         # Record the skip as a human decision (user explicitly bypassed this phase)
-        task.feedback_history.append({
-          "from_status": task.status, "decision": "skip", "feedback": "Agent failed; user chose to skip",
+        current_task.feedback_history.append({
+          "from_status": current_task.status, "decision": "skip", "feedback": "Agent failed; user chose to skip",
           "at": ISO timestamp, "role": role, "phase": phase, "by": "human"
         })
         task.status = route.approve; save task-board.json; continue
@@ -936,11 +998,11 @@ function orchestrate(task_id):
     # ── Step 3: Save Document to Disk ──
     extract document content from result.response
     write to DOCS_DIR/{route.doc}
-    task.artifacts[route.key] = route.doc
+    current_task.artifacts[route.key] = route.doc
 
     # Record agent output in feedback_history
-    task.feedback_history.append({
-      "from_status": task.status,
+    current_task.feedback_history.append({
+      "from_status": current_task.status,
       "summary": brief summary of document (1-2 sentences),
       "document": route.doc,
       "at": ISO timestamp,
@@ -954,25 +1016,30 @@ function orchestrate(task_id):
     if not exists HITL_DIR/hitl-verify.sh:
       report error "HITL scripts missing. Run codenook-init upgrade."; break
 
-    # Present the document for human review (see HITL Adapter System above)
-    # Resolve adapter (priority: phase override → global config → env auto-detect)
-    adapter_name = (config.get("hitl", {}).get("phase_overrides", {}).get(phase_name)
-                    or config.get("hitl", {}).get("adapter")
-                    or detect_adapter_from_env())
-    adapter = load_adapter(adapter_name)
-    adapter.publish(task_id, role, DOCS_DIR/{route.doc})
+    # If HITL is disabled in config, auto-approve and skip adapter interaction
+    if not config.get("hitl", {}).get("enabled", true):
+      decision = "approve"
+      feedback = None
+    else:
+      # Present the document for human review (see HITL Adapter System above)
+      # Resolve adapter (priority: phase override → global config → env auto-detect)
+      adapter_name = (config.get("hitl", {}).get("phase_overrides", {}).get(phase_name)
+                      or config.get("hitl", {}).get("adapter")
+                      or detect_adapter_from_env())
+      adapter = load_adapter(adapter_name)
+      adapter.publish(task_id, role, DOCS_DIR/{route.doc})
 
     # Collect human decision via the adapter's own mechanism
-    decision, feedback = adapter.get_feedback(task_id)
-    # All adapters are self-contained — no dependency on ask_user or any LLM tool
+      decision, feedback = adapter.get_feedback(task_id)
+      # All adapters are self-contained — no dependency on ask_user or any LLM tool
 
     # Verify HITL completion FIRST (programmatic enforcement — before state mutation)
-    bash HITL_DIR/hitl-verify.sh <task_id> <task.status>
+    bash HITL_DIR/hitl-verify.sh <task_id> <current_task.status>
     # If exit code != 0: STOP — do not advance. break out of loop.
 
     # Record human decision (only after verification passes)
-    task.feedback_history.append({
-      "from_status": task.status,
+    current_task.feedback_history.append({
+      "from_status": current_task.status,
       "decision": decision,         // "approve" or "feedback"
       "feedback": feedback,
       "at": ISO timestamp,
@@ -993,29 +1060,33 @@ function orchestrate(task_id):
         # Acceptor uses ACCEPT/REJECT; reviewer/tester use APPROVED/CHANGES_REQUESTED/FAIL
         if role == "acceptor":
           if verdict == "REJECT":
-            if task.mode == "lightweight":
-              task.status = find_status_for_agent("designer", ROUTING) or route.reject
+            if current_task.mode == "lightweight":
+              current_task.status = find_status_for_agent("designer", ROUTING) or route.reject
             else:
-              task.status = "design_approved"  # back to designer
+              current_task.status = "design_approved"  # back to designer
           else:
             # ACCEPT → normal advance
-            task.status = route.approve
+            current_task.status = route.approve
         else:
           # reviewer or tester
           if verdict in ("CHANGES_REQUESTED", "FAIL"):
-            if task.mode == "lightweight":
-              task.status = find_status_for_agent("implementer", ROUTING) or route.reject
+            if current_task.mode == "lightweight":
+              current_task.status = find_status_for_agent("implementer", ROUTING) or route.reject
             else:
-              task.status = "impl_planned"     # back to implementer
+              current_task.status = "impl_planned"     # back to implementer
           else:
             # APPROVED / APPROVED_WITH_NOTES → normal advance
-            task.status = route.approve
+            current_task.status = route.approve
       else:
-        task.status = route.approve
+        current_task.status = route.approve
 
-    if decision == "feedback":
-      task.status = route.reject
+    elif decision == "feedback":
+      current_task.status = route.reject
       save feedback for next agent invocation
+
+    else:
+      report error f"Unexpected HITL decision value: '{decision}'. Expected 'approve' or 'feedback'."
+      break
 
     save task-board.json
     save ${ROOT}/codenook/memory/<task_id>-<role>-<phase>-memory.md
@@ -1217,6 +1288,7 @@ Respond to these user commands (see **Task Modes** section for full pipeline def
 | "develop: <title>" / "开发: <title>" | Lightweight: `["implementer", "tester"]` (4 phases) |
 | "test only: <title>" / "仅测试: <title>" | Lightweight: `["tester"]` (2 phases) |
 | "review only: <title>" / "仅审查: <title>" | Lightweight: `["reviewer"]` (2 phases) |
+| "develop+review: <title>" / "开发+审查: <title>" | Lightweight: `["implementer", "reviewer", "tester"]` (6 phases) |
 | "create task <title> --pipeline a,b,c" | Lightweight with custom pipeline |
 | "create task <title> --start-at <phase>" | Start from any phase (see Mid-Flow Entry below) |
 | "create task <title> --start-at <phase> --with-docs design=path,impl=path" | Mid-flow with existing documents |
