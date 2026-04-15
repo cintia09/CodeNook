@@ -1,13 +1,14 @@
 ---
 name: codenook-init
-description: "Initialize the multi-agent development framework in a project. Generates agent profiles, creates task board and config for Claude Code."
+description: "Initialize the multi-agent development framework in a project. Generates agent profiles, creates task board and config for Claude Code and Copilot CLI."
 ---
 
-# Agent System Initialization (v4.7.0)
+# Agent System Initialization (v4.9.0)
 
 > Trigger: "initialize agent system" | "agent init" | "codenook-init"
 
-Platform: **Claude Code** — all files are generated under `.claude/`.
+Platform: **Claude Code** or **Copilot CLI** — project files are generated under `.claude/`.
+Global skills are loaded from `~/.claude/skills/` (Claude Code) or `~/.copilot/skills/` (Copilot CLI).
 Instructions are appended to project-root `CLAUDE.md`.
 
 ## Step 1 — Directory Confirmation
@@ -89,11 +90,11 @@ Default model map:
 
 | Agent        | Default Model       |
 |--------------|---------------------|
-| acceptor     | claude-haiku-4.5    |
-| designer     | claude-sonnet-4     |
-| implementer  | claude-sonnet-4     |
-| reviewer     | claude-sonnet-4     |
-| tester       | claude-haiku-4.5    |
+| acceptor     | claude-opus-4.6     |
+| designer     | claude-opus-4.6     |
+| implementer  | claude-opus-4.6     |
+| reviewer     | gpt-5.4             |
+| tester       | claude-opus-4.6     |
 
 If **Custom per-agent**: loop through 5 agents, ask model for each.
 Config result: `"models": { "acceptor": "...", "designer": "...", ... }`
@@ -103,22 +104,22 @@ This allows different models for plan vs. execute phases (e.g., cheaper model fo
 planning, premium for execution). Config result:
 ```json
 "models": {
-  "acceptor": "claude-haiku-4.5",
-  "designer": "claude-sonnet-4",
-  "implementer": "claude-sonnet-4",
-  "reviewer": "claude-sonnet-4",
-  "tester": "claude-haiku-4.5",
+  "acceptor": "claude-opus-4.6",
+  "designer": "claude-opus-4.6",
+  "implementer": "claude-opus-4.6",
+  "reviewer": "gpt-5.4",
+  "tester": "claude-opus-4.6",
   "phase_overrides": {
-    "requirements":   "claude-sonnet-4",
-    "design":         "claude-opus-4",
-    "impl_plan":      "claude-haiku-4.5",
-    "impl_execute":   "claude-sonnet-4",
-    "review_plan":    "claude-haiku-4.5",
-    "review_execute": "gpt-4.1",
-    "test_plan":      "claude-haiku-4.5",
-    "test_execute":   "claude-sonnet-4",
-    "accept_plan":    "claude-haiku-4.5",
-    "accept_execute": "claude-haiku-4.5"
+    "requirements":   "claude-opus-4.6",
+    "design":         "claude-opus-4.6",
+    "impl_plan":      "claude-opus-4.6",
+    "impl_execute":   "claude-opus-4.6",
+    "review_plan":    "gpt-5.4",
+    "review_execute": "gpt-5.4",
+    "test_plan":      "claude-opus-4.6",
+    "test_execute":   "claude-opus-4.6",
+    "accept_plan":    "claude-opus-4.6",
+    "accept_execute": "claude-opus-4.6"
   }
 }
 ```
@@ -128,16 +129,16 @@ Recommended per-phase defaults (if user wants guidance):
 
 | Phase | Recommended Model | Rationale |
 |-------|------------------|-----------|
-| requirements | claude-sonnet-4 | Needs good language understanding |
-| design | claude-opus-4 | Architecture requires deep reasoning |
-| impl_plan | claude-haiku-4.5 | Planning is lightweight |
-| impl_execute | claude-sonnet-4 | Code generation needs quality |
-| review_plan | claude-haiku-4.5 | Planning is lightweight |
-| review_execute | gpt-4.1 | Code review benefits from diverse perspective |
-| test_plan | claude-haiku-4.5 | Planning is lightweight |
-| test_execute | claude-sonnet-4 | Test generation needs quality |
-| accept_plan | claude-haiku-4.5 | Planning is lightweight |
-| accept_execute | claude-haiku-4.5 | Acceptance checking is structured |
+| requirements | claude-opus-4.6 | Needs deep language understanding for ambiguity detection |
+| design | claude-opus-4.6 | Architecture requires deep reasoning |
+| impl_plan | claude-opus-4.6 | Implementation planning benefits from thorough analysis |
+| impl_execute | claude-opus-4.6 | Code generation needs quality |
+| review_plan | gpt-5.4 | Review planning benefits from diverse perspective |
+| review_execute | gpt-5.4 | Code review benefits from diverse perspective |
+| test_plan | claude-opus-4.6 | Test design needs thorough edge-case analysis |
+| test_execute | claude-opus-4.6 | Test generation needs quality |
+| accept_plan | claude-opus-4.6 | Acceptance criteria need deep requirements tracing |
+| accept_execute | claude-opus-4.6 | Final verification needs thoroughness |
 
 ### Q2 — HITL Adapter
 > "HITL adapter?"
@@ -211,44 +212,55 @@ If user selects **"Yes, scan and assign"**:
    - **If neither directory exists or both are empty:** inform the user "No global skills found.
      Skipping skill provisioning." and set `skills.auto_load = true`, `agent_mapping = {}`.
    - **If a skill's SKILL.md has no parseable frontmatter:** skip that skill with a warning.
-   - **Exclude** framework/meta skills: `codenook-init`, `copilot-instructions`,
-     `chinese-default-reply`, `documentation-language`, `always-ask-next-step`,
-     `save-skill-sync-*`, `export-skills`, `workspace-layout-*`.
+   - **Exclude** framework/meta skills by heuristic:
+     - Skills whose name contains `codenook` (framework itself)
+     - Skills whose description indicates meta/configuration purpose (e.g., "instructions",
+       "default reply", "language setting", "workspace layout", "export skills", "save skills")
+     - Skills with no `description` field and a generic/config-like name
 
-2. **Classify skills by relevance** — using the agent role descriptions and skill
-   descriptions, categorize each skill into one of:
-   - `diagram` — visualization/diagramming skills (uml, architecture, graphviz, cloud,
-     network, canvas, infographic, infocard, vega, archimate, bpmn, data-analytics,
-     iot, security, frontend-slides)
-   - `workflow` — development workflow skills (code-review, gerrit-*, confluence-*,
-     jenkins-*, jira-*, github-ssh-proxy)
-   - `content` — content creation/transformation skills (baoyu-translate,
-     baoyu-format-markdown, baoyu-markdown-to-html, baoyu-url-to-markdown,
-     baoyu-article-illustrator)
-   - `domain` — project-specific domain skills (5g-ran-*, cb15586-*, hub-*,
-     nh-hub-*, pptx*, etc.)
-   - `media` — image/media generation (baoyu-image-gen, baoyu-cover-image,
-     baoyu-compress-image, baoyu-comic, baoyu-xhs-images, baoyu-slide-deck)
-   - `social` — social media posting (baoyu-post-to-*, baoyu-danger-x-to-markdown)
+2. **Classify skills by relevance** — read each skill's `SKILL.md` description and use LLM
+   judgment to categorize into one of these functional categories:
+   - `diagram` — visualization/diagramming (keywords: diagram, chart, graph, architecture,
+     UML, flowchart, infographic, canvas, visualization, SVG, draw)
+   - `workflow` — development workflow (keywords: code-review, CI/CD, deploy, git,
+     confluence, jira, jenkins, gerrit, build, pipeline)
+   - `content` — content creation/transformation (keywords: translate, format, markdown,
+     convert, article, url-to-markdown, illustrate)
+   - `domain` — project-specific domain knowledge (keywords: domain-specific terms,
+     product names, internal tools, custom integrations)
+   - `media` — image/media generation (keywords: image, cover, compress, comic, slide,
+     photo, video, generate image)
+   - `social` — social media posting (keywords: post, publish, share, weibo, wechat,
+     twitter, xiaohongshu)
+
+   **Classification approach:** Do NOT hardcode skill names to categories. Instead:
+   - Parse the `name` and `description` fields from each skill's SKILL.md frontmatter
+   - Match against the category keywords above
+   - If a skill matches multiple categories, assign to the most specific one
+   - If no category matches, classify as `domain` (catch-all)
 
 3. **Map skills to agents** — apply these default assignment rules:
 
    | Agent | Auto-assigned categories | Rationale |
    |-------|------------------------|-----------|
    | **designer** | `diagram`, `domain` | Architects need visualization and domain knowledge |
-   | **implementer** | `diagram` (subset: uml, graphviz), `workflow`, `domain` | Developers need UML for code design, workflow for CI/CD, domain for context |
-   | **reviewer** | `workflow` (subset: code-review, gerrit-*), `domain` | Reviewers need code review tools and domain knowledge |
+   | **implementer** | `diagram` (subset: UML/code-related), `workflow`, `domain` | Developers need UML for code design, workflow for CI/CD, domain for context |
+   | **reviewer** | `workflow` (subset: review/audit tools), `domain` | Reviewers need code review tools and domain knowledge |
    | **tester** | `domain` | Testers need domain knowledge for test case design |
-   | **acceptor** | `diagram` (subset: infographic, canvas, infocard), `content`, `domain` | POs need visual summaries and content tools for requirements |
+   | **acceptor** | `diagram` (subset: infographic/summary), `content`, `domain` | POs need visual summaries and content tools for requirements |
+
+   > **Note:** Skills classified as `media` or `social` are not auto-assigned to any agent.
+   > They are copied to the project `skills/` directory but require manual assignment
+   > via `config.json → skills.agent_mapping` if needed.
 
 4. **Present mapping for confirmation** — show the user the proposed assignment:
    ```
-   Proposed skill assignments:
-     designer:     uml, architecture, graphviz, cloud, canvas, archimate, [domain skills]
-     implementer:  uml, graphviz, code-review, gerrit-commit, [domain skills]
-     reviewer:     code-review, gerrit-commit, [domain skills]
+   Proposed skill assignments (based on SKILL.md descriptions):
+     designer:     [diagram skills], [domain skills]
+     implementer:  [diagram subset], [workflow skills], [domain skills]
+     reviewer:     [workflow subset], [domain skills]
      tester:       [domain skills]
-     acceptor:     infographic, canvas, infocard, [domain skills]
+     acceptor:     [diagram subset], [content skills], [domain skills]
 
    Total: N unique skills to copy to project
    ```
@@ -261,22 +273,23 @@ If user selects **"Yes, scan and assign"**:
    ```bash
    mkdir -p ${ROOT}/codenook/skills/<skill-name>
    # Copy only SKILL.md and lightweight reference files
-   cp ~/.copilot/skills/<skill-name>/SKILL.md ${ROOT}/codenook/skills/<skill-name>/
+   cp <source-skill-dir>/<skill-name>/SKILL.md ${ROOT}/codenook/skills/<skill-name>/
    # Optionally copy examples/ and references/ if they exist and are small (<100KB total)
    # Skip: node_modules/, __pycache__/, *.bin, .git/, caches, platform scripts
    ```
-   Use `~/.claude/skills/` instead of `~/.copilot/skills/` on Claude Code platform.
+   Source directory: `~/.copilot/skills/` (Copilot CLI) or `~/.claude/skills/` (Claude Code) —
+   use whichever platform was detected in Step 2 or scan both.
 
 6. **Populate config.json** — write the `skills.agent_mapping` section:
    ```json
    "skills": {
      "auto_load": true,
      "agent_mapping": {
-       "designer": ["uml", "architecture", "graphviz", "cloud", "canvas", "archimate"],
-       "implementer": ["uml", "graphviz", "code-review", "gerrit-commit"],
-       "reviewer": ["code-review", "gerrit-commit"],
-       "tester": [],
-       "acceptor": ["infographic", "canvas", "infocard"]
+       "designer": ["<classified-diagram-skills>", "<classified-domain-skills>"],
+       "implementer": ["<classified-diagram-subset>", "<classified-workflow-skills>", "<classified-domain-skills>"],
+       "reviewer": ["<classified-review-tools>", "<classified-domain-skills>"],
+       "tester": ["<classified-domain-skills>"],
+       "acceptor": ["<classified-diagram-subset>", "<classified-content-skills>", "<classified-domain-skills>"]
      }
    }
    ```
@@ -365,11 +378,16 @@ touch ${ROOT}/codenook/knowledge/index.md
 ### Agent Profile Templates
 
 Read templates from the `templates/` subdirectory relative to this SKILL.md file.
-The path is typically `~/.claude/skills/codenook-init/templates/`.
+The path depends on the platform:
+- Copilot CLI: `~/.copilot/skills/codenook-init/templates/`
+- Claude Code: `~/.claude/skills/codenook-init/templates/`
 
 For each template:
 1. Read the file content
-2. Write to `.claude/agents/<role>.agent.md`
+2. Write to `<project-root>/.claude/agents/<role>.agent.md`
+
+> **Note:** Agent profiles are always written to `.claude/agents/` regardless of which
+> platform the skill was loaded from. The `.claude/` directory is the project-level standard.
 
 Models are NOT embedded in agent profiles. They are configured in `config.json` → `models` map and resolved by the orchestrator at spawn time.
 
@@ -378,14 +396,18 @@ Models are NOT embedded in agent profiles. They are configured in `config.json` 
 Copy all files from the `hitl-adapters/` subdirectory relative to this SKILL.md file
 to `.claude/codenook/hitl-adapters/`. Ensure all `.sh` files are executable (chmod +x).
 
+The source path depends on the platform:
+- Copilot CLI: `~/.copilot/skills/codenook-init/hitl-adapters/`
+- Claude Code: `~/.claude/skills/codenook-init/hitl-adapters/`
+
 ### Instructions File (Orchestration Engine)
 
-Read `templates/codenook.instructions.md` and replace `${ROOT}` with `.claude`,
-then append the content to project-root `CLAUDE.md`.
+Read `templates/codenook.instructions.md` (relative to this SKILL.md) and replace
+`${ROOT}` with `.claude`, then append the content to project-root `CLAUDE.md`.
 
 If `CLAUDE.md` already exists, append the engine content after a `\n---\n\n` separator.
-If `CLAUDE.md` already contains a CodeNook engine block (identified by `# CodeNook Orchestration Engine`
-header), replace that block instead of appending a duplicate.
+If `CLAUDE.md` already contains a CodeNook engine block (identified by a line starting with
+`# CodeNook Orchestration Engine`), replace that block instead of appending a duplicate.
 
 This instructions file contains the **full orchestration engine**: routing table, HITL enforcement,
 memory management, task commands. It is automatically loaded as part of every session context.
@@ -396,7 +418,7 @@ memory management, task commands. It is automatically loaded as part of every se
 
 ```json
 {
-  "version": "4.7.0",
+  "version": "4.9.0",
   "active_task": null,
   "tasks": []
 }
@@ -409,8 +431,8 @@ memory management, task commands. It is automatically loaded as part of every se
 
 ```json
 {
-  "version": "4.7.0",
-  "platform": "claude-code",
+  "version": "4.9.0",
+  "platform": "<claude-code|copilot-cli>",
   "models": {
     "acceptor":    "<model>",
     "designer":    "<model>",
@@ -430,6 +452,16 @@ memory management, task commands. It is automatically loaded as part of every se
     "auto_load": true,
     "agent_mapping": {}
   },
+  "dual_mode": {
+    "enabled": false,
+    "phases": ["all"],
+    "models": {
+      "agent_a": "claude-opus-4.6",
+      "agent_b": "gpt-5.4",
+      "synthesizer": null
+    },
+    "phase_models": {}
+  },
   "phase_defaults": {},
   "knowledge": {
     "enabled": true,
@@ -440,8 +472,12 @@ memory management, task commands. It is automatically loaded as part of every se
     "confidence_threshold": "MEDIUM"
   },
   "preferences": {
-    "autoGitignore": true
-  }
+    "autoGitignore": true,
+    "coding_conventions": null,
+    "review_checklist": null,
+    "phase_entry_decisions": {}
+  },
+  "reviewer_agent_type": "code-review"
 }
 ```
 
@@ -467,8 +503,8 @@ memory management, task commands. It is automatically loaded as part of every se
   - Omitted role = gets ALL project skills (same as not being in the map)
   ```json
   "agent_mapping": {
-    "designer": ["uml", "architecture", "cloud"],
-    "implementer": ["uml", "graphviz"],
+    "designer": ["<diagram-skill-A>", "<domain-skill-B>"],
+    "implementer": ["<diagram-skill-A>", "<workflow-skill-C>"],
     "reviewer": [],
     "tester": [],
     "acceptor": []
@@ -489,19 +525,19 @@ After all files are written:
 ```
 ✅ Agent system initialized!                    # or "✅ Agent system upgraded!" in upgrade mode
 
-Platform:  Claude Code
+Platform:  <detected platform>
 Directory: .claude/
 Agents:    5 (acceptor, designer, implementer, reviewer, tester)
 HITL:      local-html (port 8765) — 10 gates per task cycle
-Engine:    CLAUDE.md (appended, auto-loaded by Claude Code)
+Engine:    CLAUDE.md (appended, auto-loaded by session)
 Workflow:  Document-driven (plan → approve → execute → report → approve)
-Skills:    N skills provisioned → {designer: [uml, architecture, ...], implementer: [...], ...}
+Skills:    N skills provisioned → {designer: [...], implementer: [...], ...}
 Models:
-  acceptor:    claude-haiku-4.5
-  designer:    claude-sonnet-4
-  implementer: claude-sonnet-4
-  reviewer:    claude-sonnet-4
-  tester:      claude-haiku-4.5
+  acceptor:    claude-opus-4.6
+  designer:    claude-opus-4.6
+  implementer: claude-opus-4.6
+  reviewer:    gpt-5.4
+  tester:      claude-opus-4.6
 
 # Upgrade mode only:
 Preserved: task-board.json (N tasks), memory/ (M snapshots), docs/ (D documents), skills/ (S skills), config.json
@@ -526,9 +562,9 @@ If any file is missing or empty, report the failure and offer to retry.
 2. If confirmed:
    - `rm -rf .claude/agents/`
    - `rm -rf .claude/codenook/`
-   - Remove the CodeNook engine block from `CLAUDE.md` (identified by `# CodeNook Orchestration Engine` header)
+   - Remove the CodeNook engine block from `CLAUDE.md` (identified by a line starting with `# CodeNook Orchestration Engine`)
    - Remove agent-related entries from `.gitignore` (if added by init)
 3. Print: "✅ Agent system removed from project."
 
-This only removes project-level files. The global `codenook-init` skill (`~/.claude/skills/`) is managed by `install.sh --uninstall`.
+This only removes project-level files. The global `codenook-init` skill (`~/.claude/skills/` or `~/.copilot/skills/`) is managed by `install.sh --uninstall`.
 

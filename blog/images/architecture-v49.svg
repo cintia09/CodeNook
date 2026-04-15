@@ -1,0 +1,271 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 920" width="1200" height="920">
+  <defs>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#2563eb"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#16a34a"/>
+    </marker>
+    <marker id="arrowPurple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#9333ea"/>
+    </marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626"/>
+    </marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#ea580c"/>
+    </marker>
+    <filter id="shadow" x="-4%" y="-4%" width="108%" height="108%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00000015"/>
+    </filter>
+    <linearGradient id="dualGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#eff6ff"/>
+      <stop offset="100%" stop-color="#faf5ff"/>
+    </linearGradient>
+  </defs>
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC', sans-serif; }
+    .title { font-size: 22px; font-weight: 700; fill: #111827; }
+    .subtitle { font-size: 13px; font-weight: 400; fill: #6b7280; }
+    .layer-label { font-size: 14px; font-weight: 600; fill: #374151; letter-spacing: 1.5px; }
+    .node-label { font-size: 14px; font-weight: 600; fill: #1e293b; }
+    .sub-label { font-size: 11px; font-weight: 400; fill: #6b7280; }
+    .arrow-label { font-size: 11px; font-weight: 400; fill: #475569; }
+    .badge { font-size: 10px; font-weight: 600; fill: #ffffff; }
+    .emoji { font-size: 18px; }
+    .phase-text { font-size: 10px; fill: #6b7280; font-weight: 400; }
+    .model-text { font-size: 9px; fill: #9ca3af; font-weight: 400; font-style: italic; }
+    .feature-badge { font-size: 9px; font-weight: 600; }
+  </style>
+
+  <!-- Background -->
+  <rect width="1200" height="920" fill="#fafbfc"/>
+
+  <!-- Title -->
+  <text x="600" y="38" text-anchor="middle" class="title">CodeNook v4.9 — Document-Driven Multi-Agent Architecture</text>
+  <text x="600" y="58" text-anchor="middle" class="subtitle">Plan → Approve → Execute → Report → Approve  |  10 Phases  |  10 HITL Gates  |  Dual-Agent Cross-Examination</text>
+
+  <!-- Platform badges -->
+  <rect x="420" y="66" width="100" height="18" rx="9" fill="#2563eb"/>
+  <text x="470" y="79" text-anchor="middle" class="badge">Claude Code</text>
+  <rect x="530" y="66" width="90" height="18" rx="9" fill="#7c3aed"/>
+  <text x="575" y="79" text-anchor="middle" class="badge">Copilot CLI</text>
+  <rect x="630" y="66" width="55" height="18" rx="9" fill="#16a34a"/>
+  <text x="657" y="79" text-anchor="middle" class="badge">MIT</text>
+
+  <!-- ═══════ Layer 1: User ═══════ -->
+  <text x="30" y="120" class="layer-label">USER</text>
+  <line x1="80" y1="116" x2="1170" y2="116" stroke="#e5e7eb" stroke-width="1"/>
+
+  <!-- User circle -->
+  <circle cx="600" cy="138" r="22" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.5"/>
+  <text x="600" y="144" text-anchor="middle" class="emoji">👤</text>
+  <text x="600" y="175" text-anchor="middle" class="node-label">Human User</text>
+
+  <!-- Arrow: User → Orchestrator -->
+  <line x1="600" y1="183" x2="600" y2="215" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+
+  <!-- ═══════ Layer 2: Orchestrator ═══════ -->
+  <text x="30" y="218" class="layer-label">ENGINE</text>
+  <line x1="100" y1="214" x2="1170" y2="214" stroke="#e5e7eb" stroke-width="1"/>
+
+  <!-- Orchestrator box (primary) -->
+  <rect x="350" y="225" width="500" height="65" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="253" text-anchor="middle" class="node-label" fill="#1e40af">Orchestrator (Main Session)</text>
+  <text x="600" y="272" text-anchor="middle" class="sub-label">Routing · Context Building · Agent Spawning · HITL Enforcement · Knowledge Extraction</text>
+
+  <!-- Routing Table (left) -->
+  <rect x="70" y="230" width="200" height="55" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="170" y="254" text-anchor="middle" class="node-label">Routing Table</text>
+  <text x="170" y="272" text-anchor="middle" class="sub-label">10 statuses → agents + phases</text>
+
+  <!-- HITL Gate (right) -->
+  <rect x="930" y="230" width="200" height="55" rx="8" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="1030" y="249" text-anchor="middle" class="node-label" fill="#991b1b">HITL Gate</text>
+  <text x="1030" y="264" text-anchor="middle" class="sub-label">10 approval checkpoints</text>
+  <text x="1030" y="278" text-anchor="middle" class="phase-text">local-html · terminal · github · confluence</text>
+
+  <!-- Arrows: Orch ↔ Routing/HITL -->
+  <line x1="350" y1="257" x2="275" y2="257" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+  <line x1="850" y1="257" x2="925" y2="257" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrowRed)"/>
+
+  <!-- ═══════ Dual-Agent Mode Section ═══════ -->
+  <rect x="70" y="305" width="1060" height="120" rx="12" fill="url(#dualGrad)" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="6,3" filter="url(#shadow)"/>
+  <text x="100" y="325" class="layer-label" fill="#7c3aed">DUAL-AGENT MODE</text>
+  <text x="355" y="325" class="sub-label">(optional per phase)</text>
+
+  <!-- Agent A -->
+  <rect x="100" y="340" width="210" height="55" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="205" y="362" text-anchor="middle" class="node-label" fill="#1e40af">Agent A</text>
+  <text x="205" y="382" text-anchor="middle" class="model-text">claude-opus-4.6</text>
+
+  <!-- Agent B -->
+  <rect x="350" y="340" width="210" height="55" rx="8" fill="#faf5ff" stroke="#9333ea" stroke-width="1.5"/>
+  <text x="455" y="362" text-anchor="middle" class="node-label" fill="#6b21a8">Agent B</text>
+  <text x="455" y="382" text-anchor="middle" class="model-text">gpt-5.4</text>
+
+  <!-- Cross arrows between A and B -->
+  <line x1="310" y1="355" x2="350" y2="375" stroke="#ea580c" stroke-width="1.2" stroke-dasharray="3,2"/>
+  <line x1="310" y1="375" x2="350" y2="355" stroke="#ea580c" stroke-width="1.2" stroke-dasharray="3,2"/>
+
+  <!-- Analyze Divergence -->
+  <rect x="600" y="335" width="240" height="35" rx="8" fill="#fefce8" stroke="#fcd34d" stroke-width="1.5"/>
+  <text x="720" y="357" text-anchor="middle" class="node-label" fill="#854d0e">Analyze Divergence</text>
+
+  <!-- Phase Constitution badge -->
+  <rect x="610" y="376" width="220" height="30" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
+  <text x="720" y="396" text-anchor="middle" class="sub-label" fill="#166534">Phase Constitution Criteria</text>
+
+  <!-- Blind Challenges -->
+  <rect x="880" y="340" width="220" height="30" rx="8" fill="#fff7ed" stroke="#fed7aa" stroke-width="1.5"/>
+  <text x="990" y="360" text-anchor="middle" class="sub-label" fill="#9a3412">Blind Challenges ≤3 rounds</text>
+
+  <!-- Synthesize -->
+  <rect x="880" y="378" width="220" height="30" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <text x="990" y="398" text-anchor="middle" class="sub-label" fill="#166534">Synthesize Final Document</text>
+
+  <!-- Flow arrows in dual mode -->
+  <line x1="310" y1="367" x2="340" y2="367" stroke="#ea580c" stroke-width="1" marker-end="url(#arrowOrange)"/>
+  <line x1="560" y1="352" x2="595" y2="352" stroke="#ea580c" stroke-width="1.5" marker-end="url(#arrowOrange)"/>
+  <line x1="840" y1="352" x2="875" y2="352" stroke="#ea580c" stroke-width="1.5" marker-end="url(#arrowOrange)"/>
+  <line x1="840" y1="393" x2="875" y2="393" stroke="#ea580c" stroke-width="1.5" marker-end="url(#arrowOrange)"/>
+
+  <!-- ═══════ Layer 3: Agents ═══════ -->
+  <text x="30" y="455" class="layer-label">AGENTS</text>
+  <line x1="100" y1="451" x2="1170" y2="451" stroke="#e5e7eb" stroke-width="1"/>
+
+  <!-- Phase flow bar -->
+  <rect x="70" y="465" width="1060" height="185" rx="12" fill="#ffffff" stroke="#e5e7eb" stroke-width="1" filter="url(#shadow)"/>
+
+  <!-- Acceptor -->
+  <rect x="100" y="490" width="165" height="80" rx="8" fill="#fff7ed" stroke="#fed7aa" stroke-width="1.5"/>
+  <text x="182" y="515" text-anchor="middle" class="emoji">🎯</text>
+  <text x="182" y="535" text-anchor="middle" class="node-label">Acceptor</text>
+  <text x="182" y="550" text-anchor="middle" class="sub-label">req · accept-plan · exec</text>
+  <text x="182" y="563" text-anchor="middle" class="model-text">opus 4.6</text>
+
+  <!-- Designer -->
+  <rect x="295" y="490" width="165" height="80" rx="8" fill="#faf5ff" stroke="#d8b4fe" stroke-width="1.5"/>
+  <text x="377" y="515" text-anchor="middle" class="emoji">🏗️</text>
+  <text x="377" y="535" text-anchor="middle" class="node-label">Designer</text>
+  <text x="377" y="550" text-anchor="middle" class="sub-label">design document</text>
+  <text x="377" y="563" text-anchor="middle" class="model-text">opus 4.6</text>
+
+  <!-- Implementer -->
+  <rect x="490" y="490" width="165" height="80" rx="8" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.5"/>
+  <text x="572" y="515" text-anchor="middle" class="emoji">💻</text>
+  <text x="572" y="535" text-anchor="middle" class="node-label">Implementer</text>
+  <text x="572" y="550" text-anchor="middle" class="sub-label">plan + code + DFMEA</text>
+  <text x="572" y="563" text-anchor="middle" class="model-text">opus 4.6</text>
+
+  <!-- Reviewer -->
+  <rect x="685" y="490" width="165" height="80" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <text x="767" y="515" text-anchor="middle" class="emoji">🔍</text>
+  <text x="767" y="535" text-anchor="middle" class="node-label">Reviewer</text>
+  <text x="767" y="550" text-anchor="middle" class="sub-label">prep + review report</text>
+  <text x="767" y="563" text-anchor="middle" class="model-text">gpt-5.4</text>
+
+  <!-- Tester -->
+  <rect x="880" y="490" width="165" height="80" rx="8" fill="#f0fdfa" stroke="#5eead4" stroke-width="1.5"/>
+  <text x="962" y="515" text-anchor="middle" class="emoji">🧪</text>
+  <text x="962" y="535" text-anchor="middle" class="node-label">Tester</text>
+  <text x="962" y="550" text-anchor="middle" class="sub-label">test plan + report</text>
+  <text x="962" y="563" text-anchor="middle" class="model-text">opus 4.6</text>
+
+  <!-- Phase flow arrows between agents -->
+  <line x1="265" y1="530" x2="290" y2="530" stroke="#9333ea" stroke-width="1.5" marker-end="url(#arrowPurple)"/>
+  <line x1="460" y1="530" x2="485" y2="530" stroke="#9333ea" stroke-width="1.5" marker-end="url(#arrowPurple)"/>
+  <line x1="655" y1="530" x2="680" y2="530" stroke="#9333ea" stroke-width="1.5" marker-end="url(#arrowPurple)"/>
+  <line x1="850" y1="530" x2="875" y2="530" stroke="#9333ea" stroke-width="1.5" marker-end="url(#arrowPurple)"/>
+
+  <!-- Verdict feedback arrows -->
+  <path d="M767,575 L767,610 Q767,625 572,625 L572,600 Q572,580 572,575" stroke="#dc2626" stroke-width="1.2" fill="none" stroke-dasharray="5,3" marker-end="url(#arrowRed)"/>
+  <text x="670" y="622" text-anchor="middle" class="phase-text" fill="#dc2626">CHANGES_REQUESTED</text>
+
+  <path d="M962,575 L962,640 Q962,650 572,650 L572,610 Q572,580 572,575" stroke="#dc2626" stroke-width="1.2" fill="none" stroke-dasharray="5,3" marker-end="url(#arrowRed)"/>
+  <text x="770" y="648" text-anchor="middle" class="phase-text" fill="#dc2626">FAIL → impl_planned</text>
+
+  <!-- Phase labels -->
+  <text x="182" y="478" text-anchor="middle" class="phase-text">① requirements</text>
+  <text x="377" y="478" text-anchor="middle" class="phase-text">② design</text>
+  <text x="572" y="478" text-anchor="middle" class="phase-text">③④ plan + execute</text>
+  <text x="767" y="478" text-anchor="middle" class="phase-text">⑤⑥ plan + execute</text>
+  <text x="962" y="478" text-anchor="middle" class="phase-text">⑦⑧ plan + execute</text>
+
+  <!-- Spawn arrows from Orchestrator to agents -->
+  <path d="M450,290 L182,485" stroke="#2563eb" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrowBlue)"/>
+  <path d="M500,290 L377,485" stroke="#2563eb" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrowBlue)"/>
+  <line x1="600" y1="290" x2="572" y2="485" stroke="#2563eb" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrowBlue)"/>
+  <path d="M680,290 L767,485" stroke="#2563eb" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrowBlue)"/>
+  <path d="M750,290 L962,485" stroke="#2563eb" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrowBlue)"/>
+
+  <!-- ═══════ Layer 4: Storage ═══════ -->
+  <text x="30" y="695" class="layer-label">STORAGE</text>
+  <line x1="110" y1="691" x2="1170" y2="691" stroke="#e5e7eb" stroke-width="1"/>
+
+  <!-- task-board.json -->
+  <rect x="70" y="710" width="195" height="60" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="167" y="735" text-anchor="middle" class="node-label">📋 task-board.json</text>
+  <text x="167" y="753" text-anchor="middle" class="sub-label">Status · Goals · 10 Artifacts</text>
+
+  <!-- Document Store -->
+  <rect x="290" y="710" width="195" height="60" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="387" y="735" text-anchor="middle" class="node-label">📄 docs/T-NNN/</text>
+  <text x="387" y="753" text-anchor="middle" class="sub-label">10 Documents per Task</text>
+
+  <!-- Memory -->
+  <rect x="510" y="710" width="195" height="60" rx="8" fill="#faf5ff" stroke="#d8b4fe" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="607" y="735" text-anchor="middle" class="node-label">🧠 memory/</text>
+  <text x="607" y="753" text-anchor="middle" class="sub-label">task-role-phase snapshots</text>
+
+  <!-- Knowledge -->
+  <rect x="730" y="710" width="195" height="60" rx="8" fill="#fefce8" stroke="#fcd34d" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="827" y="735" text-anchor="middle" class="node-label">📚 knowledge/</text>
+  <text x="827" y="753" text-anchor="middle" class="sub-label">by-role · by-topic · index</text>
+
+  <!-- config.json -->
+  <rect x="950" y="710" width="195" height="60" rx="8" fill="#fff7ed" stroke="#fed7aa" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="1047" y="735" text-anchor="middle" class="node-label">⚙️ config.json</text>
+  <text x="1047" y="753" text-anchor="middle" class="sub-label">Models · HITL · Dual · Knowledge</text>
+
+  <!-- Arrows: Orch → Storage -->
+  <path d="M420,290 L167,705" stroke="#16a34a" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrowGreen)"/>
+  <path d="M500,290 L387,705" stroke="#16a34a" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrowGreen)"/>
+  <path d="M600,290 L607,705" stroke="#16a34a" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrowGreen)"/>
+  <path d="M680,290 L827,705" stroke="#16a34a" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrowGreen)"/>
+  <path d="M750,290 L1047,705" stroke="#16a34a" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrowGreen)"/>
+
+  <!-- ═══════ Legend ═══════ -->
+  <rect x="70" y="800" width="1060" height="100" rx="10" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1"/>
+
+  <!-- Row 1 -->
+  <line x1="100" y1="830" x2="130" y2="830" stroke="#2563eb" stroke-width="2" marker-end="url(#arrowBlue)"/>
+  <text x="140" y="834" class="arrow-label">Agent spawn</text>
+
+  <line x1="280" y1="830" x2="310" y2="830" stroke="#9333ea" stroke-width="2" marker-end="url(#arrowPurple)"/>
+  <text x="320" y="834" class="arrow-label">Phase flow</text>
+
+  <line x1="440" y1="830" x2="470" y2="830" stroke="#16a34a" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <text x="480" y="834" class="arrow-label">Data persistence</text>
+
+  <line x1="630" y1="830" x2="660" y2="830" stroke="#dc2626" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#arrowRed)"/>
+  <text x="670" y="834" class="arrow-label">Verdict feedback loop</text>
+
+  <line x1="850" y1="830" x2="880" y2="830" stroke="#ea580c" stroke-width="2" marker-end="url(#arrowOrange)"/>
+  <text x="890" y="834" class="arrow-label">Cross-examination</text>
+
+  <!-- Row 2 -->
+  <rect x="100" y="850" width="14" height="14" rx="3" fill="#fef2f2" stroke="#fca5a5" stroke-width="1"/>
+  <text x="120" y="862" class="arrow-label">HITL Gate</text>
+
+  <rect x="220" y="850" width="14" height="14" rx="3" fill="#fefce8" stroke="#fcd34d" stroke-width="1"/>
+  <text x="240" y="862" class="arrow-label">Phase Constitution</text>
+
+  <rect x="390" y="850" width="14" height="14" rx="3" fill="url(#dualGrad)" stroke="#a78bfa" stroke-width="1" stroke-dasharray="3,2"/>
+  <text x="410" y="862" class="arrow-label">Dual-Agent Mode (optional)</text>
+
+  <rect x="600" y="850" width="14" height="14" rx="3" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
+  <text x="620" y="862" class="arrow-label">Knowledge Accumulation</text>
+
+  <text x="600" y="888" text-anchor="middle" class="sub-label">CodeNook v4.9 — Claude Code + Copilot CLI — MIT License — github.com/cintia09/CodeNook</text>
+</svg>

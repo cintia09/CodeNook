@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# CodeNook v4.8.1 Installer
+# CodeNook v4.9.0 Installer
 # Usage: curl -sL https://raw.githubusercontent.com/cintia09/CodeNook/main/install.sh | bash
 
 VERSION="latest"
@@ -142,11 +142,11 @@ install() {
     echo "    codenook-init     — Initialize agent system in any project"
     echo "    5 agent templates — acceptor, designer, implementer, reviewer, tester"
     echo "    6 HITL scripts    — local-html, terminal, confluence, github-issue, verify, server"
-    echo "    1 engine template — orchestration instructions (deployed per-project)"
+    echo "    1 engine template — orchestration w/ dual-agent cross-exam + phase constitution"
     echo ""
     echo "  Quick start:"
     echo "    cd your-project"
-    echo '    "Initialize agent system"  → generates .github/agents/'
+    echo '    "Initialize agent system"  → generates agents/ + codenook/'
     echo '    "Create task <title>"      → add a task'
     echo '    "Run task T-001"           → start orchestration'
     echo '    Each phase: document → HITL approve → execute → report → HITL approve'

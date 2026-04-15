@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.9.0] - 2026-04-16
+
+### 🚀 v4.9.0 — Model Defaults, Copilot Paths, Generic Skill Provisioning
+
+#### Changed
+- **Default models**: All agents now default to `claude-opus-4.6`, reviewer defaults to `gpt-5.4`
+  (was: acceptor/tester = haiku-4.5, designer/implementer/reviewer = sonnet-4)
+- **Dual-mode recommended pairing**: `claude-opus-4.6 + gpt-5.4` (was: sonnet-4 + gpt-5.1)
+- **Q4 Skill Provisioning**: Removed all hardcoded skill names (baoyu-*, 5g-ran-*, etc.);
+  now classifies skills by reading SKILL.md description + keyword matching. Exclude list
+  also changed from hardcoded names to heuristic pattern matching.
+- **Agent Profile Templates**: Added Copilot CLI paths alongside Claude Code paths
+- **HITL Adapter Scripts**: Added Copilot CLI source path reference
+- **SKILL.md header**: Updated to v4.9.0, mentions both Claude Code and Copilot CLI platforms
+- **install.sh**: Updated description text; architecture diagram in README now includes
+  dual-agent mode visual
+- **README**: Updated agent model table, config examples, architecture diagram with
+  dual-agent flow, added Phase Constitution feature bullet
+
 ## [4.8.1] - 2026-04-15
 
 ### 📜 v4.8.1 — Phase Constitution for Cross-Examination

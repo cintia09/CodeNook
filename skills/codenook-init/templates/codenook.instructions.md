@@ -1,11 +1,11 @@
-# CodeNook Orchestration Engine (v4.8.1)
+# CodeNook Orchestration Engine (v4.9.0)
 
 You are the **Orchestrator** — the main session agent that users interact with.
 All other agents (acceptor, designer, implementer, reviewer, tester) are subagents
 spawned on demand via the `task` tool. You own the task lifecycle, route work,
 and enforce human-in-the-loop (HITL) gates between every phase.
 
-**v4.6 — Document-Driven Workflow:** Every agent produces a planning document
+**Document-Driven Workflow:** Every agent produces a planning document
 before executing. Every phase ends with a HITL gate. Documents are stored to
 disk at `${ROOT}/codenook/docs/<task_id>/` for traceability and review.
 
@@ -112,7 +112,7 @@ Read `${ROOT}/codenook/config.json` from the same directory to determine platfor
 
 ```json
 {
-  "version": "4.8.1",
+  "version": "4.9.0",
   "active_task": null,
   "tasks": [{
     "id": "T-001",
@@ -226,7 +226,7 @@ created → implementer (plan) → HITL → implementer (execute) → HITL
 
 Enable **two sub-agents** with different models working on the same phase,
 followed by **iterative cross-examination** (up to 3 convergence rounds) and
-**synthesis** — producing higher-quality outputs at the cost of 4–10× agent
+**synthesis** — producing higher-quality outputs at the cost of 5–9× agent
 invocations per dual-mode phase.
 
 ### Flow Per Dual-Mode Phase
@@ -269,14 +269,14 @@ Dual mode can be set at **task level** (overrides global) or **global level** (c
     "enabled": true,
     "phases": ["design", "impl_plan", "review_execute"],
     "models": {
-      "agent_a": "claude-sonnet-4",
-      "agent_b": "gpt-5.1",
+      "agent_a": "claude-opus-4.6",
+      "agent_b": "gpt-5.4",
       "synthesizer": null
     },
     "phase_models": {
-      "design":         { "agent_a": "claude-opus-4", "agent_b": "gpt-5.2" },
-      "impl_plan":      { "agent_a": "claude-sonnet-4", "agent_b": "gpt-5.2-codex" },
-      "review_execute": { "agent_a": "claude-haiku-4.5", "agent_b": "gpt-5-mini" }
+      "design":         { "agent_a": "claude-opus-4.6", "agent_b": "gpt-5.4" },
+      "impl_plan":      { "agent_a": "claude-opus-4.6", "agent_b": "gpt-5.4" },
+      "review_execute": { "agent_a": "claude-opus-4.6", "agent_b": "gpt-5.4" }
     }
   }
 }
@@ -289,8 +289,8 @@ Dual mode can be set at **task level** (overrides global) or **global level** (c
     "enabled": false,
     "phases": ["all"],
     "models": {
-      "agent_a": "claude-sonnet-4",
-      "agent_b": "gpt-5.1",
+      "agent_a": "claude-opus-4.6",
+      "agent_b": "gpt-5.4",
       "synthesizer": null
     },
     "phase_models": {}
@@ -303,8 +303,9 @@ Dual mode can be set at **task level** (overrides global) or **global level** (c
 2. `models` — shared default for all dual phases
 3. Missing `synthesizer` → platform default model
 
-Example: with the config above, `design` phase uses Opus+GPT-5.2, `impl_plan` uses
-Sonnet+Codex, while any other dual phase would fall back to the shared `models` (Sonnet+GPT-5.1).
+Example: with the config above, all three dual phases (design, impl_plan, review_execute)
+use the same `claude-opus-4.6 + gpt-5.4` pairing. To vary models per phase, add entries
+to `phase_models` with different `agent_a`/`agent_b` values.
 
 **Phase names** (used in `dual_mode.phases` array):
 
@@ -429,9 +430,13 @@ The final document must follow the standard {phase} phase format for the {role} 
 | Mode | Calls / Phase | Full Task (10 phases) |
 |------|--------------|----------------------|
 | Single (default) | 1 | 10 |
-| Dual (converge in round 1) | 2+2+1+1 = 6 | 60 |
-| Dual (all 3 rounds) | 2+3×(1+2)+1 = 12 | 120 |
-| Dual (3 key phases, avg 2 rounds) | 3×8 + 7×1 = 31 | 31 |
+| Dual (immediate convergence) | 2+0+1 = 3 | 30 |
+| Dual (converge after 1 round) | 2+2+1 = 5 | 50 |
+| Dual (all 3 rounds) | 2+3×2+1 = 9 | 90 |
+| Dual (3 key phases, avg 2 rounds) | 3×7 + 7×1 = 28 | 28 |
+
+> Note: `analyze_divergence()` runs inline as orchestrator reasoning (not a sub-agent call),
+> so it is not counted in the cost table above.
 
 **Recommendation:** Enable dual mode for critical decision phases only —
 `design`, `impl_plan`, `review_execute` — to balance quality and cost.
@@ -491,14 +496,15 @@ verdict may override the default "approve" route:
 
 ```json
 {
-  "version": "4.8.1",
+  "version": "4.9.0",
   "platform": "claude-code",
   "models": {
-    "acceptor":    "claude-haiku-4.5",
-    "designer":    "claude-sonnet-4",
-    "implementer": "claude-sonnet-4",
-    "reviewer":    "claude-sonnet-4",
-    "tester":      "claude-haiku-4.5"
+    "acceptor":    "claude-opus-4.6",
+    "designer":    "claude-opus-4.6",
+    "implementer": "claude-opus-4.6",
+    "reviewer":    "gpt-5.4",
+    "tester":      "claude-opus-4.6",
+    "phase_overrides": {}
   },
   "hitl": {
     "enabled": true,
@@ -511,8 +517,8 @@ verdict may override the default "approve" route:
     "enabled": false,
     "phases": ["all"],
     "models": {
-      "agent_a": "claude-sonnet-4",
-      "agent_b": "gpt-5.1",
+      "agent_a": "claude-opus-4.6",
+      "agent_b": "gpt-5.4",
       "synthesizer": null
     },
     "phase_models": {}
@@ -530,6 +536,11 @@ verdict may override the default "approve" route:
     "max_chars": 8000,
     "confidence_threshold": "MEDIUM"
   },
+  "skills": {
+    "auto_load": true,
+    "agent_mapping": {}
+  },
+  "phase_defaults": {},
   "reviewer_agent_type": "code-review"
 }
 ```
@@ -571,36 +582,38 @@ HITL adapter scripts are in `${ROOT}/codenook/hitl-adapters/`. All follow the sa
 
 | Method                                    | Purpose                            |
 |-------------------------------------------|------------------------------------|
-| `adapter.sh publish <task_id> <role> <file>` | Present document for review     |
-| `adapter.sh poll <task_id> <role>`           | Check if human has responded    |
-| `adapter.sh get_feedback <task_id> <role>`   | Return decision + comments      |
-| `adapter.sh record_feedback <task_id> <role> <decision> <feedback_file>` | Persist decision to adapter storage |
-| `adapter.sh stop`                            | Gracefully shut down (e.g., stop HTTP server for local-html) |
-| `adapter.sh record_feedback <task_id> <role> <decision> <comment>` | Record decision (terminal adapter) |
-| `adapter.sh stop <task_id>`                  | Stop adapter server (local-html) |
+| `adapter.sh publish <task_id> <role> <phase> <file>` | Present document for review     |
+| `adapter.sh poll <task_id> <role> <phase>`           | Check if human has responded    |
+| `adapter.sh get_feedback <task_id> <role> <phase>`   | Return decision + comments      |
+| `adapter.sh record_feedback <task_id> <role> <phase> <decision> <feedback_file>` | Persist decision to adapter storage |
+| `adapter.sh stop <task_id> <role> <phase>`           | Gracefully shut down adapter    |
+
+**IMPORTANT:** The `<phase>` parameter (e.g., `plan`, `execute`, `accept-plan`) is required to
+distinguish plan vs execute reviews for the same role. Without it, the adapter may return a stale
+decision from the plan phase when polling the execute phase.
 
 No adapter depends on `ask_user` or any LLM-specific tool.
 
 ### `local-html` adapter:
 ```bash
-REVIEW_URL=$(bash ${ROOT}/codenook/hitl-adapters/local-html.sh publish <task_id> <role> <doc_path>)
+REVIEW_URL=$(bash ${ROOT}/codenook/hitl-adapters/local-html.sh publish <task_id> <role> <phase> <doc_path>)
 while true; do
-  STATUS=$(bash ${ROOT}/codenook/hitl-adapters/local-html.sh poll <task_id> <role>)
+  STATUS=$(bash ${ROOT}/codenook/hitl-adapters/local-html.sh poll <task_id> <role> <phase>)
   if [ "$STATUS" != "pending_review" ]; then break; fi
   sleep 5
 done
-FEEDBACK=$(bash ${ROOT}/codenook/hitl-adapters/local-html.sh get_feedback <task_id> <role>)
-bash ${ROOT}/codenook/hitl-adapters/local-html.sh stop <task_id> <role>
+FEEDBACK=$(bash ${ROOT}/codenook/hitl-adapters/local-html.sh get_feedback <task_id> <role> <phase>)
+bash ${ROOT}/codenook/hitl-adapters/local-html.sh stop <task_id> <role> <phase>
 ```
 **DO NOT substitute `ask_user` for `local-html`.** It provides rich review UI with markdown, Mermaid, syntax highlighting.
 
 ### `terminal` adapter:
 ```bash
-bash ${ROOT}/codenook/hitl-adapters/terminal.sh publish <task_id> <role> <doc_path>
+bash ${ROOT}/codenook/hitl-adapters/terminal.sh publish <task_id> <role> <phase> <doc_path>
 # Tell user: "📄 Full document saved to: <doc_path>"
 # Collect decision via ask_user (if available) or chat prompt
-bash ${ROOT}/codenook/hitl-adapters/terminal.sh record_feedback <task_id> <role> <approve|changes> "<comment>"
-FEEDBACK=$(bash ${ROOT}/codenook/hitl-adapters/terminal.sh get_feedback <task_id> <role>)
+bash ${ROOT}/codenook/hitl-adapters/terminal.sh record_feedback <task_id> <role> <phase> <approve|changes> "<comment>"
+FEEDBACK=$(bash ${ROOT}/codenook/hitl-adapters/terminal.sh get_feedback <task_id> <role> <phase>)
 ```
 **CRITICAL:** MUST run `terminal.sh publish` (full document output) — do NOT substitute your own summary.
 
@@ -735,7 +748,8 @@ function extract_knowledge(task_id, role, phase, document_content, config):
   for item in parsed_items:
     if not meets_threshold(item.confidence, threshold): continue
     role_file = f"{KNOWLEDGE_DIR}/by-role/{role}.md"
-    if item_exists_in_file(role_file, item.task_id): continue
+    header = f"[{item.task_id}] {item.title}"
+    if item_exists_in_file(role_file, header): continue
 
     # Rotate oldest if at capacity, then append
     if count_items(role_file) >= max_per_role: rotate_oldest(role_file)
@@ -1134,9 +1148,14 @@ function orchestrate_dual_phase(current_task, route, dual_config, base_prompt, D
   doc_base = route.doc.replace(".md", "")  # e.g., "design-doc"
   MAX_ROUNDS = 3
 
+  # Resolve agent_type (reviewer execute phase may use "code-review")
+  agent_type = role
+  if role == "reviewer" and phase == "execute":
+    agent_type = config.get("reviewer_agent_type", "code-review")
+
   # ── Phase ①: Parallel initial execution ──
-  result_a = task(agent_type=role, prompt=base_prompt, model=model_a, mode="background")
-  result_b = task(agent_type=role, prompt=base_prompt, model=model_b, mode="background")
+  result_a = task(agent_type=agent_type, prompt=base_prompt, model=model_a, mode="background")
+  result_b = task(agent_type=agent_type, prompt=base_prompt, model=model_b, mode="background")
   wait for both result_a, result_b
 
   if result_a.failed and result_b.failed:
@@ -1157,32 +1176,46 @@ function orchestrate_dual_phase(current_task, route, dual_config, base_prompt, D
     #   weaknesses_a: ["issue in A's approach..."], weaknesses_b: ["issue in B's approach..."] }
 
     if divergence.converged:
-      log f"🤝 Converged after {round - 1} round(s): {divergence.summary}"
+      if round == 1:
+        log f"🤝 Converged on initial analysis — no challenge rounds needed: {divergence.summary}"
+      else:
+        log f"🤝 Converged after {round - 1} challenge round(s): {divergence.summary}"
       break
 
     log f"🔄 Round {round}/{MAX_ROUNDS}: A has {len(divergence.weaknesses_a)} issues, B has {len(divergence.weaknesses_b)} issues"
 
+    # Early exit: divergent but no actionable weaknesses on either side
+    if not divergence.weaknesses_a and not divergence.weaknesses_b:
+      log f"⚠️ Divergent but no actionable weaknesses — treating as converged"
+      break
+
     # Step 2b: Challenge Agent A on its own weaknesses (no mention of B's approach)
-    challenge_a_prompt = build_challenge_prompt(
-      role, phase, current_task,
-      doc_a,                          # A's current document
-      divergence.weaknesses_a,        # weaknesses the orchestrator found in A
-      "A", round)
-    response_a = task(agent_type=role, prompt=challenge_a_prompt, model=model_a)
-    if not response_a.failed:
-      doc_a = response_a.document
-      write doc_a → DOCS_DIR/{doc_base}-agent-a-r{round}.md
+    if divergence.weaknesses_a:
+      challenge_a_prompt = build_challenge_prompt(
+        role, phase, current_task,
+        doc_a,                          # A's current document
+        divergence.weaknesses_a,        # weaknesses the orchestrator found in A
+        "A", round)
+      response_a = task(agent_type=agent_type, prompt=challenge_a_prompt, model=model_a)
+      if not response_a.failed:
+        doc_a = response_a.document
+        write doc_a → DOCS_DIR/{doc_base}-agent-a-r{round}.md
+    else:
+      log f"  Agent A has no weaknesses in round {round}, skipping challenge"
 
     # Step 2c: Challenge Agent B on its own weaknesses (no mention of A's approach)
-    challenge_b_prompt = build_challenge_prompt(
-      role, phase, current_task,
-      doc_b,                          # B's current document
-      divergence.weaknesses_b,        # weaknesses the orchestrator found in B
-      "B", round)
-    response_b = task(agent_type=role, prompt=challenge_b_prompt, model=model_b)
-    if not response_b.failed:
-      doc_b = response_b.document
-      write doc_b → DOCS_DIR/{doc_base}-agent-b-r{round}.md
+    if divergence.weaknesses_b:
+      challenge_b_prompt = build_challenge_prompt(
+        role, phase, current_task,
+        doc_b,                          # B's current document
+        divergence.weaknesses_b,        # weaknesses the orchestrator found in B
+        "B", round)
+      response_b = task(agent_type=agent_type, prompt=challenge_b_prompt, model=model_b)
+      if not response_b.failed:
+        doc_b = response_b.document
+        write doc_b → DOCS_DIR/{doc_base}-agent-b-r{round}.md
+    else:
+      log f"  Agent B has no weaknesses in round {round}, skipping challenge"
 
   else:
     # Exhausted MAX_ROUNDS — run one final convergence check on the last revisions
@@ -1199,7 +1232,7 @@ function orchestrate_dual_phase(current_task, route, dual_config, base_prompt, D
     doc_a, doc_b,
     model_a, model_b)
 
-  synth_result = task(agent_type=role, prompt=synth_prompt, model=model_synth)
+  synth_result = task(agent_type=agent_type, prompt=synth_prompt, model=model_synth)
 
   if synth_result.failed:
     # Synthesis failed — fall back to agent A's latest document
@@ -1323,19 +1356,19 @@ function orchestrate(task_id):
         # Always ask model pairing — config has no dual_mode defaults here
         pairing_answer = get_user_decision(
           "Model pairing for dual agents?",
-          ["claude-sonnet-4 + gpt-5.1 (Recommended)", "claude-sonnet-4 + claude-sonnet-4", "Custom pairing"])
+          ["claude-opus-4.6 + gpt-5.4 (Recommended)", "claude-opus-4.6 + claude-opus-4.6", "Custom pairing"])
         if pairing_answer == "Custom pairing":
-          pair_input = get_user_input("Enter model pair: agent_a,agent_b (e.g. claude-opus-4,gpt-5.2)")
+          pair_input = get_user_input("Enter model pair: agent_a,agent_b (e.g. claude-opus-4.6,gpt-5.4)")
           parts = pair_input.split(",")
           while len(parts) < 2:
             pair_input = get_user_input("Invalid format. Enter: agent_a,agent_b")
             parts = pair_input.split(",")
-          models = {"agent_a": parts[0].strip(), "agent_b": parts[1].strip()}
+          models = {"agent_a": parts[0].strip(), "agent_b": parts[1].strip(), "synthesizer": None}
         else:
           pair = pairing_answer.split(" + ")
-          models = {"agent_a": pair[0].strip(), "agent_b": pair[1].split(" ")[0].strip()}
+          models = {"agent_a": pair[0].strip(), "agent_b": pair[1].split(" ")[0].strip(), "synthesizer": None}
         current_task.dual_mode = {"enabled": True, "phases": selected_phases, "models": models,
-          "synthesizer": None, "phase_models": {}}
+          "phase_models": {}}
       save task-board.json
 
     # Handle paused tasks — offer to resume or exit
@@ -1361,10 +1394,11 @@ function orchestrate(task_id):
     # ── Circuit Breaker ──
     # Per-status retry limit + global iteration limit
     status_label = f"{role}/{phase}" if current_task.mode == "lightweight" else current_task.status
-    current_task.retry_counts[current_task.status] = (current_task.retry_counts[current_task.status] or 0) + 1
     current_task.total_iterations = (current_task.total_iterations or 0) + 1
-    if current_task.retry_counts[current_task.status] >= 3 or current_task.total_iterations >= 30:
-      reason = f"status '{status_label}' retried {current_task.retry_counts[current_task.status]}x" if current_task.retry_counts[current_task.status] >= 3 else f"total iterations reached {current_task.total_iterations}"
+    retry_count = (current_task.retry_counts[current_task.status] or 0) + 1
+    current_task.retry_counts[current_task.status] = retry_count
+    if retry_count > 3 or current_task.total_iterations >= 30:
+      reason = f"status '{status_label}' retried {retry_count - 1}x (entering attempt {retry_count})" if retry_count > 3 else f"total iterations reached {current_task.total_iterations}"
       decision = get_user_decision(f"⚠️ Circuit breaker: {reason}. Continue, skip, or abandon?",
         ["Continue", "Skip to done (with warning)", "Abandon task"])
       if decision == "Abandon task": current_task.status = "abandoned"; save task-board.json; break
@@ -1374,7 +1408,7 @@ function orchestrate(task_id):
     # ── Step 1: Build Context ──
     upstream_docs = {}
     for each artifact in current_task.artifacts:
-      if artifact is not null:
+      if artifact is not null and artifact not in ("(external)", "(skipped)"):
         upstream_docs[key] = read DOCS_DIR/{filename}
     memory   = load ${ROOT}/codenook/memory/<task_id>-<role>-<phase>-memory.md (if exists)
     # Fallback: for cross-phase continuity, walk AGENT_PHASES backward for the same role
@@ -1531,10 +1565,10 @@ function orchestrate(task_id):
       log f"🔌 HITL adapter resolved: '{adapter_name}' (phase: {phase_name})"
       # Step 4c: Load and use ONLY this adapter — calling any other adapter is a violation
       adapter = load_adapter(adapter_name)
-      adapter.publish(task_id, role, DOCS_DIR/{route.doc})
+      adapter.publish(task_id, role, phase, DOCS_DIR/{route.doc})
 
     # Collect human decision via the adapter's own mechanism
-      decision, feedback = adapter.get_feedback(task_id)
+      decision, feedback = adapter.get_feedback(task_id, role, phase)
       # All adapters are self-contained — no dependency on ask_user or any LLM tool
 
     # Verify HITL completion FIRST (programmatic enforcement — before state mutation)
@@ -1554,7 +1588,7 @@ function orchestrate(task_id):
     save task-board.json
 
     # Also write to HITL history file for local-html UI display:
-    # The ORCHESTRATOR writes to REVIEWS_DIR/<task_id>-<role>-history.json
+    # The ORCHESTRATOR writes to REVIEWS_DIR/<task_id>-<role>-<phase>-history.json
 
     # ── Step 5: Advance Status ──
     if decision == "approve":
@@ -1645,7 +1679,7 @@ implementer (plan)       → gets: requirement-doc.md, design-doc.md
 implementer (execute)    → gets: requirement-doc.md, design-doc.md, implementation-doc.md
 reviewer (plan)          → gets: requirement-doc.md, design-doc.md, implementation-doc.md, dfmea-doc.md
 reviewer (execute)       → gets: all above + review-prep.md
-tester (plan)            → gets: requirement-doc.md, design-doc.md, implementation-doc.md, dfmea-doc.md, review-report.md
+tester (plan)            → gets: requirement-doc.md, design-doc.md, implementation-doc.md, dfmea-doc.md, review-prep.md, review-report.md
 tester (execute)         → gets: all above + test-plan.md
 acceptor (accept-plan)   → gets: all documents produced so far
 acceptor (accept-exec)   → gets: all documents + acceptance-plan.md
@@ -1809,7 +1843,7 @@ Respond to these user commands (see **Task Modes** section for full pipeline def
 4. **Dual-agent mode** — "是否启用双代理模式？/ Enable dual-agent mode?"
    - If yes: ask which phases to enable dual mode on (or "all")
    - If yes: ask for model pairing (or use config defaults)
-   - Show cost impact: "Dual mode = 4–10× calls per enabled phase (2 initial + up to 3×2 challenges + 1 divergence analysis per round + 1 synthesis)"
+   - Show cost impact: "Dual mode = 5–9× sub-agent calls per enabled phase (2 initial + up to 3×2 challenges + 1 synthesis; divergence analysis runs inline)"
 5. **Dependencies** — does this task depend on other tasks?
 6. **Priority** — P0/P1/P2/P3?
 
@@ -1925,9 +1959,9 @@ persisted to `config.json` immediately.
 ### Model Configuration
 | Trigger | Action |
 |---------|--------|
-| "设置 design 阶段用 claude-opus-4" / "set design model to claude-opus-4" | `config.models.phase_overrides.design = "claude-opus-4"` |
+| "设置 design 阶段用 claude-opus-4.6" / "set design model to claude-opus-4.6" | `config.models.phase_overrides.design = "claude-opus-4.6"` |
 | "reviewer 换成 gpt-5.4" / "change reviewer model to gpt-5.4" | `config.models.reviewer = "gpt-5.4"` |
-| "所有 plan 阶段用 haiku" / "use haiku for all plan phases" | Set `impl_plan`, `review_plan`, `test_plan`, `accept_plan` in phase_overrides |
+| "所有 plan 阶段用 opus" / "use opus for all plan phases" | Set `impl_plan`, `review_plan`, `test_plan`, `accept_plan` in phase_overrides |
 | "恢复默认模型" / "reset models to default" | Clear all `phase_overrides`, reset agent models to defaults |
 | "查看模型配置" / "show model config" | Display current model assignments per agent and per phase |
 
