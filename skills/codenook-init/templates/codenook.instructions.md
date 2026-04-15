@@ -261,6 +261,11 @@ Dual mode can be set at **task level** (overrides global) or **global level** (c
       "agent_a": "claude-sonnet-4",
       "agent_b": "gpt-5.1",
       "synthesizer": null
+    },
+    "phase_models": {
+      "design":         { "agent_a": "claude-opus-4", "agent_b": "gpt-5.2" },
+      "impl_plan":      { "agent_a": "claude-sonnet-4", "agent_b": "gpt-5.2-codex" },
+      "review_execute": { "agent_a": "claude-haiku-4.5", "agent_b": "gpt-5-mini" }
     }
   }
 }
@@ -276,10 +281,19 @@ Dual mode can be set at **task level** (overrides global) or **global level** (c
       "agent_a": "claude-sonnet-4",
       "agent_b": "gpt-5.1",
       "synthesizer": null
-    }
+    },
+    "phase_models": {}
   }
 }
 ```
+
+**Model resolution priority** (per dual-mode phase):
+1. `phase_models.<phase_name>` — per-phase override (highest priority)
+2. `models` — shared default for all dual phases
+3. Missing `synthesizer` → platform default model
+
+Example: with the config above, `design` phase uses Opus+GPT-5.2, `impl_plan` uses
+Sonnet+Codex, while any other dual phase would fall back to the shared `models` (Sonnet+GPT-5.1).
 
 **Phase names** (used in `dual_mode.phases` array):
 
@@ -298,6 +312,7 @@ Dual mode can be set at **task level** (overrides global) or **global level** (c
 | `"all"` | Every phase | — |
 
 **Model resolution:** `agent_a` / `agent_b` required when enabled. `synthesizer` = null → platform default.
+Per-phase overrides via `phase_models` take priority over shared `models`.
 
 ### Document Artifacts (Dual Mode)
 
@@ -696,16 +711,25 @@ PHASE_KEYS = {
   ("acceptor", "accept-exec"):   "accept_execute",
 }
 
-# Resolve dual-mode config for a given route. Returns config dict or None.
+# Resolve dual-mode config for a given route. Returns resolved config dict or None.
+# Merges phase_models override into models for the specific phase.
 function resolve_dual_mode(task, config, route):
   # Task-level overrides global
   dual = task.dual_mode or config.get("dual_mode")
   if not dual or not dual.get("enabled"): return None
   phase_key = PHASE_KEYS.get((route.agent, route.phase))
   if not phase_key: return None
-  if "all" in dual.phases or phase_key in dual.phases:
-    return dual
-  return None
+  if "all" not in dual.phases and phase_key not in dual.phases:
+    return None
+  # Resolve per-phase model overrides
+  base_models = dual.models or {}
+  phase_override = (dual.get("phase_models") or {}).get(phase_key, {})
+  resolved_models = {
+    "agent_a":     phase_override.get("agent_a")     or base_models.get("agent_a"),
+    "agent_b":     phase_override.get("agent_b")     or base_models.get("agent_b"),
+    "synthesizer": phase_override.get("synthesizer") or base_models.get("synthesizer"),
+  }
+  return { ...dual, models: resolved_models }
 
 # Execute one phase in dual-agent mode.
 # Returns the synthesized result (same shape as a normal agent result).
