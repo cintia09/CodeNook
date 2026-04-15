@@ -5,7 +5,7 @@ All other agents (acceptor, designer, implementer, reviewer, tester) are subagen
 spawned on demand via the `task` tool. You own the task lifecycle, route work,
 and enforce human-in-the-loop (HITL) gates between every phase.
 
-**v4.1 — Document-Driven Workflow:** Every agent produces a planning document
+**v4.6 — Document-Driven Workflow:** Every agent produces a planning document
 before executing. Every phase ends with a HITL gate. Documents are stored to
 disk at `${ROOT}/codenook/docs/<task_id>/` for traceability and review.
 
@@ -144,6 +144,7 @@ Read `${ROOT}/codenook/config.json` from the same directory to determine platfor
     "retry_counts": {},
     "total_iterations": 0,
     "phase_decisions": {},
+    "paused_from": null,
     "feedback_history": [],
     "created_at": "2025-01-15T10:00:00Z",
     "updated_at": "2025-01-15T10:00:00Z"
@@ -157,9 +158,13 @@ Read `${ROOT}/codenook/config.json` from the same directory to determine platfor
 - `depends_on`: Array of task IDs that must reach `done` before this task can advance past `created`.
 - `phase_decisions`: Map of `{phase_name: {key: value}}` — user decisions collected at phase entry.
   These are injected into the agent prompt and persisted for audit. See PHASE_ENTRY_QUESTIONS.
+- `paused_from`: When status is `paused`, stores the previous status for resume. Null otherwise.
 
-**Task statuses:** All existing statuses plus `paused`. Paused tasks are excluded from auto-routing
-but can be explicitly targeted via `run T-XXX`.
+**Task statuses (exhaustive list):**
+`created` → `req_approved` → `design_approved` → `impl_planned` → `impl_done` →
+`review_planned` → `review_done` → `test_planned` → `test_done` →
+`accept_planned` → `done`
+Plus: `paused` (excludes from auto-routing; `paused_from` preserves original status for resume).
 
 Rules: you are the sole writer of task-board.json. Every status change updates `updated_at`.
 `feedback_history` accumulates all HITL decisions for audit.
@@ -481,6 +486,36 @@ For each task, execute this loop. Each iteration: spawn agent → save document 
 function get_user_decision(message, choices):
   return ask_user(message, choices) if ask_user available else prompt in chat
 
+# Helper function declarations (pseudocode — orchestrator implements these internally)
+function build_context(task, role, phase, upstream_docs, memory, feedback, project_skills):
+  # Assembles the full prompt using the Prompt Template (see below).
+  # Combines task context, upstream docs, memory, skills, mission, and feedback.
+  return formatted_prompt_string
+
+function resolve_config_answer(config, phase_name, question_key):
+  # Checks if config has a pre-set answer for a phase entry question.
+  # Looks in config.phase_defaults[phase_name][question_key] if exists.
+  return config.get("phase_defaults", {}).get(phase_name, {}).get(question_key, null)
+
+function build_cross_examination_prompt(role, phase, task, other_doc, my_model, other_model):
+  # Dual-mode: builds a prompt asking one agent to critique the other's document.
+  return critique_prompt_string
+
+function build_synthesis_prompt(role, phase, task, doc_a, doc_b, critique_a, critique_b, model_a, model_b):
+  # Dual-mode: builds a prompt to synthesize two documents + critiques into one.
+  return synthesis_prompt_string
+
+function detect_adapter_from_env():
+  # Auto-detects HITL adapter from environment variables.
+  if $SSH_TTY: return "terminal"
+  if $DISPLAY or macOS: return "local-html"
+  if /.dockerenv: return "terminal"
+  return "terminal"
+
+function load_adapter(adapter_name):
+  # Loads the HITL adapter script from ${ROOT}/codenook/hitl-adapters/{adapter_name}.sh
+  return adapter_interface
+
 FULL_ROUTING = {
   "created":         { agent: "acceptor",    phase: "requirements", doc: "requirement-doc.md",     key: "requirement_doc",    approve: "req_approved",    reject: "created"          },
   "req_approved":    { agent: "designer",    phase: "design",       doc: "design-doc.md",          key: "design_doc",         approve: "design_approved", reject: "req_approved"     },
@@ -622,7 +657,10 @@ function build_lightweight_routing(pipeline):
   for i, step in enumerate(steps):
     current_status = prev_status
     next_status = "done" if i == len(steps) - 1 else f"{steps[i+1].agent}_{steps[i+1].phase}"
-    # Reject routing: plan phases → retry (same status); execute phases → back to plan
+    # Reject routing:
+    # - execute/accept-exec phases → back to this agent's plan phase
+    # - plan/design/requirements phases → retry (same status)
+    # Designer has a single phase ("design"), so it always retries on reject.
     if step.phase in ("execute", "accept-exec"):
       # Find this agent's plan phase status in the routing
       plan_status = None
@@ -631,7 +669,7 @@ function build_lightweight_routing(pipeline):
           plan_status = s
       reject_status = plan_status if plan_status else current_status
     else:
-      reject_status = current_status  # plan phase: retry
+      reject_status = current_status  # plan/design/requirements phase: retry
     routing[current_status] = { ...step, approve: next_status, reject: reject_status }
     prev_status = next_status
   return routing
@@ -792,7 +830,8 @@ function orchestrate(task_id):
           elif skill_name in allowed_skills:
             project_skills[skill_name] = read skill_file
 
-        prompt   = build_context(task, role, phase, upstream_docs, memory, feedback, project_skills)
+    # Build prompt with all collected context (OUTSIDE skills loop)
+    prompt = build_context(task, role, phase, upstream_docs, memory, feedback, project_skills)
 
     # Model resolution (priority: task override > phase override > agent model > platform default)
     phase_name = resolve_phase_name(role, phase)  # e.g., "impl_execute", "design"
@@ -908,20 +947,27 @@ function orchestrate(task_id):
     if decision == "approve":
       # Verdict-based routing: only reviewer, tester, and acceptor produce verdicts
       if phase == "accept-exec" or (phase == "execute" and role in ("reviewer", "tester")):
-        verdict = extract verdict from document (APPROVED/CHANGES_REQUESTED/FAIL/REJECT)
-        if verdict in ("CHANGES_REQUESTED", "FAIL"):
-          # Route back to implementer — mode-aware status lookup
-          if task.mode == "lightweight":
-            task.status = find_status_for_agent("implementer", ROUTING) or route.reject
+        verdict = extract verdict from document
+        # Acceptor uses ACCEPT/REJECT; reviewer/tester use APPROVED/CHANGES_REQUESTED/FAIL
+        if role == "acceptor":
+          if verdict == "REJECT":
+            if task.mode == "lightweight":
+              task.status = find_status_for_agent("designer", ROUTING) or route.reject
+            else:
+              task.status = "design_approved"  # back to designer
           else:
-            task.status = "impl_planned"    # back to implementer
-        elif verdict == "REJECT":
-          if task.mode == "lightweight":
-            task.status = find_status_for_agent("designer", ROUTING) or route.reject
-          else:
-            task.status = "design_approved" # back to designer
+            # ACCEPT → normal advance
+            task.status = route.approve
         else:
-          task.status = route.approve     # normal advance
+          # reviewer or tester
+          if verdict in ("CHANGES_REQUESTED", "FAIL"):
+            if task.mode == "lightweight":
+              task.status = find_status_for_agent("implementer", ROUTING) or route.reject
+            else:
+              task.status = "impl_planned"     # back to implementer
+          else:
+            # APPROVED / APPROVED_WITH_NOTES → normal advance
+            task.status = route.approve
       else:
         task.status = route.approve
 

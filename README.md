@@ -27,7 +27,8 @@
   <a href="#architecture">Architecture</a> ·
   <a href="#hitl-multi-adapter-system">HITL</a> ·
   <a href="#agent-profiles">Agent Profiles</a> ·
-  <a href="blog/vibe-coding-and-multi-agent.md">Blog</a>
+  <a href="blog/vibe-coding-and-multi-agent.md">Blog</a> ·
+  <a href="https://github.com/cintia09/CodeNook/releases">Changelog</a>
 </p>
 
 ---
@@ -251,7 +252,8 @@ You approve or provide feedback at each of the 10 HITL gates. That's it.
 
 ```json
 {
-  "version": "4.2",
+  "version": "4.6",
+  "active_task": null,
   "tasks": [{
     "id": "T-001",
     "title": "Implement user authentication",
@@ -260,6 +262,12 @@ You approve or provide feedback at each of the 10 HITL gates. That's it.
     "goals": [
       { "id": "G1", "description": "JWT login endpoint", "status": "pending" }
     ],
+    "mode": "full",
+    "pipeline": null,
+    "start_at": null,
+    "depends_on": [],
+    "model_override": null,
+    "dual_mode": null,
     "artifacts": {
       "requirement_doc": null,
       "design_doc": null,
@@ -272,6 +280,10 @@ You approve or provide feedback at each of the 10 HITL gates. That's it.
       "acceptance_plan": null,
       "acceptance_report": null
     },
+    "retry_counts": {},
+    "total_iterations": 0,
+    "phase_decisions": {},
+    "paused_from": null,
     "feedback_history": [],
     "created_at": "2025-01-15T10:00:00Z",
     "updated_at": "2025-01-15T10:00:00Z"
@@ -291,7 +303,14 @@ Documents are stored to disk at `codenook/docs/T-NNN/` with filenames matching t
 | `task status T-XXX` | Show detailed status + history |
 | `add goal G3: <desc> to T-XXX` | Add goal to existing task |
 | `delete task T-XXX` | Remove task (with confirmation) |
+| `switch T-XXX` | Set active task |
+| `pause T-XXX` | Pause task (saves current status) |
+| `resume T-XXX` | Resume paused task |
+| `jump to <phase>` | Mid-flow entry on active task |
+| `depends T-002 on T-001` | Add task dependency |
 | `agent status` | Show framework config and state |
+| `set model <model>` | Change default model at runtime |
+| `set hitl <adapter>` | Change HITL adapter at runtime |
 
 ## HITL Multi-Adapter System
 

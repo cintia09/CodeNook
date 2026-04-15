@@ -60,11 +60,14 @@ IF .claude/codenook/config.json exists:
     ]
 
     # ── Merge config.json ──
-    # Keep existing: models, hitl.adapter, preferences.*
+    # Keep existing: models, hitl.adapter, preferences.*, skills.*
     # Update: version field → new version
     # Add: any new keys from seed template (with defaults)
 
     # Skip questions Q1-Q3 — preferences already in config.json
+    # Q4 (Skill Provisioning) — run ONLY if config.skills.auto_load is missing
+    #   (i.e., upgrading from pre-v4.4 that didn't have skill provisioning)
+    #   If config.skills already exists → preserve it, skip Q4
     Proceed to Step 4 (upgrade mode)
 ```
 
@@ -199,6 +202,9 @@ If user selects **"Yes, scan and assign"**:
    - `~/.copilot/skills/` (Copilot CLI)
    - `~/.claude/skills/` (Claude Code)
    - Collect each skill's `name` and `description` from SKILL.md YAML frontmatter.
+   - **If neither directory exists or both are empty:** inform the user "No global skills found.
+     Skipping skill provisioning." and set `skills.auto_load = true`, `agent_mapping = {}`.
+   - **If a skill's SKILL.md has no parseable frontmatter:** skip that skill with a warning.
    - **Exclude** framework/meta skills: `codenook-init`, `copilot-instructions`,
      `chinese-default-reply`, `documentation-language`, `always-ask-next-step`,
      `save-skill-sync-*`, `export-skills`, `workspace-layout-*`.
@@ -411,8 +417,11 @@ memory management, task commands. It is automatically loaded as part of every se
 - `skills.auto_load` (default `true`): When enabled, the orchestrator scans `${ROOT}/codenook/skills/`
   for SKILL.md files and injects their content into sub-agent prompts.
 - `skills.agent_mapping` (default `{}`): Per-agent skill assignment. **Populated automatically by
-  Q4 (Skill Provisioning)** during init. When empty, ALL skills are loaded for ALL agents. When
-  configured, only listed skills are loaded per role:
+  Q4 (Skill Provisioning)** during init. Semantics:
+  - `{}` (empty object) = ALL project skills loaded for ALL agents (default)
+  - Configured with agent keys = only listed skills per role
+  - Empty array `[]` for a role = NO project skills for that agent
+  - Omitted role = gets ALL project skills (same as not being in the map)
   ```json
   "agent_mapping": {
     "designer": ["uml", "architecture", "cloud"],
