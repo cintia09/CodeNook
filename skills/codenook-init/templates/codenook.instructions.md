@@ -1,4 +1,4 @@
-# CodeNook Orchestration Engine (v4.7.2)
+# CodeNook Orchestration Engine (v4.7.3)
 
 You are the **Orchestrator** — the main session agent that users interact with.
 All other agents (acceptor, designer, implementer, reviewer, tester) are subagents
@@ -112,7 +112,7 @@ Read `${ROOT}/codenook/config.json` from the same directory to determine platfor
 
 ```json
 {
-  "version": "4.7.2",
+  "version": "4.7.3",
   "active_task": null,
   "tasks": [{
     "id": "T-001",
@@ -449,7 +449,7 @@ verdict may override the default "approve" route:
 
 ```json
 {
-  "version": "4.7.2",
+  "version": "4.7.3",
   "platform": "claude-code",
   "models": {
     "acceptor":    "claude-haiku-4.5",
@@ -568,8 +568,14 @@ For each task, execute this loop. Each iteration: spawn agent → save document 
 
 ```
 # Helper: present a choice to the user (uses ask_user if available, else chat prompt)
-function get_user_decision(message, choices):
-  return ask_user(message, choices) if ask_user available else prompt in chat
+function get_user_decision(message, choices, multi_select=False):
+  # multi_select=True: user can select multiple choices; returns list of selected values
+  # multi_select=False (default): user selects one; returns string
+  return ask_user(message, choices, multi_select) if ask_user available else prompt in chat
+
+# Helper: get free-form text input from the user
+function get_user_input(message):
+  return ask_user(message, allow_freeform=True) if ask_user available else prompt in chat
 
 # Helper function declarations (pseudocode — orchestrator implements these internally)
 function build_context(task, role, phase, upstream_docs, memory, feedback, project_skills, knowledge):
@@ -933,8 +939,8 @@ function find_status_for_agent(agent_name, routing):
 # Resolve dual-mode config for a given route. Returns resolved config dict or None.
 # Merges phase_models override into models for the specific phase.
 function resolve_dual_mode(task, config, route):
-  # Task-level overrides global
-  dual = task.dual_mode or config.get("dual_mode")
+  # Task-level overrides global; use `is not None` to respect explicit False
+  dual = task.dual_mode if task.dual_mode is not None else config.get("dual_mode")
   if not dual or not dual.get("enabled"): return None
   phase_key = resolve_phase_name(route.agent, route.phase)
   if not phase_key: return None
@@ -980,9 +986,9 @@ function orchestrate_dual_phase(current_task, route, dual_config, base_prompt, D
 
   # ── Phase ②: Parallel cross-examination ──
   critique_prompt_a = build_cross_examination_prompt(
-    role, phase, task, result_b.document, model_a, model_b)
+    role, phase, current_task, result_b.document, model_a, model_b)
   critique_prompt_b = build_cross_examination_prompt(
-    role, phase, task, result_a.document, model_b, model_a)
+    role, phase, current_task, result_a.document, model_b, model_a)
 
   critique_a = task(agent_type=role, prompt=critique_prompt_a, model=model_a, mode="background")
   critique_b = task(agent_type=role, prompt=critique_prompt_b, model=model_b, mode="background")
@@ -994,7 +1000,7 @@ function orchestrate_dual_phase(current_task, route, dual_config, base_prompt, D
 
   # ── Phase ③: Synthesis ──
   synth_prompt = build_synthesis_prompt(
-    role, phase, task,
+    role, phase, current_task,
     result_a.document, result_b.document,
     critique_a.document or "", critique_b.document or "",
     model_a, model_b)
@@ -1024,6 +1030,49 @@ function orchestrate(task_id):
   mkdir -p DOCS_DIR
 
   while current_task.status not in ("done", "abandoned"):
+    # ── Preflight Check ──
+    # Catch creation-time required fields that were skipped (e.g., cross-session resume).
+    # Guarded by the field value itself (not iteration count), so it works even for
+    # tasks partially advanced by older code that lacked this check.
+    if current_task.dual_mode is None and not config.get("dual_mode"):
+      dual_answer = get_user_decision(
+        "是否启用双代理模式？/ Enable dual-agent mode for this task?",
+        ["No (single agent) ★", "Yes, all phases", "Yes, specific phases"])
+      if dual_answer.startswith("No"):
+        current_task.dual_mode = False
+      else:
+        if dual_answer == "Yes, all phases":
+          selected_phases = ["all"]
+        else:
+          selected_phases = get_user_decision(
+            "Which phases to enable dual mode on?",
+            ["requirements", "design", "impl_plan", "impl_execute",
+             "review_plan", "review_execute", "test_plan", "test_execute",
+             "accept_plan", "accept_execute"],
+            multi_select=True)
+          if not selected_phases:
+            # Empty selection → treat as opt-out
+            current_task.dual_mode = False
+            save task-board.json
+            continue
+        # Always ask model pairing — config has no dual_mode defaults here
+        pairing_answer = get_user_decision(
+          "Model pairing for dual agents?",
+          ["claude-sonnet-4 + gpt-5.1 (Recommended)", "claude-sonnet-4 + claude-sonnet-4", "Custom pairing"])
+        if pairing_answer == "Custom pairing":
+          pair_input = get_user_input("Enter model pair: agent_a,agent_b (e.g. claude-opus-4,gpt-5.2)")
+          parts = pair_input.split(",")
+          while len(parts) < 2:
+            pair_input = get_user_input("Invalid format. Enter: agent_a,agent_b")
+            parts = pair_input.split(",")
+          models = {"agent_a": parts[0].strip(), "agent_b": parts[1].strip()}
+        else:
+          pair = pairing_answer.split(" + ")
+          models = {"agent_a": pair[0].strip(), "agent_b": pair[1].split(" ")[0].strip()}
+        current_task.dual_mode = {"enabled": True, "phases": selected_phases, "models": models,
+          "synthesizer": None, "phase_models": {}}
+      save task-board.json
+
     # Handle paused tasks — offer to resume or exit
     if current_task.status == "paused":
       decision = get_user_decision(
@@ -1039,7 +1088,7 @@ function orchestrate(task_id):
 
     route = ROUTING.get(current_task.status)
     if not route:
-      report error f"Unknown status '{task.status}' — not in routing table. Check task-board.json."
+      report error f"Unknown status '{current_task.status}' — not in routing table. Check task-board.json."
       break
     role  = route.agent
     phase = route.phase      # "requirements", "design", "plan", "execute", "accept-plan", "accept-exec"
@@ -1053,8 +1102,8 @@ function orchestrate(task_id):
       reason = f"status '{status_label}' retried {current_task.retry_counts[current_task.status]}x" if current_task.retry_counts[current_task.status] >= 3 else f"total iterations reached {current_task.total_iterations}"
       decision = get_user_decision(f"⚠️ Circuit breaker: {reason}. Continue, skip, or abandon?",
         ["Continue", "Skip to done (with warning)", "Abandon task"])
-      if decision == "Abandon task": task.status = "abandoned"; save task-board.json; break
-      if decision == "Skip to done (with warning)": task.status = "done"; save task-board.json; break
+      if decision == "Abandon task": current_task.status = "abandoned"; save task-board.json; break
+      if decision == "Skip to done (with warning)": current_task.status = "done"; save task-board.json; break
       if decision == "Continue": current_task.retry_counts[current_task.status] = 0; continue
 
     # ── Step 1: Build Context ──
@@ -1146,7 +1195,7 @@ function orchestrate(task_id):
             save config.json   # persist to disk
 
         # Persist NEW decisions in task board
-        if "phase_decisions" not in task: current_task["phase_decisions"] = {}
+        if "phase_decisions" not in current_task: current_task["phase_decisions"] = {}
         current_task["phase_decisions"][phase_name] = phase_decisions
         save task-board.json
 
@@ -1172,14 +1221,14 @@ function orchestrate(task_id):
       if user_choice == "Retry": continue
       if user_choice == "Retry with different model":
         alt_model = get_user_decision("Choose model:", [available models from config])
-        task.model_override = alt_model; save task-board.json; continue
+        current_task.model_override = alt_model; save task-board.json; continue
       if user_choice == "Skip":
         # Record the skip as a human decision (user explicitly bypassed this phase)
         current_task.feedback_history.append({
           "from_status": current_task.status, "decision": "skip", "feedback": "Agent failed; user chose to skip",
           "at": ISO timestamp, "role": role, "phase": phase, "by": "human"
         })
-        task.status = route.approve; save task-board.json; continue
+        current_task.status = route.approve; save task-board.json; continue
 
     # ── Step 3: Save Document to Disk ──
     extract document content from result.response
@@ -1501,6 +1550,8 @@ Respond to these user commands (see **Task Modes** section for full pipeline def
 
 **Skip questions that are already answered** by the user's command (e.g., "quick fix: title" already answers #2 and #3).
 **Never skip question #4 (dual mode)** unless the user explicitly said `--dual` or `--no-dual` in their command.
+
+> **Safety net:** If dual_mode is still `null` when a task is first advanced, the orchestration loop's **Preflight Check** will catch it and prompt before proceeding. See the `while` loop in the engine pseudocode.
 
 ### Create & Configure
 | Command | Action |

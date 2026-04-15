@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.7.3] - 2026-04-15
+
+### 🛡️ v4.7.3 — Preflight Check for Missing Creation-Time Fields
+
+Fixes a design defect where tasks created in a previous session could advance
+without answering mandatory creation-time questions (e.g., dual-agent mode).
+
+#### Added
+- **Preflight Check** in orchestration loop: on first iteration (`total_iterations == 0`), verifies that `dual_mode` is set; prompts user if `null` and no global default exists
+- Cross-reference note in Task Creation Flow pointing to the preflight safety net
+
+#### Fixed
+- Tasks resumed cross-session no longer silently skip the dual-agent mode question
+
 ## [4.7.2] - 2026-04-15
 
 ### 🔒 v4.7.2 — HITL Adapter Enforcement & Task Creation Flow
