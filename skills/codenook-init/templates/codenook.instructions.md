@@ -75,7 +75,7 @@ Read `${ROOT}/codenook/config.json` from the same directory to determine platfor
 
 ```json
 {
-  "version": "4.2",
+  "version": "4.3",
   "tasks": [{
     "id": "T-001",
     "title": "Implement user authentication",
@@ -264,6 +264,10 @@ FEEDBACK=$(bash ${ROOT}/codenook/hitl-adapters/terminal.sh get_feedback <task_id
 For each task, execute this loop. Each iteration: spawn agent → save document → HITL gate.
 
 ```
+# Helper: present a choice to the user (uses ask_user if available, else chat prompt)
+function get_user_decision(message, choices):
+  return ask_user(message, choices) if ask_user available else prompt in chat
+
 FULL_ROUTING = {
   "created":         { agent: "acceptor",    phase: "requirements", doc: "requirement-doc.md",     key: "requirement_doc",    approve: "req_approved",    reject: "created"          },
   "req_approved":    { agent: "designer",    phase: "design",       doc: "design-doc.md",          key: "design_doc",         approve: "design_approved", reject: "req_approved"     },
@@ -344,8 +348,11 @@ function orchestrate(task_id):
   REVIEWS_DIR = ${ROOT}/codenook/reviews
   mkdir -p DOCS_DIR
 
-  while task.status != "done":
-    route = ROUTING[task.status]
+  while task.status not in ("done", "abandoned"):
+    route = ROUTING.get(task.status)
+    if not route:
+      report error f"Unknown status '{task.status}' — not in routing table. Check task-board.json."
+      break
     role  = route.agent
     phase = route.phase      # "requirements", "design", "plan", "execute", "accept-plan", "accept-exec"
 
@@ -356,8 +363,8 @@ function orchestrate(task_id):
     task.total_iterations = (task.total_iterations or 0) + 1
     if task.retry_counts[task.status] > 3 or task.total_iterations > 30:
       reason = f"status '{status_label}' retried {task.retry_counts[task.status]}x" if task.retry_counts[task.status] > 3 else f"total iterations reached {task.total_iterations}"
-      decision = ask_user f"⚠️ Circuit breaker: {reason}. Continue, skip, or abandon?"
-        choices: ["Continue", "Skip to done (with warning)", "Abandon task"]
+      decision = get_user_decision(f"⚠️ Circuit breaker: {reason}. Continue, skip, or abandon?",
+        ["Continue", "Skip to done (with warning)", "Abandon task"])
       if abandon: task.status = "abandoned"; break
       if skip: task.status = "done"; break
 
@@ -384,10 +391,12 @@ function orchestrate(task_id):
 
     # Agent failure handling:
     if result.failed:
-      # Use ask_user if available, otherwise prompt in chat
       user_choice = get_user_decision("Agent failed: " + result.error,
                              ["Retry", "Retry with different model", "Skip"])
       if user_choice == "Retry": continue
+      if user_choice == "Retry with different model":
+        alt_model = get_user_decision("Choose model:", [available models from config])
+        task.model_override = alt_model; save task-board.json; continue
       if user_choice == "Skip":
         # Record the skip as a human decision (user explicitly bypassed this phase)
         task.feedback_history.append({
