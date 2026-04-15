@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.7.1] - 2025-07-29
+
+### ⚡ v4.7.1 — Engine Token Optimization
+
+Compressed knowledge system pseudocode to reduce token footprint without
+behavioral changes. Passed two rounds of deep review (clean on round 2).
+
+#### Optimized
+- Collapsed 10 helper function implementations into compact signature table (-179 lines)
+- Compressed `extract_knowledge()` prompt while preserving full format template
+- Restored inline dedup algorithm in `load_knowledge()` for correctness
+- Added parsing logic detail to `parse_knowledge_items` helper entry
+
+#### Fixed (from optimization deep review)
+- **CRITICAL:** Removed undefined function references (`extraction_prompt_with`, `deduplicate_by_item_headers`)
+- **HIGH:** Added regex parsing logic to `parse_knowledge_items` table entry
+- **MEDIUM:** Restored full extraction prompt format template with quality rules
+- **LOW:** Restored Confidence field in index entry format
+
+#### Metrics
+- Engine size: 21.2K → 20.2K tokens (4.4% reduction)
+- Lines: 1,785 → 1,645 (-140 lines)
+
 ## [4.7.0] - 2025-07-28
 
 ### 🧠 v4.7.0 — Knowledge Accumulation System
