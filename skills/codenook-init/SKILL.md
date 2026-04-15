@@ -3,7 +3,7 @@ name: codenook-init
 description: "Initialize the multi-agent development framework in a project. Generates agent profiles, creates task board and config for Claude Code."
 ---
 
-# Agent System Initialization (v4.5)
+# Agent System Initialization (v4.6)
 
 > Trigger: "initialize agent system" | "agent init" | "codenook-init"
 
@@ -356,7 +356,8 @@ memory management, task commands. It is automatically loaded as part of every se
 
 ```json
 {
-  "version": "4.5",
+  "version": "4.6",
+  "active_task": null,
   "tasks": []
 }
 ```
@@ -368,7 +369,7 @@ memory management, task commands. It is automatically loaded as part of every se
 
 ```json
 {
-  "version": "4.5",
+  "version": "4.6",
   "platform": "claude-code",
   "models": {
     "acceptor":    "<model>",
