@@ -143,6 +143,7 @@ Read `${ROOT}/codenook/config.json` from the same directory to determine platfor
     },
     "retry_counts": {},
     "total_iterations": 0,
+    "phase_decisions": {},
     "feedback_history": [],
     "created_at": "2025-01-15T10:00:00Z",
     "updated_at": "2025-01-15T10:00:00Z"
@@ -154,6 +155,8 @@ Read `${ROOT}/codenook/config.json` from the same directory to determine platfor
 - `active_task`: Currently focused task ID. Quick Trigger prefers this task. Set via `switch` command.
 - `start_at`: Phase name used at creation (e.g., `"impl_plan"`). Null = normal start from `created`.
 - `depends_on`: Array of task IDs that must reach `done` before this task can advance past `created`.
+- `phase_decisions`: Map of `{phase_name: {key: value}}` — user decisions collected at phase entry.
+  These are injected into the agent prompt and persisted for audit. See PHASE_ENTRY_QUESTIONS.
 
 **Task statuses:** All existing statuses plus `paused`. Paused tasks are excluded from auto-routing
 but can be explicitly targeted via `run T-XXX`.
@@ -508,6 +511,85 @@ def resolve_phase_name(role, phase):
   }
   return PHASE_NAME_MAP.get((role, phase), f"{role}_{phase}")
 
+# Phase Entry Questions — mandatory decisions before each phase starts.
+# If config doesn't have a pre-set answer, the orchestrator MUST ask the user.
+# Decisions are stored in task.phase_decisions[phase_name] for audit and prompt context.
+PHASE_ENTRY_QUESTIONS = {
+  "requirements": [
+    { "key": "req_source", "prompt": "需求来源？ / Requirements source?",
+      "choices": ["用户对话输入 / User conversation", "Jira/需求文档 / Jira ticket",
+                  "已有文档 / Existing document (provide path)"] },
+    { "key": "req_scope", "prompt": "需求范围？ / Scope?",
+      "choices": ["完整功能 / Full feature", "子功能 / Sub-feature", "Bug修复 / Bug fix"] },
+  ],
+  "design": [
+    { "key": "design_approach", "prompt": "设计方式？ / Design approach?",
+      "choices": ["ADR格式 / ADR format ★", "轻量级设计 / Lightweight sketch",
+                  "UML详细设计 / Detailed UML"] },
+    { "key": "design_review_scope", "prompt": "设计评审范围？ / Design review scope?",
+      "choices": ["架构+API / Architecture + API ★", "仅架构 / Architecture only",
+                  "全面评审 / Full (architecture + API + data model)"] },
+  ],
+  "impl_plan": [
+    { "key": "impl_strategy", "prompt": "实现策略？ / Implementation strategy?",
+      "choices": ["TDD (测试驱动) ★", "原型优先 / Prototype first",
+                  "增量开发 / Incremental"] },
+    { "key": "branch_strategy", "prompt": "分支策略？ / Branch strategy?",
+      "choices": ["在当前分支 / Current branch ★", "新建feature分支 / New feature branch",
+                  "无需分支 / No branch needed"] },
+  ],
+  "impl_execute": [
+    { "key": "commit_strategy", "prompt": "代码完成后如何处理？ / After code completion?",
+      "choices": ["提交到远端 / Push to remote ★", "仅本地提交 / Local commit only",
+                  "创建PR/MR / Create pull request", "提交到Gerrit / Push to Gerrit",
+                  "暂不提交 / Don't commit yet"] },
+    { "key": "test_before_commit", "prompt": "提交前是否运行测试？ / Run tests before commit?",
+      "choices": ["是 / Yes ★", "否 / No", "仅单元测试 / Unit tests only"] },
+  ],
+  "review_plan": [
+    { "key": "review_scope", "prompt": "审查范围？ / Review scope?",
+      "choices": ["完整diff / Full diff ★", "仅变更文件 / Changed files only",
+                  "指定模块 / Specific modules (specify)"] },
+    { "key": "review_checklist", "prompt": "审查清单？ / Review checklist?",
+      "choices": ["标准清单 / Standard checklist ★", "安全重点 / Security-focused",
+                  "性能重点 / Performance-focused", "自定义 / Custom"] },
+  ],
+  "review_execute": [
+    { "key": "review_submission", "prompt": "审查结果提交到哪里？ / Submit review to?",
+      "choices": ["Gerrit / Gerrit review", "GitHub PR / GitHub PR comment",
+                  "本地报告 / Local report only ★", "Confluence / Confluence page"] },
+    { "key": "review_fix_policy", "prompt": "发现问题后？ / When issues found?",
+      "choices": ["退回修改 / Return for fixes ★", "记录但继续 / Log and continue",
+                  "自动修复 / Auto-fix minor issues"] },
+  ],
+  "test_plan": [
+    { "key": "test_scope", "prompt": "测试范围？ / Test scope?",
+      "choices": ["单元+集成 / Unit + Integration ★", "仅单元测试 / Unit tests only",
+                  "端到端 / E2E", "全面 / All (unit + integration + e2e)"] },
+    { "key": "coverage_target", "prompt": "覆盖率目标？ / Coverage target?",
+      "choices": ["80% ★", "90%", "无特定目标 / No specific target", "自定义 / Custom"] },
+  ],
+  "test_execute": [
+    { "key": "test_failure_policy", "prompt": "测试失败后？ / On test failure?",
+      "choices": ["修复后重试 / Fix and retry ★", "标记已知问题继续 / Mark known issues, continue",
+                  "退回给实现者 / Return to implementer"] },
+    { "key": "test_report_dest", "prompt": "测试报告保存到？ / Save test report to?",
+      "choices": ["项目文档 / Project docs ★", "Confluence", "Jira", "仅本地 / Local only"] },
+  ],
+  "accept_plan": [
+    { "key": "acceptance_criteria_source", "prompt": "验收标准来源？ / Acceptance criteria source?",
+      "choices": ["从需求文档提取 / Extract from requirements ★",
+                  "用户自定义 / User-defined", "自动生成 / Auto-generate from goals"] },
+  ],
+  "accept_execute": [
+    { "key": "release_action", "prompt": "验收通过后？ / After acceptance?",
+      "choices": ["创建Tag / Create tag ★", "部署 / Deploy", "发布PR / Create release PR",
+                  "仅标记完成 / Mark done only", "合并到主分支 / Merge to main"] },
+    { "key": "notification", "prompt": "是否通知团队？ / Notify team?",
+      "choices": ["否 / No ★", "Slack/Teams", "邮件 / Email", "Confluence更新 / Confluence update"] },
+  ],
+}
+
 # Lightweight pipeline routing — dynamically built from task.pipeline
 AGENT_PHASES = {
   "acceptor":    [("requirements", "requirement-doc.md", "requirement_doc"),
@@ -719,6 +801,30 @@ function orchestrate(task_id):
              or config.models.get(role)
              or None)
 
+    # ── Step 1c: Phase Entry Decision ──
+    # Before spawning, check if this phase requires user decisions that aren't
+    # configured. Each phase has entry questions; skip if already answered in config
+    # or in task.phase_decisions. Store decisions for audit and prompt context.
+    phase_decisions = task.get("phase_decisions", {}).get(phase_name, {})
+    if not phase_decisions:
+      entry_qs = PHASE_ENTRY_QUESTIONS.get(phase_name, [])
+      if entry_qs:
+        phase_decisions = {}
+        for q in entry_qs:
+          # Check if config already has the answer
+          config_answer = resolve_config_answer(config, phase_name, q.key)
+          if config_answer:
+            phase_decisions[q.key] = config_answer
+          else:
+            answer = get_user_decision(q.prompt, q.choices)
+            phase_decisions[q.key] = answer
+        # Persist decisions in task board
+        if "phase_decisions" not in task: task["phase_decisions"] = {}
+        task["phase_decisions"][phase_name] = phase_decisions
+        save task-board.json
+      # Inject phase decisions into prompt context
+      prompt = prompt + "\n\n# Phase Decisions\n" + yaml(phase_decisions)
+
     # ── Step 2: Spawn Agent (single or dual mode) ──
     dual_config = resolve_dual_mode(task, config, route)
     if dual_config:
@@ -768,7 +874,11 @@ function orchestrate(task_id):
       report error "HITL scripts missing. Run codenook-init upgrade."; break
 
     # Present the document for human review (see HITL Adapter System above)
-    adapter = detect_adapter()  # priority: config.json → env detection → terminal
+    # Resolve adapter (priority: phase override → global config → env auto-detect)
+    adapter_name = (config.get("hitl", {}).get("phase_overrides", {}).get(phase_name)
+                    or config.get("hitl", {}).get("adapter")
+                    or detect_adapter_from_env())
+    adapter = load_adapter(adapter_name)
     adapter.publish(task_id, role, DOCS_DIR/{route.doc})
 
     # Collect human decision via the adapter's own mechanism
