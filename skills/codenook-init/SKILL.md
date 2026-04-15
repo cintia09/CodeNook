@@ -112,6 +112,88 @@ Items to append (relative to project root):
 
 The entire agent system is treated as a dev tool — not committed to project source.
 
+### Q4 — Project Skill Provisioning
+
+> "Auto-provision skills for sub-agents?"
+> Choices: `Yes, scan and assign ★` · `Skip (no project skills)`
+
+If user selects **"Yes, scan and assign"**:
+
+1. **Discover global skills** — scan the platform's global skill directories:
+   - `~/.copilot/skills/` (Copilot CLI)
+   - `~/.claude/skills/` (Claude Code)
+   - Collect each skill's `name` and `description` from SKILL.md YAML frontmatter.
+   - **Exclude** framework/meta skills: `codenook-init`, `copilot-instructions`,
+     `chinese-default-reply`, `documentation-language`, `always-ask-next-step`,
+     `save-skill-sync-*`, `export-skills`, `workspace-layout-*`.
+
+2. **Classify skills by relevance** — using the agent role descriptions and skill
+   descriptions, categorize each skill into one of:
+   - `diagram` — visualization/diagramming skills (uml, architecture, graphviz, cloud,
+     network, canvas, infographic, infocard, vega, archimate, bpmn, data-analytics,
+     iot, security, frontend-slides)
+   - `workflow` — development workflow skills (code-review, gerrit-*, confluence-*,
+     jenkins-*, jira-*, github-ssh-proxy)
+   - `content` — content creation/transformation skills (baoyu-translate,
+     baoyu-format-markdown, baoyu-markdown-to-html, baoyu-url-to-markdown,
+     baoyu-article-illustrator)
+   - `domain` — project-specific domain skills (5g-ran-*, cb15586-*, hub-*,
+     nh-hub-*, pptx*, etc.)
+   - `media` — image/media generation (baoyu-image-gen, baoyu-cover-image,
+     baoyu-compress-image, baoyu-comic, baoyu-xhs-images, baoyu-slide-deck)
+   - `social` — social media posting (baoyu-post-to-*, baoyu-danger-x-to-markdown)
+
+3. **Map skills to agents** — apply these default assignment rules:
+
+   | Agent | Auto-assigned categories | Rationale |
+   |-------|------------------------|-----------|
+   | **designer** | `diagram`, `domain` | Architects need visualization and domain knowledge |
+   | **implementer** | `diagram` (subset: uml, graphviz), `workflow`, `domain` | Developers need UML for code design, workflow for CI/CD, domain for context |
+   | **reviewer** | `workflow` (subset: code-review, gerrit-*), `domain` | Reviewers need code review tools and domain knowledge |
+   | **tester** | `domain` | Testers need domain knowledge for test case design |
+   | **acceptor** | `diagram` (subset: infographic, canvas, infocard), `content`, `domain` | POs need visual summaries and content tools for requirements |
+
+4. **Present mapping for confirmation** — show the user the proposed assignment:
+   ```
+   Proposed skill assignments:
+     designer:     uml, architecture, graphviz, cloud, canvas, archimate, [domain skills]
+     implementer:  uml, graphviz, code-review, gerrit-commit, [domain skills]
+     reviewer:     code-review, gerrit-commit, [domain skills]
+     tester:       [domain skills]
+     acceptor:     infographic, canvas, infocard, [domain skills]
+
+   Total: N unique skills to copy to project
+   ```
+   > Choices: `Accept ★` · `Customize` · `Load all for all agents` · `Skip`
+
+   If **Customize**: for each agent, ask which skills to include/exclude.
+   If **Load all**: set `agent_mapping = {}` (empty = all skills for all agents).
+
+5. **Copy skill directories** — for each unique skill in the mapping:
+   ```bash
+   cp -r ~/.copilot/skills/<skill-name> ${ROOT}/codenook/skills/<skill-name>
+   # or from ~/.claude/skills/ depending on platform
+   ```
+   Only copy the SKILL.md file and essential reference files (examples/, references/).
+   Skip large binary files, caches, or platform-specific scripts.
+
+6. **Populate config.json** — write the `skills.agent_mapping` section:
+   ```json
+   "skills": {
+     "auto_load": true,
+     "agent_mapping": {
+       "designer": ["uml", "architecture", "graphviz", "cloud", "canvas", "archimate"],
+       "implementer": ["uml", "graphviz", "code-review", "gerrit-commit"],
+       "reviewer": ["code-review", "gerrit-commit"],
+       "tester": [],
+       "acceptor": ["infographic", "canvas", "infocard"]
+     }
+   }
+   ```
+
+> **Upgrade mode:** If `skills/` already has content, show existing skills vs. proposed changes.
+> Offer to merge (add new skills, keep existing), replace, or skip.
+
 ---
 
 ## Step 4 — Directory & File Generation
@@ -134,7 +216,7 @@ Create the full tree under `.claude/`:
     ├── docs/                  ← document artifacts per task (created per-task)
     ├── memory/                ← empty directory (with .gitkeep)
     ├── reviews/               ← empty directory (with .gitkeep), HITL history files
-    ├── skills/                ← project-level skills injected into sub-agent prompts (with .gitkeep)
+    ├── skills/                ← populated by Q4 skill provisioning; sub-agent prompt injection (with .gitkeep)
     ├── task-board.json        ← seed content below
     ├── config.json            ← seed content below
     └── hitl-adapters/         ← copied from skill's hitl-adapters/ directory
@@ -238,8 +320,9 @@ memory management, task commands. It is automatically loaded as part of every se
 **Skills configuration:**
 - `skills.auto_load` (default `true`): When enabled, the orchestrator scans `${ROOT}/codenook/skills/`
   for SKILL.md files and injects their content into sub-agent prompts.
-- `skills.agent_mapping` (default `{}`): Optional per-agent skill assignment. When empty, ALL skills
-  are loaded for ALL agents. When configured, only listed skills are loaded per role:
+- `skills.agent_mapping` (default `{}`): Per-agent skill assignment. **Populated automatically by
+  Q4 (Skill Provisioning)** during init. When empty, ALL skills are loaded for ALL agents. When
+  configured, only listed skills are loaded per role:
   ```json
   "agent_mapping": {
     "designer": ["uml", "architecture", "cloud"],
@@ -270,6 +353,7 @@ Agents:    5 (acceptor, designer, implementer, reviewer, tester)
 HITL:      local-html (port 8765) — 10 gates per task cycle
 Engine:    CLAUDE.md (appended, auto-loaded by Claude Code)
 Workflow:  Document-driven (plan → approve → execute → report → approve)
+Skills:    N skills provisioned → {designer: [uml, architecture, ...], implementer: [...], ...}
 Models:
   acceptor:    claude-haiku-4.5
   designer:    claude-sonnet-4
