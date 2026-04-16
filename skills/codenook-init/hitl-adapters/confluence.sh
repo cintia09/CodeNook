@@ -82,12 +82,82 @@ case "$cmd" in
     fi
 
     # Convert markdown to HTML (sanitize to prevent XSS)
+    # Pre-process: extract Mermaid blocks and convert to PNG
+    # This creates placeholder tags that will be replaced with Confluence image macros after upload
+    MERMAID_DIR=$(mktemp -d -t hitl-mermaid-XXXX)
+    processed_file="${MERMAID_DIR}/processed.md"
+    python3 << 'PYEOF' "$content_file" "$processed_file" "$MERMAID_DIR"
+import sys, re, subprocess, os, shutil
+src, dst, img_dir = sys.argv[1], sys.argv[2], sys.argv[3]
+content = open(src).read()
+mermaid_pattern = re.compile(r'```mermaid\s*\n(.*?)```', re.DOTALL)
+matches = list(mermaid_pattern.finditer(content))
+img_files = []
+
+# Try to find a mermaid renderer
+mmdc = shutil.which('mmdc')
+has_mmdc = mmdc is not None
+
+for i, m in enumerate(matches):
+    mmd_code = m.group(1).strip()
+    mmd_file = os.path.join(img_dir, f'diagram_{i}.mmd')
+    png_file = os.path.join(img_dir, f'diagram_{i}.png')
+    open(mmd_file, 'w').write(mmd_code)
+
+    rendered = False
+    if has_mmdc:
+        try:
+            r = subprocess.run([mmdc, '-i', mmd_file, '-o', png_file, '-b', 'white', '-w', '1200'],
+                               capture_output=True, timeout=30)
+            if r.returncode == 0 and os.path.exists(png_file):
+                rendered = True
+        except Exception:
+            pass
+
+    if rendered:
+        img_files.append(png_file)
+    else:
+        img_files.append(None)
+
+# Replace mermaid blocks with placeholders
+result = content
+for i, m in enumerate(reversed(matches)):
+    idx = len(matches) - 1 - i
+    if img_files[idx]:
+        fname = os.path.basename(img_files[idx])
+        replacement = f'\n<!-- CONFLUENCE_IMAGE: {fname} -->\n'
+    else:
+        # Fallback: keep as styled code block with note
+        code = m.group(1).strip()
+        replacement = f'\n> ⚠️ *Mermaid diagram (install mermaid-cli for image rendering):*\n\n```\n{code}\n```\n'
+    result = result[:m.start()] + replacement + result[m.end():]
+
+open(dst, 'w').write(result)
+# Write image file list for shell to read
+with open(os.path.join(img_dir, 'images.txt'), 'w') as f:
+    for p in img_files:
+        f.write((p or '') + '\n')
+PYEOF
+
+    # Use processed file (mermaid blocks replaced) for HTML conversion
     if command -v pandoc >/dev/null 2>&1; then
       # Use pandoc with sandbox to block raw HTML passthrough
-      content_html=$(pandoc -f markdown-raw_html -t html "$content_file" 2>/dev/null)
+      content_html=$(pandoc -f markdown-raw_html -t html "$processed_file" 2>/dev/null)
     else
-      content_html="<pre>$(cat "$content_file" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')</pre>"
+      content_html="<pre>$(cat "$processed_file" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')</pre>"
     fi
+
+    # Replace image placeholders with Confluence ac:image macros
+    content_html=$(echo "$content_html" | python3 -c "
+import sys, re
+html = sys.stdin.read()
+# Replace <!-- CONFLUENCE_IMAGE: filename.png --> with ac:image macro
+pattern = r'<!--\s*CONFLUENCE_IMAGE:\s*(\S+)\s*-->'
+def repl(m):
+    fname = m.group(1)
+    return f'<ac:image ac:width=\"800\"><ri:attachment ri:filename=\"{fname}\" /></ac:image>'
+print(re.sub(pattern, repl, html))
+")
 
     title="HITL Review: ${task_id} - ${role}"
 
@@ -124,10 +194,30 @@ print(json.dumps(data))
     page_id=$(echo "$response" | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || echo "")
 
     if [ -n "$page_id" ]; then
+      # Upload Mermaid diagram images as page attachments
+      if [ -f "${MERMAID_DIR}/images.txt" ]; then
+        while IFS= read -r img_path; do
+          if [ -n "$img_path" ] && [ -f "$img_path" ]; then
+            img_name=$(basename "$img_path")
+            curl -sf -X POST \
+              "${CONFLUENCE_BASE_URL}/rest/api/content/${page_id}/child/attachment" \
+              -H "Authorization: Bearer ${CONFLUENCE_TOKEN}" \
+              -H "X-Atlassian-Token: nocheck" \
+              -F "file=@${img_path}" \
+              -F "comment=Mermaid diagram: ${img_name}" >/dev/null 2>&1 || \
+              echo "WARNING: Failed to upload attachment ${img_name}" >&2
+          fi
+        done < "${MERMAID_DIR}/images.txt"
+      fi
+
+      # Cleanup temp mermaid files
+      rm -rf "$MERMAID_DIR"
+
       echo "$page_id" > "$REVIEWS_DIR/${task_id}-${role}-confluence.txt"
       page_url="${CONFLUENCE_BASE_URL}/pages/viewpage.action?pageId=${page_id}"
       echo "$page_url"
     else
+      rm -rf "$MERMAID_DIR"
       echo "ERROR: Failed to create Confluence page" >&2
       echo "$response" >&2
       exit 1
