@@ -388,7 +388,7 @@ orchestrator's analysis is focused and phase-appropriate rather than generic.
 | requirements | Requirements quality | Completeness, Testability, Ambiguity, Consistency, Prioritization, Non-functionals |
 | design | Architecture quality | Scalability, Coupling, Security, Performance, Pattern fitness, Extensibility, Error handling |
 | impl_plan | Plan feasibility | Feasibility, Risk, Dependencies, Scope, Testing strategy, Rollback |
-| impl_execute | Code quality | Correctness, Edge cases, Test coverage, Clarity, DFMEA, Security |
+| impl_execute | Code quality | Correctness, Edge cases, Test coverage, Build passes (production + UT), Clarity, DFMEA, Security |
 | review_plan | Review preparation | Scope coverage, Checklist relevance, Risk areas, Context |
 | review_execute | Review depth | Finding validity, Severity calibration, False positive rate, Completeness, Actionability |
 | test_plan | Test strategy | Coverage, Edge cases, Regression, Isolation, Priority |
@@ -892,6 +892,12 @@ PHASE_ENTRY_QUESTIONS = {
                   "暂不提交 / Don't commit yet"] },
     { "key": "test_before_commit", "prompt": "提交前是否运行测试？ / Run tests before commit?",
       "choices": ["是 / Yes ★", "否 / No", "仅单元测试 / Unit tests only"] },
+    { "key": "build_command", "prompt": "构建命令？ / Build command?",
+      "choices": ["自动检测 / Auto-detect ★", "make", "cmake --build build/",
+                  "npm run build", "cargo build", "自定义 / Custom (specify)"] },
+    { "key": "test_command", "prompt": "测试命令？ / Test command?",
+      "choices": ["自动检测 / Auto-detect ★", "make test", "ctest", "npm test",
+                  "pytest", "cargo test", "自定义 / Custom (specify)"] },
   ],
   "review_plan": [
     { "key": "review_scope", "prompt": "审查范围？ / Review scope?",
@@ -1556,6 +1562,36 @@ function orchestrate(task_id):
       "by": "agent"
     })
     save task-board.json
+
+    # ── Step 3b: BUILD VERIFICATION (implementer execute phase only) ──
+    # After code changes, the build MUST pass before presenting to HITL gate.
+    # This includes both production code and unit tests.
+    if role == "implementer" and phase == "execute":
+      # 1. Compile production code
+      build_result = run project build command (e.g., make, cmake --build, npm run build, cargo build)
+      if build_result.failed:
+        current_task.feedback_history.append({
+          "from_status": current_task.status, "decision": "build_failed",
+          "feedback": f"Production build failed:\n{build_result.stderr}",
+          "at": ISO timestamp, "role": role, "phase": phase, "by": "system"
+        })
+        # Return to agent with build error for fixing — do NOT proceed to HITL
+        feedback = f"BUILD FAILED. Fix compilation errors before proceeding:\n{build_result.stderr}"
+        continue  # retry the same phase with feedback
+
+      # 2. Run unit tests
+      test_result = run project test command (e.g., make test, npm test, pytest, cargo test)
+      if test_result.failed:
+        current_task.feedback_history.append({
+          "from_status": current_task.status, "decision": "test_failed",
+          "feedback": f"Unit tests failed:\n{test_result.output}",
+          "at": ISO timestamp, "role": role, "phase": phase, "by": "system"
+        })
+        # Return to agent with test failures for fixing
+        feedback = f"UNIT TESTS FAILED. Fix failing tests before proceeding:\n{test_result.output}"
+        continue  # retry the same phase with feedback
+
+      # Build + tests passed — proceed to HITL gate
 
     # ── Step 4: HITL GATE (MANDATORY — DO NOT SKIP) ──
     if not exists HITL_DIR/hitl-verify.sh:

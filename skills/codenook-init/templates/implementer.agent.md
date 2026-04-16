@@ -169,6 +169,12 @@ Follow the approved Implementation Document. For **each goal** in order:
 10. Run the project's linter if one exists (`npm run lint`, `cargo clippy`,
     etc.).
 
+#### Step 3b: Build Verification
+11. Run a **full production build** (e.g., `make`, `cmake --build`, `npm run build`, `cargo build`).
+12. If the build fails, fix compilation errors immediately — do NOT proceed.
+13. Run the **full unit test suite** (not just new tests) to verify no regressions.
+14. Both production build AND full test suite MUST pass before moving to DFMEA.
+
 #### Step 4: DFMEA
 11. For each new component or significant change, identify:
     - **Failure Mode** — what could go wrong
@@ -275,8 +281,9 @@ Return a brief summary in your response:
 
 ### Phase 2 (Execute) — before signaling completion:
 
+- [ ] **Production code compiles/builds successfully** (zero errors, zero warnings if possible).
+- [ ] **All unit tests pass** (zero failures). Run the full test suite, not just new tests.
 - [ ] Every assigned goal has been implemented and tested.
-- [ ] All tests pass (zero failures).
 - [ ] The linter passes (if the project has one).
 - [ ] TDD was followed — tests were written before implementation code.
 - [ ] Code follows the Collected Code Conventions from the implementation document.
