@@ -203,6 +203,8 @@ Each phase asks configuration questions before starting. Key ones:
 | review_execute | Review stages (local/remote/CI), Remote target (Gerrit/GitHub), CI pipeline |
 | test_plan | Test scope (module/system), Test environment (real device/simulator) |
 | test_execute | Test bundle path/ID, Device access method, Failure policy |
+| accept_plan | Acceptance criteria source (from requirements/user-defined/auto-generate) |
+| accept_execute | Release action after acceptance (create tag/deploy/merge to main) |
 
 ---
 

@@ -1755,8 +1755,8 @@ function orchestrate(task_id):
         else:
           # reviewer or tester
           if verdict in ("CHANGES_REQUESTED", "FAIL"):
-            # CI failure in review phase → CHANGES_REQUESTED → back to implementer
-            # Test failure → FAIL → back to implementer
+            # reviewer: CHANGES_REQUESTED → back to implementer (local review / remote review / CI issues)
+            # tester: FAIL → back to implementer (module / system test failures)
             if current_task.mode == "lightweight":
               current_task.status = find_status_for_agent("implementer", ROUTING) or route.reject
             else:
