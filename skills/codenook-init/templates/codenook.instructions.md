@@ -1317,6 +1317,7 @@ function orchestrate_dual_phase(current_task, route, dual_config, base_prompt, D
 
   if synth_result.failed:
     # Synthesis failed — fall back to agent A's latest document
+    log f"⚠️ Synthesis failed: {synth_result.error}. Falling back to Agent A's document."
     synth_result = { document: doc_a, failed: false }
 
   write synth_result.document → DOCS_DIR/{route.doc}
