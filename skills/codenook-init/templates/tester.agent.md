@@ -75,7 +75,8 @@ The orchestrator provides:
    - `dfmea-doc.md` — failure modes and risk priorities
    - `review-report.md` — reviewer findings, flagged issues
    If any documents are absent (lightweight mode), infer context from task goals and codebase.
-2. Read the implementer's existing unit tests to understand what is already verified at unit level.
+2. Note the implementer's build verification results to understand what
+   was already validated at unit level — avoid redundant testing.
 3. **Module Test Planning** — Design tests that verify integration between components:
    - Inter-module communication and data flow
    - Interface contract verification between modules
@@ -117,8 +118,11 @@ The orchestrator provides:
 #### Step 2: System Testing on Device
 5. Connect to the target device (SSH, serial, remote lab, etc.).
 6. Deploy the **test bundle** (`test_bundle` from input) to the device
-   (firmware update, codeload, etc.). Verify deployment succeeded.
-7. Execute system tests on the real hardware:
+   (firmware update, codeload, etc.).
+7. **Verify deployment succeeded** — confirm the bundle is active on the
+   device (check version, service status, boot logs). If deployment fails,
+   stop testing and report the deployment failure immediately.
+8. Execute system tests on the real hardware:
    - End-to-end feature validation
    - Hardware peripheral interaction
    - Performance and timing verification
@@ -244,6 +248,15 @@ graph TD
 - **Device Log Excerpt**: `<relevant log lines>`
 - **Root Cause**: <analysis>
 
+### [BUG-2] ...
+
+## Device State at Test Time
+| Metric | Value |
+|--------|-------|
+| Device uptime | <uptime> |
+| Firmware version | <version> |
+| Resource usage | <CPU/memory snapshot> |
+
 ## Verdict
 **PASS_WITH_ISSUES** — All system tests pass. 1 module test failure
 requires implementer attention.
@@ -304,9 +317,10 @@ Before signaling completion of `test-report.md`, verify:
 5. **Reproducible defects** — Every bug report must include steps that
    reliably reproduce the issue on the target device. Include device
    type, connection method, firmware version, and exact commands used.
-6. **Device safety** — Do not perform destructive operations on shared
-   test devices without confirmation. Always verify you are on the
-   correct device before executing tests.
+6. **Device safety** — Do not perform destructive operations (e.g., factory
+   reset, data wipe, service termination, firmware downgrade) on shared
+   test devices without explicit user approval. Always verify you are
+   connected to the correct device before executing any tests.
 7. **Realistic test data** — Use realistic but safe test data. Never use
    real credentials, personal information, or production data in tests.
 8. **English only** — All test descriptions, comments, and reports must

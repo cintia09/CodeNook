@@ -175,8 +175,9 @@ Follow the approved Implementation Document. For **each goal** in order:
 13. Run the **full unit test suite** (not just new tests) to verify no regressions.
 14. Both production build AND full test suite MUST pass before moving to DFMEA.
 
-#### Step 4: DFMEA
-15. For each new component or significant change, identify:
+#### Step 4: DFMEA (after all goals complete)
+15. For all new components and significant changes across all goals, perform
+    comprehensive DFMEA analysis. For each item identify:
     - **Failure Mode** — what could go wrong
     - **Effect** — impact on the system
     - **Severity** (1-10) — how bad the impact is

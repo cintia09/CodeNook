@@ -1607,7 +1607,13 @@ function orchestrate(task_id):
         feedback = f"UNIT TESTS FAILED. Fix failing tests before proceeding:\n{test_result.output}"
         continue  # retry the same phase with feedback
 
-      # Build + tests passed — proceed to local review
+      # Build + tests passed — record and proceed to local review
+      current_task.feedback_history.append({
+        "from_status": current_task.status, "decision": "build_passed",
+        "summary": "Production build + unit tests verified successfully",
+        "at": ISO timestamp, "role": role, "phase": phase, "by": "system"
+      })
+      save task-board.json
 
     # ── Step 3c: LOCAL CODE REVIEW (implementer execute phase only) ──
     # After build verification, spawn the reviewer agent for a local review
@@ -1637,8 +1643,8 @@ function orchestrate(task_id):
       save task-board.json
 
       # If review found critical issues, return to implementer for fixing
-      review_verdict = extract verdict from review_result.response  # APPROVE / REJECT / NEEDS_WORK
-      if review_verdict in ["REJECT", "NEEDS_WORK"]:
+      review_verdict = extract verdict from review_result.response  # APPROVED / APPROVED_WITH_NOTES / CHANGES_REQUESTED
+      if review_verdict == "CHANGES_REQUESTED":
         current_task.feedback_history.append({
           "from_status": current_task.status, "decision": "review_rejected",
           "feedback": f"Local review found issues:\n{review_result.response}",
