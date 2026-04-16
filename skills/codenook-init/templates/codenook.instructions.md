@@ -229,6 +229,8 @@ Enable **two sub-agents** with different models working on the same phase
 cross-examination** (up to 3 convergence rounds) and **synthesis** — producing
 higher-quality outputs at the cost of 5–9× agent invocations per dual-mode phase.
 The user is asked to confirm before each dual-agent phase execution.
+Note: sequential execution increases wall-clock time (Time(A) + Time(B)) compared
+to single-agent mode, but avoids resource contention and enables step-by-step monitoring.
 
 ### Flow Per Dual-Mode Phase
 
@@ -1228,14 +1230,19 @@ function orchestrate_dual_phase(current_task, route, dual_config, base_prompt, D
   result_a = task(agent_type=agent_type, prompt=base_prompt, model=model_a)
   if result_a.failed:
     # Agent A failed — try Agent B as sole producer
+    log f"⚠️ Agent A ({model_a}) failed: {result_a.error}. Attempting Agent B ({model_b}) as sole producer."
     result_b = task(agent_type=agent_type, prompt=base_prompt, model=model_b)
-    return result_b  # whether it succeeded or failed
+    if result_b.failed:
+      # Both agents failed — return combined error for better diagnostics
+      return { failed: true, error: f"Both dual agents failed. A ({model_a}): {result_a.error}; B ({model_b}): {result_b.error}" }
+    return result_b
   doc_a = result_a.document
   write doc_a → DOCS_DIR/{doc_base}-agent-a-r0.md
 
   result_b = task(agent_type=agent_type, prompt=base_prompt, model=model_b)
   if result_b.failed:
     # Agent B failed — use Agent A's result as sole output
+    log f"⚠️ Agent B ({model_b}) failed: {result_b.error}. Using Agent A's result."
     write doc_a → DOCS_DIR/{route.doc}
     return result_a
 
