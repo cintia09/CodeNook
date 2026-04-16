@@ -154,7 +154,8 @@ html = sys.stdin.read()
 # Replace <!-- CONFLUENCE_IMAGE: filename.png --> with ac:image macro
 pattern = r'<!--\s*CONFLUENCE_IMAGE:\s*(\S+)\s*-->'
 def repl(m):
-    fname = m.group(1)
+    import html as html_mod
+    fname = html_mod.escape(m.group(1), quote=True)
     return f'<ac:image ac:width=\"800\"><ri:attachment ri:filename=\"{fname}\" /></ac:image>'
 print(re.sub(pattern, repl, html))
 ")

@@ -52,6 +52,9 @@ Every payload includes a `phase` field that determines your sub-workflow.
 | `project_root` | Absolute path to the project directory |
 | `codebase_summary` | (Optional) Brief description of the project |
 | `reference_sources` | (Optional) External reference sources — Confluence links, Jira issues, Gerrit changes, etc. Fetch and incorporate into the acceptance plan. |
+
+**Accept-Exec Input Contract:**
+
 | Field | Description |
 |-------|-------------|
 | `phase` | `"accept-exec"` |
