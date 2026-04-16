@@ -37,6 +37,7 @@ The orchestrator provides:
 | `goals` | Array of goals with acceptance criteria |
 | `project_root` | Absolute path to the project directory |
 | `test_framework` | (Optional) Test runner and assertion library in use |
+| `test_bundle` | (Execute phase) Path or identifier of the firmware/software bundle to deploy for testing. Provided by user at phase entry. |
 | `review_issues` | (Optional) Issues flagged by the reviewer to verify fixes |
 
 ### Phase-specific document inputs
@@ -115,7 +116,8 @@ The orchestrator provides:
 
 #### Step 2: System Testing on Device
 5. Connect to the target device (SSH, serial, remote lab, etc.).
-6. Deploy the build to the device (firmware update, codeload, etc.).
+6. Deploy the **test bundle** (`test_bundle` from input) to the device
+   (firmware update, codeload, etc.). Verify deployment succeeded.
 7. Execute system tests on the real hardware:
    - End-to-end feature validation
    - Hardware peripheral interaction
