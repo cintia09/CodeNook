@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file.
 
+## [5.0.0-poc.1] - 2026-04-18
+
+### 🧪 v5.0 POC — Workspace-First Architecture (preview, opt-in)
+
+The v5.0 POC ships under `skills/codenook-v5-poc/` and is **opt-in**: existing
+v4.x stable installs are unaffected. v5.0 is a breaking redesign — there is no
+migration path from v4.x workspaces.
+
+#### Added
+- **Workspace-first layout**: `.codenook/` at project root replaces
+  `.claude/codenook/`. Two-layer state (workspace `state.json` + per-task
+  `state.json`); `task-board.json` is a derived index.
+- **Bootloader**: single `CLAUDE.md` at project root; both Claude Code and
+  Copilot CLI honor it. No more `.github/copilot-instructions.md`.
+- **Core orchestrator** (`codenook-core.md`, ~1.6K lines, 24 sections):
+  state machine, routing table, prompt-as-file, sub-agent self-bootstrap,
+  validator pattern, scheduler, HITL gating, dispatch audit, secret scan,
+  session distillation, model assignment protocol.
+- **Helper scripts** (8): `preflight.sh`, `keyring-helper.sh`,
+  `secret-scan.sh`, `dispatch-audit.sh`, `session-runner.sh`,
+  `model-config.sh`, `rebuild-task-board.sh`, `subtask-runner.sh` /
+  `queue-runner.sh`.
+- **Sub-agent profiles** (11): clarifier, designer, planner, implementer,
+  reviewer, tester, acceptor, validator, synthesizer, security-auditor,
+  session-distiller. All use self-bootstrap + Context Budget enforcement.
+- **§24 Model Assignment Protocol**: 5-level resolution
+  (task[role] > task.default > workspace[role] > workspace.default > inherit).
+  Default `inherit` means dispatch without `--model` so the platform reuses the
+  main session's model. Subtasks always inherit from parent and are never asked.
+- **Tests**: 22 assertions in `tests/run-all.sh` (T0–T28), all passing.
+- **Interactive HTML doc**: `skills/codenook-v5-poc/docs/v5-poc.html`
+  (single-page, 3-tab: Design / Tests / Implementation).
+- **POC README** + main README pointer + install.sh banner.
+
+#### Notes
+- Real LLM end-to-end (driving the orchestrator through clarify → accept) is
+  not yet validated; this release covers scaffolding, helpers, and tests.
+- Stable users should keep using the v4.9.x line.
+
 ## [4.9.0] - 2026-04-16
 
 ### 🚀 v4.9.0 — Model Defaults, Copilot Paths, Generic Skill Provisioning
