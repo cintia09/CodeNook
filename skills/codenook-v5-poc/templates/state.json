@@ -4,6 +4,8 @@
   "current_focus": null,
   "last_session": null,
   "session_counter": 0,
+  "hitl_pending_count": 0,
+  "last_hitl_seen_at": null,
   "last_updated": null,
   "task_counter": 0
 }

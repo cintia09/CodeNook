@@ -24,7 +24,7 @@ fi
 
 echo "Bootstrapping CodeNook v5.0 POC at: $TARGET_DIR"
 
-mkdir -p .codenook/{core,prompts-templates,prompts-criteria,agents,project,tasks,knowledge/by-role,knowledge/by-topic,history,history/sessions,hitl-queue/pending}
+mkdir -p .codenook/{core,prompts-templates,prompts-criteria,agents,project,tasks,knowledge/by-role,knowledge/by-topic,history,history/sessions,hitl-queue/pending,hitl-queue/answered,hitl-adapters}
 
 # Copy templates
 cp "$TEMPLATES_DIR/core/codenook-core.md"              .codenook/core/
@@ -60,6 +60,11 @@ cp "$TEMPLATES_DIR/project/CONVENTIONS.md"             .codenook/project/
 cp "$TEMPLATES_DIR/project/ARCHITECTURE.md"            .codenook/project/
 cp "$TEMPLATES_DIR/config.yaml"                        .codenook/
 cp "$TEMPLATES_DIR/state.json"                         .codenook/
+cp "$TEMPLATES_DIR/hitl-item-schema.md"                .codenook/
+cp "$TEMPLATES_DIR/hitl-adapters/terminal.sh"          .codenook/hitl-adapters/
+chmod +x .codenook/hitl-adapters/terminal.sh
+# Initialize empty current.md (will be populated by queue_hitl)
+: > .codenook/hitl-queue/current.md
 
 # Bootloader (`CLAUDE.md` — read by both Claude Code and Copilot CLI)
 cp "$TEMPLATES_DIR/CLAUDE.md"                          ./CLAUDE.md

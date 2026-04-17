@@ -336,16 +336,81 @@ Note on skipped `plan` phase: when `plan_verdict == "not_needed"`, neither the p
 
 ---
 
-## 9. HITL Gate (Minimal in POC)
+## 9. HITL Gate (Queue-Based, FIFO)
 
-When HITL is needed:
-1. Write a ≤ 100-token summary to `hitl-queue/current.md`.
-2. Print to user: "Task {T_id} phase {phase} needs your decision: {one-line reason}. See `hitl-queue/current.md`."
-3. Wait for user input.
-4. Record user decision to `tasks/T-xxx/hitl/phase-N-decision.md`.
-5. Resume based on decision (approve / reject / modify).
+HITL items live in a workspace-level queue:
 
-(Full v5.0 adds adapters; POC uses terminal inline only.)
+```
+.codenook/hitl-queue/
+├── current.md              # a copy of the head-of-queue item (may be empty)
+├── pending/                # FIFO queue, ordered by timestamp in filename
+│   └── <T-xxx>-<phase>-<UTC-timestamp>.md
+└── answered/               # audit archive (one copy of each answered item)
+```
+
+Each pending file follows `hitl-item-schema.md` (YAML frontmatter + body):
+
+```yaml
+---
+task_id: T-001
+phase: clarify
+queued_at: 2025-01-15T12:00:00Z
+reason: clarity_verdict:needs_user_input
+source: clarifier
+priority: normal
+options:
+  - id: A
+    label: "approve criteria as-is"
+    next_action: advance_phase
+  - id: B
+    label: "revise criterion #3"
+    next_action: restart_phase
+default: B
+---
+# Body: what happened, reference files, per-option rationale
+```
+
+### Orchestrator protocol
+
+**`queue_hitl(task_state, reason, options, body)`**:
+1. Build `pending_id = "<task_id>-<phase>-<UTC-compact-timestamp>"` (e.g., `T-001-clarify-20250115T120000Z`).
+2. Write `.codenook/hitl-queue/pending/<pending_id>.md` using the schema.
+3. If `current.md` is empty (size 0), copy the new file to `current.md`. Otherwise leave `current.md` alone (FIFO; new item waits).
+4. Emit a terse user-facing prompt with the **options verbatim**:
+   > ⚠️ T-001 phase clarify needs your decision: clarity_verdict:needs_user_input.
+   > (A) approve criteria as-is  (B) revise criterion #3 [default]
+   > See `.codenook/hitl-queue/current.md` for full context.
+5. Suspend phase advancement for this task until a decision file appears.
+6. Update workspace `state.json.hitl_pending_count = count(pending/*.md)`.
+
+**`hitl_response(user_input)`** (when the user replies in chat):
+1. Parse user's selection (one of the option ids from `current.md`, optionally with a free-text note).
+2. Read `current.md` frontmatter → extract `task_id`, `phase`, `pending_id`, selected option's `next_action`.
+3. Write decision file `.codenook/tasks/<task_id>/hitl/<phase>-decision-<UTC-timestamp>.md` (same schema as `terminal.sh answer`).
+4. Move `.codenook/hitl-queue/pending/<pending_id>.md` → `.codenook/hitl-queue/answered/<pending_id>.md`.
+5. Promote the next pending item: if any `.codenook/hitl-queue/pending/*.md` exists (lexicographic first), copy it to `current.md`; else truncate `current.md`.
+6. Decrement `state.json.hitl_pending_count`.
+7. Apply the decision's `next_action` to the task state machine and resume.
+
+### External adapter
+
+`.codenook/hitl-adapters/terminal.sh` gives humans (or future non-chat consumers) CLI access to the queue:
+- `bash .codenook/hitl-adapters/terminal.sh list`
+- `bash .codenook/hitl-adapters/terminal.sh show [<id>]`
+- `bash .codenook/hitl-adapters/terminal.sh answer <id> <option-id> [note...]`
+- `bash .codenook/hitl-adapters/terminal.sh count`
+
+The adapter writes to the same decision-file path and performs the same queue-advance step as the orchestrator's `hitl_response`, so both code paths are interchangeable.
+
+### Multi-task queue semantics
+
+- The queue is workspace-wide, not per-task. If T-001 and T-002 both block on HITL, both appear in `pending/` and the user answers them in chronological order.
+- When `current.md` is non-empty for task T-A, the user may still answer a later pending item for task T-B directly via the adapter (`answer <id> <opt>`); the orchestrator reconciles on next turn by reading all `answered/` files newer than the last processed decision.
+- End-of-turn rule (§12) applies: when `hitl_pending_count > 0`, the orchestrator's turn-ending question must reference the current pending item.
+
+### Non-chat / async use
+
+The adapter can be invoked from a separate terminal, a dashboard button, or a webhook. The orchestrator polls `.codenook/tasks/*/hitl/*-decision-*.md` for files newer than `state.json.last_hitl_seen_at` on each main-loop iteration and applies any it hasn't processed yet.
 
 ---
 
