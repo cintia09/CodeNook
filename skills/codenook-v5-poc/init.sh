@@ -93,6 +93,10 @@ cp "$TEMPLATES_DIR/subtask-runner.sh"                  .codenook/
 chmod +x .codenook/subtask-runner.sh
 cp "$TEMPLATES_DIR/dispatch-audit.sh"                  .codenook/
 chmod +x .codenook/dispatch-audit.sh
+cp "$TEMPLATES_DIR/preflight.sh"                       .codenook/
+chmod +x .codenook/preflight.sh
+cp "$TEMPLATES_DIR/rebuild-task-board.sh"              .codenook/
+chmod +x .codenook/rebuild-task-board.sh
 : > .codenook/history/dispatch-log.jsonl
 printf '{"items":[]}\n' > .codenook/queue/pending.json
 printf '{"items":[]}\n' > .codenook/queue/dispatching.json

@@ -1395,3 +1395,81 @@ no `*`, no `?`, no `<>|"`, no trailing `.` or space. The slug regex in
 §21.1 was tightened to drop `:` for this reason. ISO timestamps with
 colons appear only inside file **contents** (YAML lock metadata, JSON
 log), never in file **names**.
+
+---
+
+## 22. Preflight Check Protocol (OPT-7)
+
+### 22.1 The Problem
+
+Task creation may ask required questions (dual_mode, depends_on,
+priority, budget). If the user skipped a question at creation time,
+`state.json` ends up with a null field. The orchestration main loop
+then checks `PHASE_ENTRY_QUESTIONS` for the **current** phase — it does
+**not** retroactively verify that *creation-time* questions were
+answered. Result: the task silently advances with `dual_mode: null`
+and produces incoherent dual-agent behavior.
+
+### 22.2 The Invariant
+
+Before advancing any task past iteration 0, the orchestrator MUST
+verify that all creation-time required fields are set. If any are
+missing, it MUST pause the main loop and re-ask, writing the answer
+back into `state.json`.
+
+### 22.3 Required Creation-Time Fields
+
+| Field | Type | Required when |
+|---|---|---|
+| `task_id` | string | always |
+| `status` | enum | always |
+| `phase` | string | always |
+| `dual_mode` | `serial` \| `parallel` \| `off` | if phase is `implement`, `review`, `test`, or `accept` |
+| `depends_on` | string[] | optional; default `[]` |
+
+### 22.4 Enforcement — in Main Loop
+
+At the top of each loop iteration, before routing:
+
+```python
+state = read_json(f".codenook/tasks/{current_task}/state.json")
+
+# OPT-7 preflight
+if state.get("total_iterations", 0) == 0:
+    missing = []
+    if state["phase"] in {"implement","review","test","accept"} \
+       and state.get("dual_mode") is None:
+        missing.append("dual_mode")
+    # extend list as creation-time requirements grow
+
+    if missing:
+        # Pause main loop. Ask the user. Write answer back.
+        for field in missing:
+            value = ask_user_for(field, state)
+            state[field] = value
+        write_json(f".codenook/tasks/{current_task}/state.json", state)
+        # Re-enter loop; do not dispatch yet.
+        continue
+```
+
+### 22.5 Enforcement — Batch Audit
+
+`preflight.sh` implements check [7] which scans every task's
+`state.json` and flags any with `total_iterations > 0 AND
+dual_mode == null`. Run this on session start to catch tasks created
+in earlier sessions before OPT-7 existed.
+
+```
+bash .codenook/preflight.sh
+```
+
+Exit codes: `0` healthy, `1` warnings, `2` errors (abort; do not
+advance the loop until fixed).
+
+### 22.6 Backfill for Pre-OPT-7 Tasks
+
+If preflight finds a task created under an older version (likely
+`total_iterations > 0 AND dual_mode == null`), treat it as an
+OPT-7 violation and re-ask *before* running any more sub-agents for
+that task. The user may answer `off` to opt out of dual-agent
+review entirely.
