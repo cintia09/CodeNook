@@ -21,8 +21,9 @@ run_test() {
   fi
 }
 
-run_test "T1 init smoke"       "$SCRIPT_DIR/t1-init-smoke.sh"
-run_test "T8 manifest lint"    "$SCRIPT_DIR/t8-manifest-lint.sh"
+run_test "T1 init smoke"          "$SCRIPT_DIR/t1-init-smoke.sh"
+run_test "T8 manifest lint"       "$SCRIPT_DIR/t8-manifest-lint.sh"
+run_test "T9 dual-agent static"   "$SCRIPT_DIR/t9-dual-agent-static.sh"
 
 echo ""
 echo "════════════════════════════════════════════"

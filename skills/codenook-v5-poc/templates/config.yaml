@@ -4,6 +4,7 @@ version: "5.0-poc"
 models:
   default: claude-sonnet-4.5
   implementer: claude-sonnet-4.5
+  reviewer: claude-sonnet-4.5
   validator: claude-haiku-4.5
   # dual_a / dual_b / synthesizer reserved for full v5.0
 
@@ -45,4 +46,9 @@ distillation:
   enabled: false             # POC: no auto-distill
 
 dual_agent:
-  enabled: false             # POC: single agent per phase
+  enabled: true
+  default_mode: "serial"        # "serial" | "off" ; "parallel" reserved for post-POC
+  max_iterations: 2
+  escalate_on_fundamental: true
+  reviewer_template: prompts-templates/reviewer.md
+  review_criteria: prompts-criteria/criteria-review.md

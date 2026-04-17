@@ -49,30 +49,53 @@ Read on bootstrap. Update when task focus changes.
   "status": "in_progress",
   "phase": "implement",
   "phases_done": ["clarify"],
-  "last_output": ".codenook/tasks/T-001/outputs/phase-2-implementer.md",
-  "last_summary": ".codenook/tasks/T-001/outputs/phase-2-implementer-summary.md",
+  "dual_mode": "serial",
+  "max_iterations": 2,
+  "current_iteration": 1,
+  "iterations": [
+    {
+      "n": 1,
+      "implementer_output": ".codenook/tasks/T-001/iterations/iter-1/implement.md",
+      "reviewer_output": ".codenook/tasks/T-001/iterations/iter-1/review.md",
+      "overall_verdict": "needs_fixes",
+      "issue_count": { "blocker": 0, "major": 2, "minor": 1 }
+    }
+  ],
+  "last_output": ".codenook/tasks/T-001/iterations/iter-1/implement.md",
+  "last_summary": ".codenook/tasks/T-001/iterations/iter-1/implement-summary.md",
   "validator_verdict": null
 }
 ```
 Source of truth for per-task progress.
 
+When `dual_mode == "off"`, the `iterations` array contains a single entry with `reviewer_output: null`.
+
 ---
 
-## 3. Phase State Machine (POC: 3 Phases)
+## 3. Phase State Machine (POC: 3 Phases + Optional Dual-Agent Loop)
 
 ```
-  clarify  →  implement  →  validate  →  done
-     ↑          ↓↑             ↓
-     └──────── fail ────────────┘   (validator fail → retry implement, max 3)
+  clarify  →  implement  ⇄  review   →  validate  →  done
+     ↑          ↓↑         (dual-agent)     ↓
+     └──────── fail ──────────────────────── ┘
 ```
+
+- `implement` and `review` form a serial dual-agent loop when `dual_mode == "serial"`.
+- The loop iterates at most `max_iterations` times (default 2, see config.yaml).
+- Loop exits early when reviewer returns `overall_verdict == "looks_good"`.
+- Loop exits with HITL escalation when reviewer returns `overall_verdict == "fundamental_problems"`.
+- After the loop, the validator runs exactly once as the automated gate.
 
 ### Routing Table
 
-| Phase     | Agent Type   | Prompt Manifest Path                                  | Template                                |
-|-----------|--------------|-------------------------------------------------------|-----------------------------------------|
-| clarify   | implementer  | tasks/T-xxx/prompts/phase-1-clarify.md                | prompts-templates/implementer.md (mode=clarify) |
-| implement | implementer  | tasks/T-xxx/prompts/phase-2-implementer.md            | prompts-templates/implementer.md        |
-| validate  | validator    | tasks/T-xxx/prompts/phase-3-validator.md              | prompts-templates/validator.md          |
+| Phase / Iter Role  | Agent Type  | Prompt Manifest Path                                       | Template                                |
+|--------------------|-------------|------------------------------------------------------------|-----------------------------------------|
+| clarify            | implementer | tasks/T-xxx/prompts/phase-1-clarify.md                     | prompts-templates/implementer.md (mode=clarify) |
+| implement (iter N) | implementer | tasks/T-xxx/prompts/iter-N-implementer.md                  | prompts-templates/implementer.md        |
+| review (iter N)    | reviewer    | tasks/T-xxx/prompts/iter-N-reviewer.md                     | prompts-templates/reviewer.md           |
+| validate           | validator   | tasks/T-xxx/prompts/phase-3-validator.md                   | prompts-templates/validator.md          |
+
+When `dual_mode == "off"`, the loop degenerates to a single `implement` dispatch (no reviewer, straight to validator).
 
 (POC uses implementer in clarify mode; full v5.0 has a dedicated clarifier.)
 
@@ -109,8 +132,11 @@ while true:
 
     elif decision == "advance_phase":
         next_phase = transition(task_state.phase)
-        write_manifest(phase-N-{role}.md)
-        dispatch_agent(role, phase=N)
+        if next_phase == "implement" and task_state.dual_mode == "serial":
+            run_dual_agent_loop(task_state)    # see §15
+        else:
+            write_manifest(phase-N-{role}.md)
+            dispatch_agent(role, phase=N)
 
     elif decision == "validator_verdict":
         if verdict == "pass":
@@ -273,3 +299,115 @@ Never paste sub-agent outputs inline. Always reference by path.
 5. Report briefly.
 
 Your context is sacred. Protect it. All intelligence lives in files and sub-agents.
+
+---
+
+## 15. Dual-Agent Serial Protocol
+
+When `task.dual_mode == "serial"`, the `implement` phase is replaced by a bounded A ↔ B loop between the **Implementer** (worker) and the **Reviewer** (critic).
+
+### Directory Layout per Task
+
+```
+tasks/T-xxx/iterations/
+  iter-1/
+    implement.md           # Implementer output (artifact)
+    implement-summary.md   # ≤ 200 words
+    review.md              # Reviewer issue list (full)
+    review-summary.md      # Structured summary (issue_count + verdict)
+  iter-2/
+    ...
+```
+
+### Loop Algorithm
+
+```
+iteration = 1
+while iteration <= task.max_iterations:
+    # Step 1 — dispatch implementer
+    write_manifest(
+        path = prompts/iter-{iteration}-implementer.md,
+        template = prompts-templates/implementer.md,
+        variables = {
+            iteration,
+            task_description: @../task.md,
+            previous_review: @../iterations/iter-{iteration-1}/review.md  if iteration > 1 else null,
+            previous_output: @../iterations/iter-{iteration-1}/implement.md if iteration > 1 else null,
+        },
+        output_to = @../iterations/iter-{iteration}/implement.md,
+        summary_to = @../iterations/iter-{iteration}/implement-summary.md,
+    )
+    impl_result = dispatch("implementer", iteration)
+    if impl_result.status != "success":
+        escalate_hitl("implementer failed", impl_result)
+        return
+
+    # Step 2 — dispatch reviewer
+    write_manifest(
+        path = prompts/iter-{iteration}-reviewer.md,
+        template = prompts-templates/reviewer.md,
+        variables = {
+            iteration,
+            implementer_output: @../iterations/iter-{iteration}/implement.md,
+            implementer_summary: @../iterations/iter-{iteration}/implement-summary.md,
+            previous_review: @../iterations/iter-{iteration-1}/review.md if iteration > 1 else null,
+            review_criteria: @../../../prompts-criteria/criteria-review.md,
+        },
+        output_to = @../iterations/iter-{iteration}/review.md,
+        summary_to = @../iterations/iter-{iteration}/review-summary.md,
+    )
+    review_result = dispatch("reviewer", iteration)
+
+    # Step 3 — record iteration in state.json
+    append_to(state.iterations, {
+        n: iteration,
+        implementer_output, reviewer_output,
+        overall_verdict: review_result.overall_verdict,
+        issue_count: review_result.issue_count,
+    })
+
+    # Step 4 — exit conditions
+    if review_result.overall_verdict == "looks_good":
+        break                           # converged
+    if review_result.overall_verdict == "fundamental_problems":
+        escalate_hitl("dual-agent flagged fundamental problems", review_result)
+        return
+    iteration += 1
+
+# loop exit — go to validator
+state.last_output = latest_implementer_output
+state.phase = "validate"
+dispatch_validator()
+```
+
+### Budget
+
+Per iteration, main-session token cost is approximately:
+
+| Event                                     | Tokens |
+|-------------------------------------------|--------|
+| Write implementer manifest                | ~120   |
+| Dispatch + receive implementer summary    | ~250   |
+| Write reviewer manifest                   | ~120   |
+| Dispatch + receive reviewer summary       | ~250   |
+| Update state.json                         | ~80    |
+| **Per-iteration total**                   | ~820   |
+
+Two iterations + validator ≈ 2100 tokens added to main session. Still well below the 22K steady-state budget.
+
+### Rules
+
+- You NEVER read `implement.md` or `review.md` yourself. Only the `-summary.md` files if at all.
+- You NEVER convert the reviewer's issues into code yourself. The implementer sees them in the next iteration via `@previous_review`.
+- You NEVER run more than `max_iterations` iterations. Hard cap.
+- On `fundamental_problems`: immediately HITL. Do not silently continue.
+
+### Config
+
+From `config.yaml`:
+```yaml
+dual_agent:
+  default_mode: "serial"        # "serial" | "off" ; "parallel" reserved for post-POC
+  max_iterations: 2
+  escalate_on_fundamental: true
+```
