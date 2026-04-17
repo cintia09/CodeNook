@@ -52,6 +52,17 @@ bash /path/to/CodeNook/skills/codenook-v5-poc/init.sh
 # The bootloader at CLAUDE.md will route you into the orchestrator.
 ```
 
+### Re-running init on an existing workspace
+
+When `.codenook/` already exists, `init.sh` prompts:
+
+- `[u] Upgrade` — refresh templates/scripts only; **preserves** your
+  `tasks/`, `history/`, `knowledge/`, `hitl-queue/`, `state.json`,
+  `config.yaml`, `.secretignore`. Updated `config.yaml` is written to
+  `.codenook/config.yaml.template` for manual diff/merge.
+- `[o] Overwrite` — destroys `.codenook/` entirely (DESTRUCTIVE).
+- `[N] Abort` — default.
+
 ## Platform support
 
 | Platform | Status | Notes |

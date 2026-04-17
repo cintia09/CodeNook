@@ -35,10 +35,25 @@ cd "$TARGET_DIR"
 
 if [[ -d ".codenook" ]]; then
   echo "Warning: .codenook/ already exists at $TARGET_DIR"
-  read -p "Overwrite? (y/N) " -n 1 -r
+  echo ""
+  echo "Choose action:"
+  echo "  [u] Upgrade  — refresh templates/scripts only, KEEP your tasks/history/knowledge/state"
+  echo "  [o] Overwrite — DELETE everything and start clean (DESTRUCTIVE)"
+  echo "  [N] Abort"
+  read -p "Action? (u/o/N) " -n 1 -r
   echo
-  [[ ! $REPLY =~ ^[Yy]$ ]] && { echo "Aborted."; exit 0; }
-  rm -rf .codenook
+  if [[ $REPLY =~ ^[Uu]$ ]]; then
+    UPGRADE_MODE=1
+    echo "Upgrade mode: preserving tasks/, history/, knowledge/, hitl-queue/, state.json, config.yaml, .secretignore"
+  elif [[ $REPLY =~ ^[Oo]$ ]]; then
+    UPGRADE_MODE=0
+    echo "Overwrite mode: removing existing .codenook/ ..."
+    rm -rf .codenook
+  else
+    echo "Aborted."; exit 0
+  fi
+else
+  UPGRADE_MODE=0
 fi
 
 echo "Bootstrapping CodeNook v5.0 POC at: $TARGET_DIR"
@@ -78,13 +93,26 @@ cp "$TEMPLATES_DIR/agents/security-auditor.agent.md"   .codenook/agents/
 cp "$TEMPLATES_DIR/project/ENVIRONMENT.md"             .codenook/project/
 cp "$TEMPLATES_DIR/project/CONVENTIONS.md"             .codenook/project/
 cp "$TEMPLATES_DIR/project/ARCHITECTURE.md"            .codenook/project/
-cp "$TEMPLATES_DIR/config.yaml"                        .codenook/
-cp "$TEMPLATES_DIR/state.json"                         .codenook/
+cp "$TEMPLATES_DIR/config.yaml"                        .codenook/config.yaml.new
+if [[ $UPGRADE_MODE -eq 1 && -f .codenook/config.yaml ]]; then
+  rm .codenook/config.yaml.new
+  echo "  kept existing config.yaml (template available at .codenook/config.yaml.template)"
+  cp "$TEMPLATES_DIR/config.yaml"                      .codenook/config.yaml.template
+else
+  mv .codenook/config.yaml.new .codenook/config.yaml
+fi
+if [[ $UPGRADE_MODE -eq 1 && -f .codenook/state.json ]]; then
+  echo "  kept existing state.json"
+else
+  cp "$TEMPLATES_DIR/state.json"                       .codenook/
+fi
 cp "$TEMPLATES_DIR/hitl-item-schema.md"                .codenook/
 cp "$TEMPLATES_DIR/hitl-adapters/terminal.sh"          .codenook/hitl-adapters/
 chmod +x .codenook/hitl-adapters/terminal.sh
 # Initialize empty current.md (will be populated by queue_hitl)
-: > .codenook/hitl-queue/current.md
+if [[ ! -f .codenook/hitl-queue/current.md ]]; then
+  : > .codenook/hitl-queue/current.md
+fi
 
 # Queue Runtime (core §19)
 cp "$TEMPLATES_DIR/dependency-graph-schema.md"         .codenook/
@@ -107,20 +135,24 @@ chmod +x .codenook/session-runner.sh
 cp "$TEMPLATES_DIR/model-config.sh"                    .codenook/
 chmod +x .codenook/model-config.sh
 mkdir -p .codenook/history/security
-# Default ignore for the secret scanner (false positives can be added by user).
+if [[ ! -f .codenook/.secretignore ]]; then
 cat > .codenook/.secretignore <<'EOF'
 # Add file-name globs (one per line, '#' for comments) the secret-scan.sh
 # should skip. Match is plain --exclude= passed to grep.
 EOF
-: > .codenook/history/dispatch-log.jsonl
-printf '{"items":[]}\n' > .codenook/queue/pending.json
-printf '{"items":[]}\n' > .codenook/queue/dispatching.json
-printf '{"items":[]}\n' > .codenook/queue/completed.json
+fi
+if [[ ! -f .codenook/history/dispatch-log.jsonl ]]; then
+  : > .codenook/history/dispatch-log.jsonl
+fi
+[[ -f .codenook/queue/pending.json ]]     || printf '{"items":[]}\n' > .codenook/queue/pending.json
+[[ -f .codenook/queue/dispatching.json ]] || printf '{"items":[]}\n' > .codenook/queue/dispatching.json
+[[ -f .codenook/queue/completed.json ]]   || printf '{"items":[]}\n' > .codenook/queue/completed.json
 
 # Bootloader (`CLAUDE.md` — read by both Claude Code and Copilot CLI)
 cp "$TEMPLATES_DIR/CLAUDE.md"                          ./CLAUDE.md
 
-# History bootstrap
+# History bootstrap (only on fresh install; preserve user history)
+if [[ ! -f .codenook/history/latest.md ]]; then
 cat > .codenook/history/latest.md <<'EOF'
 # Latest Session Summary
 _Last updated: fresh-workspace_
@@ -136,6 +168,7 @@ _Trigger: init_
 ## Next Action for the Next Session
 Greet the user and ask what task to start. No prior session to resume.
 EOF
+fi
 
 echo ""
 echo "✅ CodeNook v5.0 POC initialized."
