@@ -18,13 +18,13 @@ Read the manifest file. Parse Template + Variables.
 Read path in `Template:` (usually `.codenook/prompts-templates/acceptor.md`).
 
 ### Step 2.5 — Skill Trigger (conditional)
-If the manifest contains an `Invoke_skill: <skill-name>` field, emit the literal string `<skill-name>` verbatim in your next reasoning output (a one-line note is enough). This triggers platform skill auto-loading in YOUR fresh context; the orchestrator has never uttered the string, so its context stays clean. If the field is absent, skip this step. Do NOT invent or substitute skill names that are not present in the manifest.
+If the manifest contains an `Invoke_skill: <skill-name>` field, emit the literal string `<skill-name>` verbatim in your next reasoning output (a one-line note is enough). This triggers platform skill auto-loading in YOUR fresh context; the orchestrator has never uttered the string, so its context stays clean. If the field is absent, skip this step. Do NOT invent or substitute skill names that are not present in the manifest. CRITICAL: Do NOT include the skill name in your returned `summary`, `notes`, `status`, or any field the orchestrator reads — the skill name stays ONLY in this disposable reasoning context. Phrase the summary as if the skill did not exist.
 
 ### Step 3 — Read original task.md (MANDATORY, AUTHORITATIVE INTENT)
 Read the full task.md. This is the user's raw intent — the anchor for "done".
 
-### Step 4 — Read clarify summary
-Read `clarify_output` summary. Get the canonical acceptance criteria list.
+### Step 4 — Read clarify output
+Read `clarify_output` (the FULL clarify spec, not the summary — the canonical acceptance criteria list lives in §4 of the clarifier contract and is not included in the summary). Get the authoritative acceptance criteria list.
 
 ### Step 5 — Read test summary (MANDATORY)
 Read `test_output` summary. Get `test_verdict`, failure list, coverage ratio.

@@ -18,21 +18,21 @@ Read the manifest file. Parse Template + Variables.
 Read path in `Template:` (usually `.codenook/prompts-templates/planner.md`).
 
 ### Step 2.5 — Skill Trigger (conditional)
-If the manifest contains an `Invoke_skill: <skill-name>` field, emit the literal string `<skill-name>` verbatim in your next reasoning output (a one-line note is enough). This triggers platform skill auto-loading in YOUR fresh context; the orchestrator has never uttered the string, so its context stays clean. If the field is absent, skip this step. Do NOT invent or substitute skill names that are not present in the manifest.
+If the manifest contains an `Invoke_skill: <skill-name>` field, emit the literal string `<skill-name>` verbatim in your next reasoning output (a one-line note is enough). This triggers platform skill auto-loading in YOUR fresh context; the orchestrator has never uttered the string, so its context stays clean. If the field is absent, skip this step. Do NOT invent or substitute skill names that are not present in the manifest. CRITICAL: Do NOT include the skill name in your returned `summary`, `notes`, `status`, or any field the orchestrator reads — the skill name stays ONLY in this disposable reasoning context. Phrase the summary as if the skill did not exist.
 
 ### Step 3 — Read design spec (MANDATORY, AUTHORITATIVE)
 Read `design_output` (full spec, not summary).
 If `design_verdict != design_ready` → return `blocked`, do not proceed.
 
-### Step 4 — Read clarify summary
-Read `clarify_output` summary. Needed to map subtasks back to acceptance criteria.
+### Step 4 — Read clarify output
+Read `clarify_output` (full spec). Needed to map subtasks back to the acceptance criteria list (§4 of the clarify spec).
 
 ### Step 5 — Read project docs (light)
 1. `.codenook/project/ENVIRONMENT.md` — only to understand context budget envelope
 2. `.codenook/project/CONVENTIONS.md` — only to know subtask boundary conventions
 
 ### Step 6 — Check current depth
-Inspect own `task_id`. If it already contains a dot (e.g. `T-003.2`), this task is a subtask being re-planned. Depth would become 2 for any child → only permissible if design_output explicitly lists > 6 module-layout entries AND none of them cross current subtask scope. Otherwise return `too_complex`.
+Inspect own `task_id`. If it already contains ANY dot (e.g. `T-003.2` — depth 1 subtask) then further decomposition would produce depth-2 descendants. v5.0 POC forbids this unconditionally: return `too_complex` with reason "depth cap: subtasks cannot themselves be decomposed in v5.0 POC". No exceptions.
 
 ### Step 7 — Context budget check
 If context > 20K tokens after step 6 → STOP, return `too_large`.

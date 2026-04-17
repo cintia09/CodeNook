@@ -11,17 +11,17 @@ Required:
 - `task_id`
 - `phase` — always "test"
 - `task_description` — `@../task.md`
-- `clarify_output` — `@../outputs/phase-1-clarify-summary.md`
-- `design_output` — `@../outputs/phase-2-design-summary.md` (optional if design phase skipped)
-- `impl_output` — `@../outputs/phase-3-implementer-summary.md` OR `@../iterations/iter-N/implement-summary.md`
+- `clarify_output` — `@../outputs/phase-1-clarify.md` (full spec; the acceptance-criteria list is NOT in the summary)
+- `design_output` — `@../outputs/phase-2-design.md` (full spec; the Testing Strategy section is NOT in the summary; optional if design phase skipped)
+- `impl_output` — path to the canonical implementer output for the task. Orchestrator selects at manifest-write time: `@../outputs/phase-3-implementer.md` when `dual_mode == "off"`, or `@../iterations/iter-N/implement.md` (latest converged iteration) when dual_mode serial/parallel.
 - `project_env` — `@../../../project/ENVIRONMENT.md`
 - `project_conv` — `@../../../project/CONVENTIONS.md`
 
 ## Procedure
 
-1. Read acceptance criteria from the clarify summary.
-2. Read testing strategy from the design summary.
-3. Read the implementer summary to know which files were changed.
+1. Read acceptance criteria from `clarify_output` (§4 Acceptance Criteria of clarifier.md contract).
+2. Read testing strategy from `design_output` (§7 Testing Strategy of designer.md contract).
+3. Read the implementer output to know which files were changed.
 4. Produce the **Test Plan & Report** with these sections:
 
 ### 1. Test Inventory
@@ -80,4 +80,4 @@ Return to orchestrator (ONLY this):
 ## Self-Refuse
 
 - If `impl_output` missing: return `blocked` with reason "no implementation to test".
-- If acceptance criteria are missing from clarify summary: return `blocked` with reason "no criteria — cannot test".
+- If acceptance criteria are missing from clarify output: return `blocked` with reason "no criteria — cannot test".

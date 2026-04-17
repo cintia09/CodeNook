@@ -85,12 +85,27 @@ done < <(grep -vE '^(Output_to|Graph_to|Summary_to|Invoke_skill):' "$mf" | grep 
 # ---- [5] skill name is NEVER hardcoded in core.md routing logic ----
 echo ""
 echo "[5] no skill name leaked into orchestrator routing:"
-# §6/§11 legitimately contain 'codenook-distill' as example — anywhere else is a leak
-leak=$(grep -n 'codenook-distill\|baoyu-' "$CORE" | grep -v '## 6\.' | grep -v '## 11\.' | head -5 || true)
-# simpler: extract context — just verify count is bounded (within §6 example + §11 ban text)
-count=$(grep -c 'codenook-distill' "$CORE" || true)
-[[ $count -le 4 ]] && pass "skill name only in §6 example / §11 ban ($count occurrences)" \
-                   || fail "skill name leaked ($count occurrences, expected ≤4)"
+# Extract body of §6 + §11 (legitimate mention zones); skill names outside them = leak.
+awk '
+  /^## 6\./ {in6=1; next}
+  /^## 7\./ {in6=0}
+  /^## 11\./ {in11=1; next}
+  /^## 12\./ {in11=0}
+  in6 || in11 {next}
+  {print}
+' "$CORE" > /tmp/t14-core-outside-rules.txt
+
+leaks=$(grep -nE 'codenook-distill|baoyu-' /tmp/t14-core-outside-rules.txt || true)
+if [[ -z $leaks ]]; then
+  pass "no skill name outside §6/§11"
+else
+  fail "skill name leaked into non-rule section:"
+  echo "$leaks" | sed 's/^/      /'
+fi
+
+# Sanity: §6 and §11 bodies DO contain at least one example (otherwise mechanism not documented)
+awk '/^## 6\./,/^## 7\./' "$CORE" | grep -q 'codenook-distill' && pass "§6 contains example"   || fail "§6 missing skill example"
+awk '/^## 11\./,/^## 12\./' "$CORE" | grep -q 'codenook-distill' && pass "§11 contains ban phrasing" || fail "§11 missing ban phrasing"
 
 echo ""
 if [[ $FAIL -eq 0 ]]; then

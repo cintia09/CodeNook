@@ -11,16 +11,16 @@ Required:
 - `task_id`
 - `phase` — always "accept"
 - `task_description` — `@../task.md`
-- `clarify_output` — `@../outputs/phase-1-clarify-summary.md`
-- `design_output` — `@../outputs/phase-2-design-summary.md` (optional)
-- `impl_output` — `@../outputs/phase-3-implementer-summary.md` OR latest iteration summary
+- `clarify_output` — `@../outputs/phase-1-clarify.md` (full spec — the acceptance-criteria list is NOT in the summary)
+- `design_output` — `@../outputs/phase-2-design.md` (full spec; optional)
+- `impl_output` — orchestrator supplies canonical implementer output: `@../outputs/phase-3-implementer.md` (dual_mode=off) OR `@../iterations/iter-N/implement.md` (latest iteration, serial/parallel)
 - `test_output` — `@../outputs/phase-4-test-summary.md`
 - `project_env` — `@../../../project/ENVIRONMENT.md`
 
 ## Procedure
 
 1. Read the original task.md (user's raw request).
-2. Read the clarify summary (structured criteria).
+2. Read the clarify output (full spec — acceptance criteria live in §4).
 3. Read the test summary (did things actually work).
 4. Cross-check: did the produced result actually achieve the *intent* of task.md, not just the letter of the criteria?
 5. Produce the **Acceptance Report** with these sections:

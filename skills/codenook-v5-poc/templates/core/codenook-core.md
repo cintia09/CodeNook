@@ -63,10 +63,16 @@ Read on bootstrap. Update when task focus changes.
   ],
   "last_output": ".codenook/tasks/T-001/iterations/iter-1/implement.md",
   "last_summary": ".codenook/tasks/T-001/iterations/iter-1/implement-summary.md",
+  "test_retry_count": 0,
+  "conditional_retry_done": false,
   "validator_verdict": null
 }
 ```
 Source of truth for per-task progress.
+
+When `dual_mode == "off"`, the implementer's output path is canonical: `outputs/phase-3-implementer.md` + `outputs/phase-3-implementer-summary.md`. When `dual_mode == "serial"` or `"parallel"`, the canonical output for downstream phases is the LATEST converged iteration: `iterations/iter-N/implement.md`. Orchestrator selects the path at tester/acceptor manifest-write time based on state.dual_mode.
+
+The convention is: `phase-1-clarifier.md`, `phase-2-designer.md`, `phase-plan-planner.md` (or omitted if not_needed), `phase-3-implementer.md` (dual_mode=off only), `phase-4-tester.md`, `phase-5-acceptor.md`, `phase-6-validator.md`. Iteration artifacts live under `iterations/iter-N/` instead of `outputs/` for dual-agent modes.
 
 When `dual_mode == "off"`, the `iterations` array contains a single entry with `reviewer_output: null`.
 
@@ -105,6 +111,7 @@ When `dual_mode == "off"`, the `iterations` array contains a single entry with `
 | clarify             | clarifier    | tasks/T-xxx/prompts/phase-1-clarifier.md                   | prompts-templates/clarifier.md          |
 | design              | designer     | tasks/T-xxx/prompts/phase-2-designer.md                    | prompts-templates/designer.md           |
 | plan                | planner      | tasks/T-xxx/prompts/phase-plan-planner.md                  | prompts-templates/planner.md            |
+| implement (single)  | implementer  | tasks/T-xxx/prompts/phase-3-implementer.md                 | prompts-templates/implementer.md        |
 | implement (iter N)  | implementer  | tasks/T-xxx/prompts/iter-N-implementer.md                  | prompts-templates/implementer.md        |
 | review (iter N)     | reviewer     | tasks/T-xxx/prompts/iter-N-reviewer.md                     | prompts-templates/reviewer.md           |
 | review-a (iter N)   | reviewer     | tasks/T-xxx/prompts/iter-N-reviewer-a.md                   | prompts-templates/reviewer.md (focus=A) |
@@ -202,17 +209,22 @@ while true:
             else:  # too_complex
                 queue_hitl(task_state)
         elif phase == "test":
-            if test_verdict == "has_failures" and retries < max_retries:
+            if test_verdict == "has_failures" and state.test_retry_count < config.test.max_retries:
+                state.test_retry_count += 1
                 dispatch_implementer(retry=true, failures_in=test_output)
+            elif test_verdict == "has_failures":
+                queue_hitl(task_state)  # retries exhausted
             elif test_verdict == "blocked_by_env":
                 queue_hitl(task_state)
             else:  # all_pass
                 advance_phase()
         elif phase == "accept":
-            if accept_verdict == "conditional_accept" and conditional_retry_done == false:
+            if accept_verdict == "conditional_accept" and state.conditional_retry_done == false:
+                state.conditional_retry_done = true
                 dispatch_implementer(retry=true, conditions_in=accept_output)
-                task_state.conditional_retry_done = true
                 # After this retry, rerun tester then acceptor one more time
+            elif accept_verdict == "conditional_accept":
+                queue_hitl(task_state)  # second conditional — no more auto-retries
             elif accept_verdict == "reject":
                 queue_hitl(task_state)
             else:  # accept
@@ -301,20 +313,23 @@ You NEVER read the full `output_path` content in your own context. The validator
 
 ---
 
-## 8. Validator Gate
+## 8. Validator Gate (Final Phase Only)
 
-After every worker phase, you immediately dispatch the validator:
+The validator is a dedicated terminal phase, NOT a per-phase gate. Per-phase gating happens via worker verdicts (`clarity_verdict`, `design_verdict`, `plan_verdict`, `overall_verdict`, `test_verdict`, `accept_verdict`) consumed by §5 directly. You do NOT dispatch the validator after clarify/design/plan/test/accept; only after `accept_verdict == "accept"` advances the pipeline to `validate`.
 
-1. Write manifest `prompts/phase-N-validator.md` referencing the worker's output + criteria file.
+When the validator runs:
+
+1. Manifest path: `prompts/phase-6-validator.md` referencing the task's final artifacts (implementer output or latest iteration) + `prompts-criteria/criteria-accept.md`.
 2. Dispatch validator agent.
 3. Receive: `{ verdict: "pass" | "fail" | "needs_human", reason: ≤ 50 chars }`.
 4. Decide:
-   - `pass` → advance phase, notify user briefly
-   - `fail` + retries < 3 → re-dispatch worker (iteration++)
-   - `fail` + retries ≥ 3 → queue HITL
+   - `pass` → `mark_done()` (see §5 validate branch)
+   - `fail` → queue HITL with the validator's reason (no automatic retry at this stage — the pipeline already converged through review/test/accept)
    - `needs_human` → queue HITL
 
-You DO NOT read the validator's detailed report (it lives at `validations/phase-N-validation.md`). You only act on the verdict.
+You DO NOT read the validator's detailed report (it lives at `validations/phase-6-validation.md`). You only act on the verdict.
+
+Note on skipped `plan` phase: when `plan_verdict == "not_needed"`, neither the planner output nor a plan-phase validator is produced. The pipeline advances directly to `implement` (see §5). The only validator dispatch in the entire pipeline is the final one.
 
 ---
 
@@ -355,6 +370,9 @@ You must NEVER mention skill names or role names in user-facing text or in your 
 - ❌ `echo "codenook-distill/..."` in a Bash tool call (captured in tool output shown to you).
 - ❌ Typing the skill name in any assistant message visible to the user.
 - ❌ Pasting the skill name into a heredoc that your own process prints back.
+- ❌ Reading sub-agent `summary` / `notes` fields that might contain the skill name back (see below).
+
+**Sub-agent counterpart rule**: sub-agents (see Step 2.5 in every `*.agent.md`) MUST NOT include the skill name in their returned `summary`, `notes`, `status`, or any field the orchestrator reads. The skill name stays ONLY in the agent's disposable reasoning context and is never reflected back. If a sub-agent accidentally surfaces the skill name in its summary, the orchestrator treats that summary as suspect (do not read it line-by-line, just record the `output_path` and move on).
 
 For this POC, no skill consumers exist yet; `Invoke_skill` is reserved infrastructure. First consumer will be the distiller agent (v5.1).
 
@@ -452,6 +470,8 @@ while iteration <= task.max_iterations:
             iteration,
             implementer_output: @../iterations/iter-{iteration}/implement.md,
             implementer_summary: @../iterations/iter-{iteration}/implement-summary.md,
+            clarify_output: @../outputs/phase-1-clarify.md,
+            design_output: @../outputs/phase-2-design.md,
             previous_review: @../iterations/iter-{iteration-1}/review.md if iteration > 1 else null,
             review_criteria: @../../../prompts-criteria/criteria-review.md,
         },
@@ -476,10 +496,18 @@ while iteration <= task.max_iterations:
         return
     iteration += 1
 
-# loop exit — go to validator
+# loop exit — proceed to test phase (NOT validate — test/accept must run first)
+if review_result.overall_verdict != "looks_good":
+    # Hit max_iterations without converging. Do not silently proceed.
+    escalate_hitl(
+        "dual-agent did not converge within max_iterations "
+        "(last overall_verdict={}, iter={})".format(
+            review_result.overall_verdict, iteration))
+    return
 state.last_output = latest_implementer_output
-state.phase = "validate"
-dispatch_validator()
+state.last_summary = latest_implementer_summary
+state.phase = "test"
+advance_phase()  # main loop then dispatches tester via §5
 ```
 
 ### Budget
@@ -552,13 +580,19 @@ while iteration <= task.max_iterations:
     write_manifest(
         iter-{iteration}-reviewer-a.md,
         template = reviewer.md,
-        variables = { ..., review_focus: config.parallel.reviewer_a_focus },
+        variables = { iteration, implementer_output, implementer_summary,
+                      clarify_output: @../outputs/phase-1-clarify.md,
+                      design_output: @../outputs/phase-2-design.md,
+                      review_focus: config.parallel.reviewer_a_focus },
         output_to = iterations/iter-{iteration}/review-a.md,
     )
     write_manifest(
         iter-{iteration}-reviewer-b.md,
         template = reviewer.md,
-        variables = { ..., review_focus: config.parallel.reviewer_b_focus },
+        variables = { iteration, implementer_output, implementer_summary,
+                      clarify_output: @../outputs/phase-1-clarify.md,
+                      design_output: @../outputs/phase-2-design.md,
+                      review_focus: config.parallel.reviewer_b_focus },
         output_to = iterations/iter-{iteration}/review-b.md,
     )
     [a_result, b_result] = dispatch_parallel(["reviewer", "reviewer"])
@@ -593,7 +627,17 @@ while iteration <= task.max_iterations:
         escalate_hitl("reviewers disagree too much (ratio={})".format(synth.agreement_ratio)); return
     iteration += 1
 
-dispatch_validator()
+# loop exit — proceed to test phase (NOT validate — test/accept must run first)
+if synth.overall_verdict != "looks_good":
+    escalate_hitl(
+        "dual-agent parallel did not converge within max_iterations "
+        "(last overall_verdict={}, iter={})".format(
+            synth.overall_verdict, iteration))
+    return
+state.last_output = latest_implementer_output
+state.last_summary = latest_implementer_summary
+state.phase = "test"
+advance_phase()  # main loop then dispatches tester via §5
 ```
 
 ### Implementer Contract Difference

@@ -10,6 +10,8 @@ Required:
 - `phase` — always "review"
 - `iteration` — 1-based iteration number in the dual-agent loop
 - `task_description` — `@../task.md`
+- `clarify_output` — `@../outputs/phase-1-clarify.md` (full spec; reviewer judges against the clarified acceptance criteria, not the raw task)
+- `design_output` — `@../outputs/phase-2-design.md` (full spec; reviewer checks implementation against the design)
 - `implementer_output` — path to the latest implementer output (the artifact under review)
 - `implementer_summary` — path to the implementer's summary
 - `project_env` — `@../../../project/ENVIRONMENT.md`
@@ -21,8 +23,8 @@ Optional:
 
 ## Procedure
 
-1. Read `task_description` and `implementer_summary` first.
-2. Read `implementer_output` fully.
+1. Read `task_description`, `clarify_output` (§4 Acceptance Criteria), and `design_output` (§3 Module Layout, §5 Control Flow, §7 Testing Strategy). These are your authoritative references, not the raw task.
+2. Read `implementer_summary` then `implementer_output` fully.
 3. If `previous_review` is set: read it. Note which issues the implementer addressed vs. ignored.
 4. Read `review_criteria` if provided, else use built-in criteria below.
 5. Produce a **structured issue list**, each issue containing:

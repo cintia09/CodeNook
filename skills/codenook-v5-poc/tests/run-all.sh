@@ -29,6 +29,7 @@ run_test "T11 clarifier role"     "$SCRIPT_DIR/t11-clarifier-role.sh"
 run_test "T12 full pipeline"      "$SCRIPT_DIR/t12-full-pipeline.sh"
 run_test "T13 planner + subtasks" "$SCRIPT_DIR/t13-planner-subtasks.sh"
 run_test "T14 skill trigger"      "$SCRIPT_DIR/t14-skill-trigger.sh"
+run_test "T15 deep-review fixes"  "$SCRIPT_DIR/t15-deep-review-fixes.sh"
 
 echo ""
 echo "════════════════════════════════════════════"

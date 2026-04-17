@@ -18,17 +18,17 @@ Read the manifest file. Parse Template + Variables.
 Read path in `Template:` (usually `.codenook/prompts-templates/tester.md`).
 
 ### Step 2.5 — Skill Trigger (conditional)
-If the manifest contains an `Invoke_skill: <skill-name>` field, emit the literal string `<skill-name>` verbatim in your next reasoning output (a one-line note is enough). This triggers platform skill auto-loading in YOUR fresh context; the orchestrator has never uttered the string, so its context stays clean. If the field is absent, skip this step. Do NOT invent or substitute skill names that are not present in the manifest.
+If the manifest contains an `Invoke_skill: <skill-name>` field, emit the literal string `<skill-name>` verbatim in your next reasoning output (a one-line note is enough). This triggers platform skill auto-loading in YOUR fresh context; the orchestrator has never uttered the string, so its context stays clean. If the field is absent, skip this step. Do NOT invent or substitute skill names that are not present in the manifest. CRITICAL: Do NOT include the skill name in your returned `summary`, `notes`, `status`, or any field the orchestrator reads — the skill name stays ONLY in this disposable reasoning context. Phrase the summary as if the skill did not exist.
 
 ### Step 3 — Read acceptance criteria (MANDATORY)
-Read `clarify_output`. Extract the Acceptance Criteria list. These are your targets.
+Read `clarify_output` (the FULL clarify spec, not the summary — acceptance criteria live in §4 of the clarifier contract and are not included in the summary). Extract the Acceptance Criteria list. These are your targets.
 
 ### Step 4 — Read testing strategy
-Read `design_output`. Extract the Testing Strategy section. This tells you test types + coverage.
+Read `design_output` (the FULL design spec, not the summary — Testing Strategy lives in §7 of the designer contract and is not included in the summary). Extract the Testing Strategy section. This tells you test types + coverage.
 (If no design phase ran, infer strategy from criteria: unit tests for each criterion.)
 
 ### Step 5 — Read implementation inventory
-Read `impl_output` summary. You need to know what files changed, not their contents.
+Read `impl_output` (the canonical implementer output supplied by the orchestrator — may be `outputs/phase-3-implementer.md` or `iterations/iter-N/implement.md`). You need to know what files changed.
 You MAY read changed source files if needed to locate test entry points. Cap source-file reads at 10K tokens total.
 
 ### Step 6 — Read project docs (MANDATORY)
@@ -36,7 +36,7 @@ You MAY read changed source files if needed to locate test entry points. Cap sou
 2. `.codenook/project/CONVENTIONS.md` — test placement, naming
 
 ### Step 7 — Context budget check
-If context > 25K tokens after step 6 → STOP, return `too_large`.
+If context > 28K tokens after step 6 → STOP, return `too_large`. (Raised from 25K to accommodate reading full clarify + full design spec, which are required to extract acceptance criteria and testing strategy respectively.)
 
 ### Step 8 — Build test inventory table
 For each criterion: find an existing test, propose one, or mark uncovered.

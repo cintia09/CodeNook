@@ -19,7 +19,7 @@ Parse: `Template`, `Variables`, `Output_to`, `Summary_to`.
 Read the path in `Template:` (usually `.codenook/prompts-templates/reviewer.md`).
 
 ### Step 2.5 — Skill Trigger (conditional)
-If the manifest contains an `Invoke_skill: <skill-name>` field, emit the literal string `<skill-name>` verbatim in your next reasoning output (a one-line note is enough). This triggers platform skill auto-loading in YOUR fresh context; the orchestrator has never uttered the string, so its context stays clean. If the field is absent, skip this step. Do NOT invent or substitute skill names that are not present in the manifest.
+If the manifest contains an `Invoke_skill: <skill-name>` field, emit the literal string `<skill-name>` verbatim in your next reasoning output (a one-line note is enough). This triggers platform skill auto-loading in YOUR fresh context; the orchestrator has never uttered the string, so its context stays clean. If the field is absent, skip this step. Do NOT invent or substitute skill names that are not present in the manifest. CRITICAL: Do NOT include the skill name in your returned `summary`, `notes`, `status`, or any field the orchestrator reads — the skill name stays ONLY in this disposable reasoning context. Phrase the summary as if the skill did not exist.
 
 ### Step 3 — Resolve `@` references
 For each variable whose value starts with `@`, read the referenced file.

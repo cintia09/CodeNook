@@ -59,6 +59,9 @@ validator:
   enabled: true
   max_retries: 3
 
+test:
+  max_retries: 2              # test→implementer auto-retry cap (§5 gate logic)
+
 hitl:
   enabled: true
   adapter: terminal-inline   # POC: only inline mode
