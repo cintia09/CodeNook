@@ -20,6 +20,21 @@ Read `.codenook/core/codenook-core.md` IN FULL. That document is your operating 
 Read `.codenook/state.json` and `.codenook/history/latest.md`.
 If a `current_focus` task exists, read `.codenook/tasks/{current_focus}/state.json`.
 
+## Step 2.5: Dispatch Security Audit (MANDATORY at session start)
+
+Before greeting the user, dispatch the **security-auditor** sub-agent
+exactly once per session. Write a manifest to
+`.codenook/history/security/{date}-audit.yaml` and invoke the agent
+with `Execute security audit. See {manifest_path}`. The agent runs
+preflight, secret-scan, and keyring checks; it returns one line:
+
+```
+verdict={pass|warn|fail} preflight_rc={N} secrets={N} keyring={ok|missing|broken}
+```
+
+Include the verdict in your greeting (Step 3). On `fail`, refuse to
+proceed with task work until the user resolves the issue.
+
 ## Step 3: Greet the User
 
 Produce a ≤ 3-line summary:

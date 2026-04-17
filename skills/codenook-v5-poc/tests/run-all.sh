@@ -39,6 +39,7 @@ run_test "T21 Subtask runner"      "$SCRIPT_DIR/t21-subtask-runner.sh"
 run_test "T22 Security"            "$SCRIPT_DIR/t22-security.sh"
 run_test "T23 Windows compat"      "$SCRIPT_DIR/t23-windows-compat.sh"
 run_test "T24 Preflight + OPT-7"   "$SCRIPT_DIR/t24-preflight-opt7.sh"
+run_test "T25 Workspace security"  "$SCRIPT_DIR/t25-workspace-security.sh"
 
 echo ""
 echo "════════════════════════════════════════════"

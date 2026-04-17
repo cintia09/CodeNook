@@ -74,6 +74,7 @@ cp "$TEMPLATES_DIR/agents/tester.agent.md"             .codenook/agents/
 cp "$TEMPLATES_DIR/agents/acceptor.agent.md"           .codenook/agents/
 cp "$TEMPLATES_DIR/agents/validator.agent.md"          .codenook/agents/
 cp "$TEMPLATES_DIR/agents/session-distiller.agent.md"  .codenook/agents/
+cp "$TEMPLATES_DIR/agents/security-auditor.agent.md"   .codenook/agents/
 cp "$TEMPLATES_DIR/project/ENVIRONMENT.md"             .codenook/project/
 cp "$TEMPLATES_DIR/project/CONVENTIONS.md"             .codenook/project/
 cp "$TEMPLATES_DIR/project/ARCHITECTURE.md"            .codenook/project/
@@ -97,6 +98,16 @@ cp "$TEMPLATES_DIR/preflight.sh"                       .codenook/
 chmod +x .codenook/preflight.sh
 cp "$TEMPLATES_DIR/rebuild-task-board.sh"              .codenook/
 chmod +x .codenook/rebuild-task-board.sh
+cp "$TEMPLATES_DIR/secret-scan.sh"                     .codenook/
+chmod +x .codenook/secret-scan.sh
+cp "$TEMPLATES_DIR/keyring-helper.sh"                  .codenook/
+chmod +x .codenook/keyring-helper.sh
+mkdir -p .codenook/history/security
+# Default ignore for the secret scanner (false positives can be added by user).
+cat > .codenook/.secretignore <<'EOF'
+# Add file-name globs (one per line, '#' for comments) the secret-scan.sh
+# should skip. Match is plain --exclude= passed to grep.
+EOF
 : > .codenook/history/dispatch-log.jsonl
 printf '{"items":[]}\n' > .codenook/queue/pending.json
 printf '{"items":[]}\n' > .codenook/queue/dispatching.json

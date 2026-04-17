@@ -69,7 +69,7 @@ done
 # ---- 5. Agent profiles complete ---------------------------------------
 echo ""
 echo "[5] Agent profiles:"
-EXPECTED_ROLES=(clarifier designer planner implementer reviewer tester acceptor validator synthesizer distiller)
+EXPECTED_ROLES=(clarifier designer planner implementer reviewer tester acceptor validator synthesizer session-distiller security-auditor)
 for role in "${EXPECTED_ROLES[@]}"; do
   p="$WS/agents/$role.agent.md"
   if [[ -f "$p" ]]; then
@@ -152,7 +152,35 @@ else
   warn "$WSJ not yet created (no active tasks)"
 fi
 
-# ---- 9. Summary -------------------------------------------------------
+# ---- 9. Secret scan (delegated) ---------------------------------------
+echo ""
+echo "[9] Secret scan:"
+if [[ -x "$WS/secret-scan.sh" ]]; then
+  rc=0; out=$(bash "$WS/secret-scan.sh" 2>&1) || rc=$?
+  case $rc in
+    0) ok "secret-scan: no findings" ;;
+    1) warn "secret-scan: findings (see report)"; echo "$out" | sed 's/^/      /' ;;
+    *) err "secret-scan: scanner failure (rc=$rc)" ;;
+  esac
+else
+  warn "secret-scan.sh not installed"
+fi
+
+# ---- 10. Keyring backend ----------------------------------------------
+echo ""
+echo "[10] Keyring backend:"
+if [[ -x "$WS/keyring-helper.sh" ]]; then
+  rc=0; out=$(bash "$WS/keyring-helper.sh" check 2>&1) || rc=$?
+  case $rc in
+    0) ok "keyring usable: $(echo "$out" | grep '^backend:' || echo unknown)" ;;
+    3) warn "keyring not installed (pip install --user keyring)" ;;
+    *) err "keyring backend broken (rc=$rc)" ;;
+  esac
+else
+  warn "keyring-helper.sh not installed"
+fi
+
+# ---- 11. Summary -------------------------------------------------------
 echo ""
 echo "================ Preflight Summary ================"
 echo "  errors:   $FAIL"

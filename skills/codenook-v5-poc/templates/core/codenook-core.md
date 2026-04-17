@@ -1473,3 +1473,80 @@ If preflight finds a task created under an older version (likely
 OPT-7 violation and re-ask *before* running any more sub-agents for
 that task. The user may answer `off` to opt out of dual-agent
 review entirely.
+
+---
+
+## 23. Workspace Security
+
+CodeNook treats the workspace (`.codenook/`) as untrusted persistent
+storage. Two invariants protect credentials:
+
+### 23.1 Secrets Are Never Stored Plaintext
+
+Configuration files, distillation artifacts, knowledge entries, task
+prompts — none may contain raw API keys, tokens, passwords, or
+private keys. Instead, they MUST use a keyring reference:
+
+```yaml
+openai_api_key: ${keyring:codenook/openai}
+```
+
+The reference is resolved at use time by `keyring-helper.sh resolve`,
+which calls Python `keyring` to fetch the value from the OS-native
+secret store (macOS Keychain / Windows Credential Locker / Linux
+SecretService). The orchestrator never sees the resolved value;
+only the sub-agent that needs it does.
+
+### 23.2 Session-Start Audit (MANDATORY)
+
+The `CLAUDE.md` bootloader includes Step 2.5: dispatch the
+`security-auditor` sub-agent before greeting the user. The agent
+runs:
+
+1. `preflight.sh` — workspace integrity (§22).
+2. `secret-scan.sh` — pattern-match every workspace and project
+   config file for known credential shapes (`sk-`, `ghp_`, `AKIA`,
+   PEM headers, internal IPs, etc.).
+3. `keyring-helper.sh check` — verify the keyring backend is usable.
+
+The agent returns one line:
+
+```
+verdict={pass|warn|fail} preflight_rc={N} secrets={N} keyring={ok|missing|broken}
+```
+
+Verdict semantics:
+- **fail** — orchestrator refuses to dispatch any task work until
+  the user resolves the issue (rotate the leaked secret, install
+  Python `keyring`, etc.).
+- **warn** — surface the count in the greeting; user may proceed.
+- **pass** — proceed silently.
+
+The full report goes to `.codenook/history/security/{date}.md`; only
+the verdict line returns to the orchestrator. This preserves router
+discipline (§2) and keeps secrets out of the orchestrator context.
+
+### 23.3 Distillation Discipline
+
+When a distiller agent is about to write a knowledge entry, skill
+template, or config patch, it MUST scan its own output for the same
+credential patterns. If any match, refuse to write and surface
+`status=blocked, reason="secret in distillation candidate"`.
+The user resolves by either redacting or moving the value to the
+keyring.
+
+### 23.4 .secretignore
+
+False positives (e.g., a CHANGELOG documenting a rotated key) can
+be suppressed by adding the file's glob to `.codenook/.secretignore`.
+The file is consulted by `secret-scan.sh`; the agent never decides
+on its own to ignore findings.
+
+### 23.5 What Workspace Security Does NOT Protect
+
+- Secrets typed into the LLM dialogue (use environment variables
+  or paste into keyring instead).
+- Secrets that already exist in `git history` (use `git filter-repo`
+  to purge; the scanner only sees the current tree).
+- Compromise of the OS keychain itself.
+- Network exfiltration by sub-agents (out of CodeNook's control).
