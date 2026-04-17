@@ -24,7 +24,7 @@ fi
 
 echo "Bootstrapping CodeNook v5.0 POC at: $TARGET_DIR"
 
-mkdir -p .codenook/{core,prompts-templates,prompts-criteria,agents,project,tasks,knowledge/by-role,knowledge/by-topic,history,hitl-queue/pending}
+mkdir -p .codenook/{core,prompts-templates,prompts-criteria,agents,project,tasks,knowledge/by-role,knowledge/by-topic,history,history/sessions,hitl-queue/pending}
 
 # Copy templates
 cp "$TEMPLATES_DIR/core/codenook-core.md"              .codenook/core/
@@ -37,6 +37,7 @@ cp "$TEMPLATES_DIR/prompts-templates/synthesizer.md"   .codenook/prompts-templat
 cp "$TEMPLATES_DIR/prompts-templates/tester.md"        .codenook/prompts-templates/
 cp "$TEMPLATES_DIR/prompts-templates/acceptor.md"      .codenook/prompts-templates/
 cp "$TEMPLATES_DIR/prompts-templates/validator.md"     .codenook/prompts-templates/
+cp "$TEMPLATES_DIR/prompts-templates/session-distiller.md" .codenook/prompts-templates/
 cp "$TEMPLATES_DIR/prompts-criteria/criteria-clarify.md"   .codenook/prompts-criteria/
 cp "$TEMPLATES_DIR/prompts-criteria/criteria-design.md"    .codenook/prompts-criteria/
 cp "$TEMPLATES_DIR/prompts-criteria/criteria-plan.md"      .codenook/prompts-criteria/
@@ -53,6 +54,7 @@ cp "$TEMPLATES_DIR/agents/synthesizer.agent.md"        .codenook/agents/
 cp "$TEMPLATES_DIR/agents/tester.agent.md"             .codenook/agents/
 cp "$TEMPLATES_DIR/agents/acceptor.agent.md"           .codenook/agents/
 cp "$TEMPLATES_DIR/agents/validator.agent.md"          .codenook/agents/
+cp "$TEMPLATES_DIR/agents/session-distiller.agent.md"  .codenook/agents/
 cp "$TEMPLATES_DIR/project/ENVIRONMENT.md"             .codenook/project/
 cp "$TEMPLATES_DIR/project/CONVENTIONS.md"             .codenook/project/
 cp "$TEMPLATES_DIR/project/ARCHITECTURE.md"            .codenook/project/
@@ -65,14 +67,18 @@ cp "$TEMPLATES_DIR/CLAUDE.md"                          ./CLAUDE.md
 # History bootstrap
 cat > .codenook/history/latest.md <<'EOF'
 # Latest Session Summary
+_Last updated: fresh-workspace_
+_Trigger: init_
 
-No prior session. This is a fresh CodeNook v5.0 POC workspace.
+## Workspace State
+- Active tasks: none
+- Current focus: none
 
-## Active Tasks
-None. Awaiting first task.
+## Current Task Snapshot
+(no current focus)
 
-## Next Action for Main Session
-Greet user and ask what task to start.
+## Next Action for the Next Session
+Greet the user and ask what task to start. No prior session to resume.
 EOF
 
 echo ""

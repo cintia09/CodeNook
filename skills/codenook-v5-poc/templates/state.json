@@ -3,6 +3,7 @@
   "active_tasks": [],
   "current_focus": null,
   "last_session": null,
+  "session_counter": 0,
   "last_updated": null,
   "task_counter": 0
 }

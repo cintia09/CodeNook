@@ -36,11 +36,12 @@ When dispatching a sub-agent, use the Task tool with a prompt like:
 {
   "active_tasks": ["T-001"],
   "current_focus": "T-001",
-  "last_session": "2025-XX-XX",
+  "last_session": "2025-XX-XX-session-3",
+  "session_counter": 3,
   "last_updated": "ISO-timestamp"
 }
 ```
-Read on bootstrap. Update when task focus changes.
+Read on bootstrap. Update when task focus changes or when session-distiller writes a snapshot (`last_session` + `session_counter` incremented).
 
 ### Layer 2: Task State (`.codenook/tasks/T-xxx/state.json`)
 ```json
@@ -140,13 +141,14 @@ Verdict gating:
 ## 4. Bootstrap on Session Start
 
 1. Read `.codenook/state.json`.
-2. Read `.codenook/history/latest.md`.
-3. If `current_focus` is not null: read `.codenook/tasks/{current_focus}/state.json`.
-4. Greet user with a ≤ 3-line summary:
+2. Read `.codenook/history/latest.md` (always exists — created by init.sh on fresh workspaces, maintained by session-distiller afterwards).
+3. If `state.json.last_session` is non-null AND `latest.md` references a session file: optionally read that single session file for richer continuity context (cap at ~2K tokens, skip if over). Do NOT scan the entire `history/sessions/` directory.
+4. If `current_focus` is not null: read `.codenook/tasks/{current_focus}/state.json`.
+5. Greet user with a ≤ 3-line summary:
    - Active tasks
    - Current task + current phase
-   - Suggested next action (continue / new task)
-5. Wait for user input.
+   - Suggested next action (from `latest.md` "Next Action" field)
+6. Wait for user input.
 
 ---
 
@@ -239,7 +241,8 @@ while true:
         apply_user_decision(task_state)
 
     # After every sub-agent return: update state.json, keep response terse
-    context_check()  # §10
+    post_phase_refresh()  # §18 — dispatch session-distiller in refresh mode
+    context_check()       # §10 — may trigger snapshot + recommend /clear
 ```
 
 ---
@@ -351,9 +354,10 @@ When HITL is needed:
 After every sub-agent dispatch-and-return cycle:
 
 - If context usage > 50%: append to your reply: "💡 Consider `/clear` soon — state is safe in `.codenook/`."
-- If context usage > 80%: append: "⚠️ Strongly recommend `/clear` now. All state persisted."
+- If context usage > 80%: BEFORE recommending `/clear`, dispatch the session-distiller in `snapshot` mode (see §18). Then append: "⚠️ Session summary written to `.codenook/history/sessions/...`. Recommend `/clear` now."
+- On explicit user requests like `/end-session`, `end session`, `wrap up`, or "save and clear": dispatch session-distiller in `snapshot` mode (see §18).
 
-You cannot delete your own context, only prevent growth. Rely on `/clear` + bootstrap for resets.
+You cannot delete your own context, only prevent growth. Rely on `/clear` + bootstrap for resets. The invariant is: every time you recommend `/clear`, `.codenook/history/latest.md` has just been refreshed (either by a phase-completion refresh or by a snapshot).
 
 ---
 
@@ -775,3 +779,116 @@ After all subtasks reach `accept_verdict == accept`, the parent:
 - Subtask failure propagation: if any subtask reaches `reject`, parent
   fan-out PAUSES; HITL is queued with options (re-plan / abandon /
   manually patch subtask plan).
+
+---
+
+## 18. Session Lifecycle Protocol (`history/` persistence)
+
+The workspace has two resume artifacts that the session-distiller agent
+maintains. The orchestrator NEVER writes these directly; only the
+session-distiller does.
+
+```
+.codenook/history/
+├── latest.md                 # always-current pointer (≤ 2K tokens)
+└── sessions/
+    ├── 2025-01-15-session-1.md
+    ├── 2025-01-15-session-2.md
+    └── ...                   # append-only, one per ended session
+```
+
+Two dispatch triggers:
+
+### Trigger A — per-phase refresh (lightweight)
+
+After every sub-agent return in §5 (`post_phase_refresh()` step):
+
+```
+write_manifest(_workspace/session-distill-refresh.md,
+    template = session-distiller.md,
+    variables = {
+        mode: "refresh",
+        trigger: "phase-complete:<phase>",
+        workspace_state: @.codenook/state.json,
+        latest_file: @.codenook/history/latest.md,
+        active_task_states: [pick from workspace state.active_tasks],
+        recent_outputs: [≤ 5 most recent *-summary.md paths across active tasks],
+    },
+)
+dispatch("session-distiller", "_workspace/session-distill-refresh.md")
+# expect {status: "success", latest_written, summary}
+# On non-success: log to state, continue (refresh is best-effort)
+```
+
+The manifest path uses the reserved `_workspace/` scope prefix
+(`.codenook/tasks/_workspace/prompts/...`) because refresh concerns
+the workspace, not a single task. If the workspace-scope directory
+doesn't exist, create it lazily.
+
+Refresh is **best-effort**: if it returns `too_large` or `blocked`,
+the orchestrator logs to `.codenook/history/distillation-log.md`
+(append one line) and moves on. Missed refreshes don't block phase
+advancement.
+
+### Trigger B — snapshot (heavyweight, session end)
+
+Three conditions invoke snapshot:
+
+1. Context usage crosses 80% (§10).
+2. User says `/end-session`, `end session`, `wrap up`, `save and clear`,
+   or semantically equivalent.
+3. Explicit orchestrator-initiated safepoint (rare; e.g., before a
+   risky bulk operation).
+
+```
+now = iso_timestamp()
+date = now.split("T")[0]
+state.session_counter += 1
+session_file_path = ".codenook/history/sessions/{date}-session-{state.session_counter}.md"
+
+write_manifest(_workspace/session-distill-snapshot.md,
+    template = session-distiller.md,
+    variables = {
+        mode: "snapshot",
+        trigger: <"context-high" | "user-end" | "safepoint">,
+        workspace_state: @.codenook/state.json,
+        latest_file: @.codenook/history/latest.md,
+        session_file: @{session_file_path},
+        active_task_states: [all tasks in state.active_tasks],
+        recent_outputs: [≤ 10 most recent *-summary.md paths],
+        prior_session_file: @{previous session file if state.last_session else null},
+    },
+)
+dispatch("session-distiller", "_workspace/session-distill-snapshot.md")
+# expect {status: "success", latest_written, session_written, summary}
+# On success: update workspace state.json:
+#   state.last_session = "{date}-session-{state.session_counter}"
+#   state.last_updated = now
+# Persist state.json to disk.
+# Emit user-facing note: "Session {N} saved to {session_file_path}. /clear is safe now."
+```
+
+Snapshot is **mandatory**: if it returns non-success, DO NOT recommend
+`/clear`. Log the failure, re-queue the snapshot request, and warn the
+user ("session summary failed — state is safe but resume context will
+be thinner").
+
+### Invariants
+
+- Every phase advancement is followed by a refresh attempt (best-effort).
+- Every recommendation of `/clear` is preceded by a successful snapshot
+  (mandatory).
+- Workspace `state.json` is the authoritative record of `last_session`;
+  `latest.md` is a human/LLM-readable mirror.
+- Session files are append-only; never rewritten.
+- The session-distiller NEVER touches task state files.
+
+### New-workspace bootstrap
+
+`init.sh` creates:
+- `.codenook/history/latest.md` with a fresh-workspace placeholder.
+- `.codenook/history/sessions/` (empty directory).
+- Workspace `state.json` with `session_counter: 0` and `last_session: null`.
+
+On first bootstrap read (§4), if `state.session_counter == 0` and no
+session files exist, skip Step 3 (prior session read) entirely.
