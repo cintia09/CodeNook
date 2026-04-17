@@ -72,20 +72,31 @@ When `dual_mode == "off"`, the `iterations` array contains a single entry with `
 
 ---
 
-## 3. Phase State Machine (POC: 6 Phases + Dual-Agent Loop Inside `implement`)
+## 3. Phase State Machine (POC: 7 Phases + Dual-Agent Loop Inside `implement` + Optional Decomposition)
 
 ```
-  clarify  →  design  →  implement  ⇄  review   →  test  →  accept  →  validate → done
-     ↑          ↓          ↓↑         (dual-agent)    ↓       ↓
-     └──────── fail / HITL ──────────────────────────┴───────┘
+  clarify → design → plan* → implement ⇄ review → test → accept → validate → done
+     ↑        ↓       ↓↓       (dual-agent)        ↓       ↓
+     │        │       │                            │       │
+     │        │       └─ if plan_verdict == decomposed:
+     │        │            orchestrator fans out subtasks (see §17),
+     │        │            then resumes at parent-level test/accept
+     │        │
+     └──── fail / HITL ─────────────────────────────┴───────┘
 ```
 
 - `clarify` runs once. `clarity_verdict == ready_to_implement` is required to proceed.
 - `design` runs once. `design_verdict == design_ready` is required to proceed.
+- `plan` runs once *after design*. Verdicts:
+    - `not_needed` → skip decomposition; proceed to parent-level implement.
+    - `decomposed`  → fan out to subtasks per §17; parent waits for all children.
+    - `too_complex` → HITL.
 - `implement` and `review` form the dual-agent loop (serial or parallel+synthesize, see §15/§16). Skipped when `dual_mode == "off"` — implementer runs once alone.
 - `test` runs once after the implement/review loop converges. `test_verdict == all_pass` advances; `has_failures` routes back to implementer (up to `max_retries`); `blocked_by_env` → HITL.
 - `accept` runs once after test passes. `accept_verdict == accept` finalises; `conditional_accept` dispatches ONE more implementer pass + rerun test+accept; `reject` → HITL.
 - `validate` is the mechanical gate that runs after accept, double-checking structural criteria are met.
+
+\* `plan` is an **optional** phase. When `plan_verdict == not_needed` the parent task behaves identically to a 6-phase task.
 
 ### Routing Table
 
@@ -93,6 +104,7 @@ When `dual_mode == "off"`, the `iterations` array contains a single entry with `
 |---------------------|--------------|------------------------------------------------------------|-----------------------------------------|
 | clarify             | clarifier    | tasks/T-xxx/prompts/phase-1-clarifier.md                   | prompts-templates/clarifier.md          |
 | design              | designer     | tasks/T-xxx/prompts/phase-2-designer.md                    | prompts-templates/designer.md           |
+| plan                | planner      | tasks/T-xxx/prompts/phase-plan-planner.md                  | prompts-templates/planner.md            |
 | implement (iter N)  | implementer  | tasks/T-xxx/prompts/iter-N-implementer.md                  | prompts-templates/implementer.md        |
 | review (iter N)     | reviewer     | tasks/T-xxx/prompts/iter-N-reviewer.md                     | prompts-templates/reviewer.md           |
 | review-a (iter N)   | reviewer     | tasks/T-xxx/prompts/iter-N-reviewer-a.md                   | prompts-templates/reviewer.md (focus=A) |
@@ -102,14 +114,17 @@ When `dual_mode == "off"`, the `iterations` array contains a single entry with `
 | accept              | acceptor     | tasks/T-xxx/prompts/phase-5-acceptor.md                    | prompts-templates/acceptor.md           |
 | validate            | validator    | tasks/T-xxx/prompts/phase-6-validator.md                   | prompts-templates/validator.md          |
 
-Routing by `dual_mode` (linear pipeline):
-- `off`      → clarifier → designer → implementer → tester → acceptor → validator
-- `serial`   → clarifier → designer → (implementer ⇄ reviewer) → tester → acceptor → validator (see §15)
-- `parallel` → clarifier → designer → (implementer → reviewer-a ∥ reviewer-b → synthesizer) → tester → acceptor → validator (see §16)
+Routing by `dual_mode` (linear pipeline, with optional plan fan-out):
+- `off`      → clarifier → designer → planner → implementer → tester → acceptor → validator
+- `serial`   → clarifier → designer → planner → (implementer ⇄ reviewer) → tester → acceptor → validator (see §15)
+- `parallel` → clarifier → designer → planner → (implementer → reviewer-a ∥ reviewer-b → synthesizer) → tester → acceptor → validator (see §16)
+
+If `plan_verdict == decomposed`: after planner returns, orchestrator fans out to subtasks (§17) **in place of** the parent's implement/review loop. Parent resumes at `test` once all subtasks have accepted.
 
 Verdict gating:
 - `clarity_verdict`: `ready_to_implement` → proceed ; else HITL
 - `design_verdict`: `design_ready` → proceed ; `needs_user_input` / `infeasible` → HITL
+- `plan_verdict`: `not_needed` → implement at parent level ; `decomposed` → subtask fan-out (§17) ; `too_complex` → HITL
 - `test_verdict`: `all_pass` → proceed ; `has_failures` → retry implementer (≤ max_retries) ; `blocked_by_env` → HITL
 - `accept_verdict`: `accept` → proceed to validate ; `conditional_accept` → one implementer pass with conditions, rerun test + accept ; `reject` → HITL
 
@@ -149,6 +164,10 @@ while true:
         if next_phase == "design":
             write_manifest(phase-2-designer.md)
             dispatch_designer(phase=2)
+        elif next_phase == "plan":
+            write_manifest(phase-plan-planner.md)
+            dispatch_planner(phase=plan)
+            # After planner returns, main-loop inspects plan_verdict (§17)
         elif next_phase == "implement":
             if task_state.dual_mode == "serial":
                 run_dual_agent_serial_loop(task_state)      # see §15
@@ -175,6 +194,13 @@ while true:
             queue_hitl(task_state)
         elif phase == "design" and design_verdict != "design_ready":
             queue_hitl(task_state)
+        elif phase == "plan":
+            if plan_verdict == "not_needed":
+                advance_phase()  # proceed to implement at parent level
+            elif plan_verdict == "decomposed":
+                fan_out_subtasks(task_state)  # see §17
+            else:  # too_complex
+                queue_hitl(task_state)
         elif phase == "test":
             if test_verdict == "has_failures" and retries < max_retries:
                 dispatch_implementer(retry=true, failures_in=test_output)
@@ -578,3 +604,105 @@ Two iterations + validator ≈ 3600 tokens to main. Still < 22K steady state.
 | off       | trusted implementer, validator-only pipeline           | ~470/iter   | fastest          |
 
 POC default is `serial`. Set `default_mode: "parallel"` in `config.yaml` to opt in.
+
+---
+
+## 17. Subtask Fan-out Protocol (When Planner Returns `decomposed`)
+
+When `plan_verdict == decomposed`, the orchestrator replaces the parent's
+implement/review/test/accept sequence with a **subtask fan-out**. The parent
+task becomes a coordinator; each subtask runs as an independent mini-task
+with its own clarify → ... → accept pipeline.
+
+### 17.1 Directory Seeding (orchestrator, not planner)
+
+For each subtask `T-parent.N` listed in `decomposition/plan.md`:
+
+```
+.codenook/tasks/T-parent/subtasks/T-parent.N/
+├── task.md           # synthesised from plan.md subtask entry (scope + primary_outputs + parent context pointer)
+├── state.json        # initial: { task_id: "T-parent.N", parent_id: "T-parent",
+│                     #           status: "pending", phase: "clarify" or "implement",
+│                     #           depends_on: [...], dual_mode: inherited }
+├── prompts/
+├── outputs/
+├── iterations/       # only if dual_mode ≠ off
+└── (no further decomposition/ — v5.0 POC caps depth at 2)
+```
+
+The parent's `state.json` gains a `subtasks` block:
+```json
+{
+  "task_id": "T-003",
+  "phase": "subtasks_in_flight",
+  "subtasks": [
+    {"id": "T-003.1", "status": "done",        "depends_on": []},
+    {"id": "T-003.2", "status": "in_progress", "depends_on": ["T-003.1"]},
+    {"id": "T-003.3", "status": "pending",     "depends_on": ["T-003.1"]}
+  ],
+  "integration_phases": {"test": "pending", "accept": "pending"}
+}
+```
+
+### 17.2 Scheduling
+
+```python
+def fan_out_subtasks(parent_state):
+    graph = read(".codenook/tasks/{parent_id}/decomposition/dependency-graph.md")
+    parent_state.phase = "subtasks_in_flight"
+    write_state(parent_state)
+
+    while not all_subtasks_done(parent_state):
+        ready = [s for s in parent_state.subtasks
+                 if s.status == "pending"
+                 and all(dep_done(d) for d in s.depends_on)]
+        # If concurrency.enabled == true, dispatch up to max_parallel_tasks in parallel.
+        # Otherwise dispatch one at a time.
+        for s in ready[:concurrency_budget()]:
+            s.status = "in_progress"
+            dispatch_subtask_as_new_task(s.id)  # runs its own full pipeline
+        wait_for_any_completion()
+        refresh_statuses()
+
+    # All subtasks accepted → resume parent at integration
+    parent_state.phase = "integration_test"
+    run_parent_integration_test(parent_state)
+    run_parent_accept(parent_state)
+```
+
+### 17.3 Subtask Lifecycle
+
+Each subtask runs the **full 6-phase pipeline** (clarify → design → implement
+⇄ review → test → accept → validate). A subtask:
+
+- Inherits `dual_mode` from parent unless its own `state.json` overrides.
+- Its clarify phase receives the subtask `task.md` (synthesised from parent
+  plan.md entry); parent clarify_output is passed as `user_notes`.
+- Its tester verifies only the subtask's `primary_outputs`, not global
+  acceptance criteria.
+- Its acceptor issues a verdict relative to the subtask scope, not the
+  parent goal.
+
+### 17.4 Parent-Level Integration
+
+After all subtasks reach `accept_verdict == accept`, the parent:
+
+1. Runs the **parent tester** against the parent's clarify acceptance
+   criteria. Input variables include subtask outputs (not just summaries —
+   integration often needs cross-cutting verification).
+2. Runs the **parent acceptor** against parent task.md (the user's original
+   goal).
+3. If either fails: HITL; do NOT auto-retry (integration failures indicate
+   the decomposition plan itself was flawed).
+
+### 17.5 Hard Rules
+
+- Depth cap: 2. A subtask MAY NOT itself be decomposed further. If a
+  subtask planner would return `decomposed`, main session forces
+  `too_complex` and queues HITL.
+- File write coordination: if multiple subtasks target overlapping files,
+  planner must have flagged the conflict; otherwise the orchestrator
+  serialises them regardless of dependency graph.
+- Subtask failure propagation: if any subtask reaches `reject`, parent
+  fan-out PAUSES; HITL is queued with options (re-plan / abandon /
+  manually patch subtask plan).

@@ -30,6 +30,7 @@ mkdir -p .codenook/{core,prompts-templates,prompts-criteria,agents,project,tasks
 cp "$TEMPLATES_DIR/core/codenook-core.md"              .codenook/core/
 cp "$TEMPLATES_DIR/prompts-templates/clarifier.md"     .codenook/prompts-templates/
 cp "$TEMPLATES_DIR/prompts-templates/designer.md"      .codenook/prompts-templates/
+cp "$TEMPLATES_DIR/prompts-templates/planner.md"       .codenook/prompts-templates/
 cp "$TEMPLATES_DIR/prompts-templates/implementer.md"   .codenook/prompts-templates/
 cp "$TEMPLATES_DIR/prompts-templates/reviewer.md"      .codenook/prompts-templates/
 cp "$TEMPLATES_DIR/prompts-templates/synthesizer.md"   .codenook/prompts-templates/
@@ -38,12 +39,14 @@ cp "$TEMPLATES_DIR/prompts-templates/acceptor.md"      .codenook/prompts-templat
 cp "$TEMPLATES_DIR/prompts-templates/validator.md"     .codenook/prompts-templates/
 cp "$TEMPLATES_DIR/prompts-criteria/criteria-clarify.md"   .codenook/prompts-criteria/
 cp "$TEMPLATES_DIR/prompts-criteria/criteria-design.md"    .codenook/prompts-criteria/
+cp "$TEMPLATES_DIR/prompts-criteria/criteria-plan.md"      .codenook/prompts-criteria/
 cp "$TEMPLATES_DIR/prompts-criteria/criteria-implement.md" .codenook/prompts-criteria/
 cp "$TEMPLATES_DIR/prompts-criteria/criteria-review.md"    .codenook/prompts-criteria/
 cp "$TEMPLATES_DIR/prompts-criteria/criteria-test.md"      .codenook/prompts-criteria/
 cp "$TEMPLATES_DIR/prompts-criteria/criteria-accept.md"    .codenook/prompts-criteria/
 cp "$TEMPLATES_DIR/agents/clarifier.agent.md"          .codenook/agents/
 cp "$TEMPLATES_DIR/agents/designer.agent.md"           .codenook/agents/
+cp "$TEMPLATES_DIR/agents/planner.agent.md"            .codenook/agents/
 cp "$TEMPLATES_DIR/agents/implementer.agent.md"        .codenook/agents/
 cp "$TEMPLATES_DIR/agents/reviewer.agent.md"           .codenook/agents/
 cp "$TEMPLATES_DIR/agents/synthesizer.agent.md"        .codenook/agents/

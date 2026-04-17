@@ -5,6 +5,7 @@ models:
   default: claude-sonnet-4.5
   clarifier: claude-sonnet-4.5
   designer: claude-sonnet-4.5
+  planner: claude-sonnet-4.5
   implementer: claude-sonnet-4.5
   reviewer: claude-sonnet-4.5
   reviewer_a: claude-sonnet-4.5
@@ -32,6 +33,11 @@ routing:
       agent: designer
       template: prompts-templates/designer.md
       criteria: prompts-criteria/criteria-design.md
+    - name: plan
+      agent: planner
+      template: prompts-templates/planner.md
+      criteria: prompts-criteria/criteria-plan.md
+      optional: true              # runs after design; may verdict "not_needed" and be skipped
     - name: implement
       agent: implementer
       mode: implement
