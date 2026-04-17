@@ -4,11 +4,14 @@ version: "5.0-poc"
 models:
   default: claude-sonnet-4.5
   clarifier: claude-sonnet-4.5
+  designer: claude-sonnet-4.5
   implementer: claude-sonnet-4.5
   reviewer: claude-sonnet-4.5
   reviewer_a: claude-sonnet-4.5
   reviewer_b: claude-sonnet-4.5
   synthesizer: claude-sonnet-4.5
+  tester: claude-sonnet-4.5
+  acceptor: claude-sonnet-4.5
   validator: claude-haiku-4.5
   # dedicated dual_a / dual_b reserved for model-diversity experiments
 
@@ -19,17 +22,29 @@ orchestrator:
   max_agent_output: 15000      # tokens
 
 routing:
-  # POC minimal 3-phase pipeline
+  # POC 6-phase pipeline (clarify → design → implement ⇄ review → test → accept)
   phases:
     - name: clarify
       agent: clarifier
       template: prompts-templates/clarifier.md
       criteria: prompts-criteria/criteria-clarify.md
+    - name: design
+      agent: designer
+      template: prompts-templates/designer.md
+      criteria: prompts-criteria/criteria-design.md
     - name: implement
       agent: implementer
       mode: implement
       template: prompts-templates/implementer.md
       criteria: prompts-criteria/criteria-implement.md
+    - name: test
+      agent: tester
+      template: prompts-templates/tester.md
+      criteria: prompts-criteria/criteria-test.md
+    - name: accept
+      agent: acceptor
+      template: prompts-templates/acceptor.md
+      criteria: prompts-criteria/criteria-accept.md
     - name: validate
       agent: validator
       template: prompts-templates/validator.md

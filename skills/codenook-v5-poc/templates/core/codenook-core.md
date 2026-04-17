@@ -72,43 +72,46 @@ When `dual_mode == "off"`, the `iterations` array contains a single entry with `
 
 ---
 
-## 3. Phase State Machine (POC: 3 Phases + Optional Dual-Agent Loop)
+## 3. Phase State Machine (POC: 6 Phases + Dual-Agent Loop Inside `implement`)
 
 ```
-  clarify  →  implement  ⇄  review   →  validate  →  done
-     ↑          ↓↑         (dual-agent)     ↓
-     └──────── fail ──────────────────────── ┘
+  clarify  →  design  →  implement  ⇄  review   →  test  →  accept  →  validate → done
+     ↑          ↓          ↓↑         (dual-agent)    ↓       ↓
+     └──────── fail / HITL ──────────────────────────┴───────┘
 ```
 
-- `implement` and `review` form a serial dual-agent loop when `dual_mode == "serial"`.
-- The loop iterates at most `max_iterations` times (default 2, see config.yaml).
-- Loop exits early when reviewer returns `overall_verdict == "looks_good"`.
-- Loop exits with HITL escalation when reviewer returns `overall_verdict == "fundamental_problems"`.
-- After the loop, the validator runs exactly once as the automated gate.
+- `clarify` runs once. `clarity_verdict == ready_to_implement` is required to proceed.
+- `design` runs once. `design_verdict == design_ready` is required to proceed.
+- `implement` and `review` form the dual-agent loop (serial or parallel+synthesize, see §15/§16). Skipped when `dual_mode == "off"` — implementer runs once alone.
+- `test` runs once after the implement/review loop converges. `test_verdict == all_pass` advances; `has_failures` routes back to implementer (up to `max_retries`); `blocked_by_env` → HITL.
+- `accept` runs once after test passes. `accept_verdict == accept` finalises; `conditional_accept` dispatches ONE more implementer pass + rerun test+accept; `reject` → HITL.
+- `validate` is the mechanical gate that runs after accept, double-checking structural criteria are met.
 
 ### Routing Table
 
 | Phase / Iter Role   | Agent Type   | Prompt Manifest Path                                       | Template                                |
 |---------------------|--------------|------------------------------------------------------------|-----------------------------------------|
 | clarify             | clarifier    | tasks/T-xxx/prompts/phase-1-clarifier.md                   | prompts-templates/clarifier.md          |
+| design              | designer     | tasks/T-xxx/prompts/phase-2-designer.md                    | prompts-templates/designer.md           |
 | implement (iter N)  | implementer  | tasks/T-xxx/prompts/iter-N-implementer.md                  | prompts-templates/implementer.md        |
 | review (iter N)     | reviewer     | tasks/T-xxx/prompts/iter-N-reviewer.md                     | prompts-templates/reviewer.md           |
 | review-a (iter N)   | reviewer     | tasks/T-xxx/prompts/iter-N-reviewer-a.md                   | prompts-templates/reviewer.md (focus=A) |
 | review-b (iter N)   | reviewer     | tasks/T-xxx/prompts/iter-N-reviewer-b.md                   | prompts-templates/reviewer.md (focus=B) |
 | synthesize (iter N) | synthesizer  | tasks/T-xxx/prompts/iter-N-synthesizer.md                  | prompts-templates/synthesizer.md        |
-| validate            | validator    | tasks/T-xxx/prompts/phase-3-validator.md                   | prompts-templates/validator.md          |
+| test                | tester       | tasks/T-xxx/prompts/phase-4-tester.md                      | prompts-templates/tester.md             |
+| accept              | acceptor     | tasks/T-xxx/prompts/phase-5-acceptor.md                    | prompts-templates/acceptor.md           |
+| validate            | validator    | tasks/T-xxx/prompts/phase-6-validator.md                   | prompts-templates/validator.md          |
 
-Routing by `dual_mode`:
-- `off`      → clarifier → implementer → validator
-- `serial`   → clarifier → (implementer ⇄ reviewer) → validator (see §15)
-- `parallel` → clarifier → (implementer → reviewer-a ∥ reviewer-b → synthesizer) → validator (see §16)
+Routing by `dual_mode` (linear pipeline):
+- `off`      → clarifier → designer → implementer → tester → acceptor → validator
+- `serial`   → clarifier → designer → (implementer ⇄ reviewer) → tester → acceptor → validator (see §15)
+- `parallel` → clarifier → designer → (implementer → reviewer-a ∥ reviewer-b → synthesizer) → tester → acceptor → validator (see §16)
 
-The clarifier runs once per task (phase-1). Its `clarity_verdict` gates whether the implement phase is reached at all:
-- `ready_to_implement` → proceed
-- `needs_user_input` → HITL before implement
-- `fundamental_ambiguity` → HITL recommending task rewrite
-
-(Full v5.0 has dedicated clarifier — now implemented in this POC as of §15/§16.)
+Verdict gating:
+- `clarity_verdict`: `ready_to_implement` → proceed ; else HITL
+- `design_verdict`: `design_ready` → proceed ; `needs_user_input` / `infeasible` → HITL
+- `test_verdict`: `all_pass` → proceed ; `has_failures` → retry implementer (≤ max_retries) ; `blocked_by_env` → HITL
+- `accept_verdict`: `accept` → proceed to validate ; `conditional_accept` → one implementer pass with conditions, rerun test + accept ; `reject` → HITL
 
 ---
 
@@ -143,24 +146,56 @@ while true:
 
     elif decision == "advance_phase":
         next_phase = transition(task_state.phase)
-        if next_phase == "implement":
+        if next_phase == "design":
+            write_manifest(phase-2-designer.md)
+            dispatch_designer(phase=2)
+        elif next_phase == "implement":
             if task_state.dual_mode == "serial":
                 run_dual_agent_serial_loop(task_state)      # see §15
             elif task_state.dual_mode == "parallel":
                 run_dual_agent_parallel_loop(task_state)    # see §16
             else:
                 dispatch_implementer_only(task_state)       # dual_mode == "off"
+        elif next_phase == "test":
+            write_manifest(phase-4-tester.md)
+            dispatch_tester(phase=4)
+        elif next_phase == "accept":
+            write_manifest(phase-5-acceptor.md)
+            dispatch_acceptor(phase=5)
+        elif next_phase == "validate":
+            write_manifest(phase-6-validator.md)
+            dispatch_validator(phase=6)
         else:
             write_manifest(phase-N-{role}.md)
             dispatch_agent(role, phase=N)
 
-    elif decision == "validator_verdict":
-        if verdict == "pass":
-            advance_phase()
-        elif verdict == "fail" and retries < 3:
-            dispatch_implementer(phase=implement, retry=true)
-        else:
+    elif decision == "verdict_gate":
+        # Gate logic after each phase summary is returned
+        if phase == "clarify" and clarity_verdict != "ready_to_implement":
             queue_hitl(task_state)
+        elif phase == "design" and design_verdict != "design_ready":
+            queue_hitl(task_state)
+        elif phase == "test":
+            if test_verdict == "has_failures" and retries < max_retries:
+                dispatch_implementer(retry=true, failures_in=test_output)
+            elif test_verdict == "blocked_by_env":
+                queue_hitl(task_state)
+            else:  # all_pass
+                advance_phase()
+        elif phase == "accept":
+            if accept_verdict == "conditional_accept" and conditional_retry_done == false:
+                dispatch_implementer(retry=true, conditions_in=accept_output)
+                task_state.conditional_retry_done = true
+                # After this retry, rerun tester then acceptor one more time
+            elif accept_verdict == "reject":
+                queue_hitl(task_state)
+            else:  # accept
+                advance_phase()
+        elif phase == "validate":
+            if verdict == "pass":
+                mark_done()
+            else:
+                queue_hitl(task_state)
 
     elif decision == "hitl_response":
         apply_user_decision(task_state)

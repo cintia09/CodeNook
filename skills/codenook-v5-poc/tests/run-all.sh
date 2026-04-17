@@ -26,6 +26,7 @@ run_test "T8 manifest lint"       "$SCRIPT_DIR/t8-manifest-lint.sh"
 run_test "T9 dual-agent serial"   "$SCRIPT_DIR/t9-dual-agent-static.sh"
 run_test "T10 dual-agent parallel" "$SCRIPT_DIR/t10-dual-agent-parallel.sh"
 run_test "T11 clarifier role"     "$SCRIPT_DIR/t11-clarifier-role.sh"
+run_test "T12 full pipeline"      "$SCRIPT_DIR/t12-full-pipeline.sh"
 
 echo ""
 echo "════════════════════════════════════════════"
