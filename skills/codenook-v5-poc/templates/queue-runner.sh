@@ -37,7 +37,7 @@ TASKS="$WS/tasks"
 # be LLM-generated. Validate before using them to construct filesystem paths
 # or write metadata.
 _re_task_id='^T-[A-Za-z0-9]+(\.[0-9]+)?$'
-_re_safe_slug='^[A-Za-z0-9_.:@/-]+$'
+_re_safe_slug='^[A-Za-z0-9_./-]+$'
 
 _assert_task_id() {
   [[ "$1" =~ $_re_task_id ]] || {
@@ -60,10 +60,12 @@ _assert_safe_path() {
 }
 
 # Agent IDs are written verbatim into YAML-like lock files; forbid newlines
-# and control chars to prevent log/format injection.
+# and control chars to prevent log/format injection. Also forbid characters
+# that are illegal in Windows filenames (the agent_id appears inside lock
+# file contents but may show up in future path contexts).
 _assert_safe_agent_id() {
-  [[ "$1" =~ ^[A-Za-z0-9_.@:-]+$ ]] || {
-    echo "error: invalid agent_id: '$1' (allowed: [A-Za-z0-9_.@:-]+)" >&2
+  [[ "$1" =~ ^[A-Za-z0-9_.@-]+$ ]] || {
+    echo "error: invalid agent_id: '$1' (allowed: [A-Za-z0-9_.@-]+)" >&2
     exit 2
   }
 }

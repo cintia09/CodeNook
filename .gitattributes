@@ -1,0 +1,20 @@
+# Enforce LF line endings for shell scripts and templates so CodeNook v5.0
+# runs correctly under Git Bash / MSYS on Windows (CRLF would break
+# `#!/usr/bin/env bash` shebangs and `$'\r'` parsing).
+*.sh       text eol=lf
+*.bash     text eol=lf
+*.md       text eol=lf
+*.yaml     text eol=lf
+*.yml      text eol=lf
+*.json     text eol=lf
+Makefile   text eol=lf
+
+# Binary assets untouched.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.mp3  binary
+*.mp4  binary
+*.pptx binary
+*.pdf  binary

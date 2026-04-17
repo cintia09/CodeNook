@@ -1,7 +1,26 @@
 #!/usr/bin/env bash
 # CodeNook v5.0 POC bootstrap script
 # Generates a .codenook/ workspace in the current directory.
+#
+# Platform support:
+#   - Linux, macOS, WSL2: run directly.
+#   - Windows Git Bash / MSYS2: supported. Requires `python3` on PATH
+#     (the helper runners parse plan.md and dispatch-log.jsonl with
+#     python3 to stay dependency-free).
+#   - Native cmd.exe / PowerShell: NOT supported (scripts are bash).
 set -euo pipefail
+
+# ---- Platform prerequisites -------------------------------------------------
+if ! command -v python3 >/dev/null 2>&1; then
+  if command -v py >/dev/null 2>&1 && py -3 --version >/dev/null 2>&1; then
+    echo "warn: 'python3' not on PATH but 'py -3' works. Create a python3 shim:" >&2
+    echo "      echo 'py -3 \"\$@\"' > /usr/bin/python3 && chmod +x /usr/bin/python3" >&2
+    exit 3
+  fi
+  echo "error: python3 is required (used by subtask-runner / queue-runner / dispatch-audit)." >&2
+  echo "       On Windows Git Bash, install Python for Windows and ensure python3 is on PATH." >&2
+  exit 3
+fi
 
 TARGET_DIR="${1:-$(pwd)}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

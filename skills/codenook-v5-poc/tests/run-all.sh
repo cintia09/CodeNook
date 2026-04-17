@@ -37,6 +37,7 @@ run_test "T19 Mode B dispatch"     "$SCRIPT_DIR/t19-mode-b-dispatch.sh"
 run_test "T20 Dispatch audit"      "$SCRIPT_DIR/t20-dispatch-audit.sh"
 run_test "T21 Subtask runner"      "$SCRIPT_DIR/t21-subtask-runner.sh"
 run_test "T22 Security"            "$SCRIPT_DIR/t22-security.sh"
+run_test "T23 Windows compat"      "$SCRIPT_DIR/t23-windows-compat.sh"
 
 echo ""
 echo "════════════════════════════════════════════"
