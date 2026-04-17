@@ -42,6 +42,7 @@ run_test "T24 Preflight + OPT-7"   "$SCRIPT_DIR/t24-preflight-opt7.sh"
 run_test "T25 Workspace security"  "$SCRIPT_DIR/t25-workspace-security.sh"
 run_test "T26 session-runner"      "$SCRIPT_DIR/t26-session-runner.sh"
 run_test "T27 dual-mode audit"     "$SCRIPT_DIR/t27-dual-mode-audit.sh"
+run_test "T28 model-config"        "$SCRIPT_DIR/t28-model-config.sh"
 
 echo ""
 echo "════════════════════════════════════════════"

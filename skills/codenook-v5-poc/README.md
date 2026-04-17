@@ -69,7 +69,7 @@ to PATH, or use the `py -3` shim).
 bash skills/codenook-v5-poc/tests/run-all.sh
 ```
 
-Currently: **21 tests pass** (T1, T8–T27).
+Currently: **22 tests pass** (T1, T8–T28).
 
 ## Status & roadmap
 

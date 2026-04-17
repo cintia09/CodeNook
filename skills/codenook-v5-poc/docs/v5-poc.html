@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>CodeNook v5.0 POC — Design / Tests / Implementation</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"></script>
+<style>
+:root{
+  --bg:#fafbfc; --panel:#fff; --ink:#1f2328; --mute:#656d76; --line:#d0d7de;
+  --accent:#0969da; --accent-soft:#ddf4ff; --good:#1a7f37; --warn:#9a6700; --bad:#cf222e;
+  --code-bg:#f6f8fa;
+}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",PingFang SC,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+header{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--line);padding:14px 24px;display:flex;align-items:center;gap:24px}
+header h1{margin:0;font-size:18px;font-weight:600}
+header h1 .badge{display:inline-block;background:var(--accent-soft);color:var(--accent);font-size:11px;padding:2px 8px;border-radius:10px;margin-left:8px;font-weight:500;vertical-align:middle}
+nav.tabs{display:flex;gap:4px}
+nav.tabs button{background:none;border:none;padding:8px 14px;font-size:14px;color:var(--mute);cursor:pointer;border-radius:6px;font-weight:500}
+nav.tabs button:hover{background:var(--code-bg)}
+nav.tabs button.active{color:var(--accent);background:var(--accent-soft)}
+.layout{display:grid;grid-template-columns:240px 1fr;gap:0;min-height:calc(100vh - 53px)}
+aside{border-right:1px solid var(--line);background:#fff;padding:16px 0;position:sticky;top:53px;height:calc(100vh - 53px);overflow-y:auto}
+aside .group{padding:0 16px;margin-bottom:16px}
+aside .group-title{font-size:11px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+aside a{display:block;padding:5px 12px;color:var(--ink);text-decoration:none;border-radius:5px;font-size:13px;border-left:2px solid transparent}
+aside a:hover{background:var(--code-bg)}
+aside a.active{background:var(--accent-soft);color:var(--accent);border-left-color:var(--accent)}
+main{padding:28px 36px;max-width:1080px}
+.tab-pane{display:none}
+.tab-pane.active{display:block}
+section{background:var(--panel);border:1px solid var(--line);border-radius:8px;margin-bottom:16px;overflow:hidden}
+section > h2{margin:0;padding:14px 18px;background:#f6f8fa;border-bottom:1px solid var(--line);font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:space-between}
+section > h2::after{content:"▾";color:var(--mute);font-size:12px;transition:transform .15s}
+section.collapsed > h2::after{transform:rotate(-90deg)}
+section.collapsed > .body{display:none}
+section .body{padding:18px}
+section h3{margin:18px 0 8px;font-size:14px;font-weight:600;color:var(--ink)}
+section h3:first-child{margin-top:0}
+section p{margin:8px 0}
+section ul,section ol{margin:8px 0;padding-left:24px}
+section li{margin:3px 0}
+section pre{background:var(--code-bg);border:1px solid var(--line);border-radius:6px;padding:12px;overflow-x:auto;font-size:12.5px;line-height:1.5;margin:10px 0}
+section code{background:var(--code-bg);padding:1px 5px;border-radius:3px;font-size:12.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+section pre code{background:none;padding:0}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13px}
+th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#f6f8fa;font-weight:600}
+.tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:500;line-height:1.5}
+.tag.ok{background:#dafbe1;color:var(--good)}
+.tag.warn{background:#fff8c5;color:var(--warn)}
+.tag.bad{background:#ffebe9;color:var(--bad)}
+.tag.info{background:var(--accent-soft);color:var(--accent)}
+.callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:10px 14px;margin:10px 0;border-radius:0 5px 5px 0}
+.callout.warn{border-color:var(--warn);background:#fff8c5}
+.mermaid{background:#fff;text-align:center;padding:14px;border-radius:6px;margin:10px 0;border:1px solid var(--line)}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}
+.kpi{background:var(--code-bg);border:1px solid var(--line);border-radius:6px;padding:12px;text-align:center}
+.kpi .num{font-size:24px;font-weight:600;color:var(--accent)}
+.kpi .lbl{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+.tree{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.6;background:var(--code-bg);padding:14px;border-radius:6px;border:1px solid var(--line);overflow-x:auto;white-space:pre}
+footer{padding:24px 36px;color:var(--mute);font-size:12px;border-top:1px solid var(--line);background:#fff}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>CodeNook <span class="badge">v5.0 POC</span></h1>
+  <nav class="tabs">
+    <button data-tab="design" class="active">Design</button>
+    <button data-tab="tests">Tests</button>
+    <button data-tab="impl">Implementation</button>
+  </nav>
+</header>
+
+<div class="layout">
+  <aside id="sidebar"></aside>
+
+  <main>
+
+  <!-- ============ DESIGN ============ -->
+  <div class="tab-pane active" id="tab-design">
+
+    <section id="d-vision">
+      <h2>1. 愿景与原则</h2>
+      <div class="body">
+        <p><strong>CodeNook 是对话驱动的本地工作区操作系统。</strong>用户在本地目录通过 LLM 对话驱动整个 SDLC 流程。工作区（<code>.codenook/</code>）是状态唯一来源 —— session 无关、设备无关、平台无关。</p>
+        <h3>六大架构原则</h3>
+        <ol>
+          <li><strong>状态在文件，不在会话</strong> —— 所有持久状态落盘</li>
+          <li><strong>主会话 = 纯路由器</strong> —— 不干活，只调度</li>
+          <li><strong>每个 agent 调用是独立事务</strong> —— 单轮 + 轻量 + 单一职责</li>
+          <li><strong>输出传引用，不传内容</strong> —— 文件路径 + summary</li>
+          <li><strong>预防胜于清理</strong> —— LLM 不能主动删 context，靠不纳入</li>
+          <li><strong>HITL 门即压缩点</strong> —— 用户批准后 session 可 /clear + bootstrap</li>
+        </ol>
+        <h3>双层架构</h3>
+        <div class="mermaid">
+flowchart TB
+  A["Application Layer<br/>(SDLC-specific)<br/>10阶段状态机 · HITL门控 · 双agent交叉审查 · Validator模式"]
+  K["Kernel Layer<br/>(domain-agnostic)<br/>Workspace-first · TaskRuntime · MemoryLayer<br/>Prompt-as-File · Sub-agent Self-Bootstrap · Main-as-Router"]
+  P["Platform Layer<br/>Claude Code / Copilot CLI (read CLAUDE.md)"]
+  A --> K --> P
+        </div>
+        <p class="callout">v5.x 聚焦 SDLC 应用层；v6.x 可能引入写作 / 研究 / 运维 profile，共用同一内核层。</p>
+      </div>
+    </section>
+
+    <section id="d-layout">
+      <h2>2. 工作区布局</h2>
+      <div class="body">
+        <p>v5.0 使用项目根目录下的 <code>.codenook/</code>（取代 v4.x 的 <code>.claude/codenook/</code>）。仅生成一个 bootloader 文件 <code>CLAUDE.md</code>，Claude Code 与 Copilot CLI 都识别。</p>
+        <div class="tree">&lt;project-root&gt;/
+├── CLAUDE.md                 # bootloader → 指向 core
+└── .codenook/
+    ├── state.json            # workspace-level 索引（active_tasks, current_focus）
+    ├── config.yaml           # models, concurrency, adapters
+    ├── core/codenook-core.md # ~20K 编排器
+    ├── prompts-templates/    # role 模板 (10)
+    ├── prompts-criteria/     # 验收标准 (7)
+    ├── agents/               # Mode B agent profile (11)
+    ├── project/              # ENVIRONMENT/CONVENTIONS/ARCHITECTURE
+    ├── tasks/
+    │   ├── task-board.json   # 派生索引 (UI 用，非权威)
+    │   └── T-003/
+    │       ├── task.md
+    │       ├── state.json    # task-level 权威状态
+    │       ├── prompts/  outputs/  validations/
+    │       ├── iterations/   # dual-serial 多轮
+    │       ├── hitl/  memory/
+    │       └── subtasks/T-003.1/  ...
+    ├── knowledge/            # by-role/  by-topic/
+    ├── skills/               # 工作区自产 skill (v5.1)
+    ├── queue/                # 调度状态 (dispatching/pending/completed)
+    ├── hitl-queue/           # HITL 排队
+    ├── locks/                # 文件级 lock
+    ├── hitl-adapters/        # terminal.sh / local-html.sh / ...
+    └── history/
+        ├── sessions/         # 自动摘要 + latest.md (新 session 入口)
+        ├── distillation-log.md
+        └── dispatch-log.jsonl</div>
+        <h3>三层 state 设计</h3>
+        <table>
+          <tr><th>层</th><th>路径</th><th>角色</th><th>典型大小</th></tr>
+          <tr><td>1</td><td><code>.codenook/state.json</code></td><td>工作区级权威索引（bootstrap 必读）</td><td>~500 字节</td></tr>
+          <tr><td>2</td><td><code>.codenook/tasks/T-xxx/state.json</code></td><td>任务级权威状态（仅当前任务读）</td><td>1–2 KB</td></tr>
+          <tr><td>3</td><td><code>.codenook/tasks/task-board.json</code></td><td>派生索引（dashboard 用，非权威，可重建）</td><td>~1 KB</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="d-router">
+      <h2>3. 主会话 = 纯路由器</h2>
+      <div class="body">
+        <h3>稳态 Context 构成</h3>
+        <pre><code>codenook-core.md          (~20K)  始终加载
++ routing table          (在 core.md 内)
++ state.json             (~500 tokens)
++ current_phase_summary  (~200 tokens)
++ user 最近对话           (~500 tokens)
+═════════════════════════════════════════
+≈ 21–22K tokens（不随阶段数增长）</code></pre>
+        <h3>主会话永远不做</h3>
+        <ul>
+          <li>❌ 读大文件（task.md 除外，初次读）</li>
+          <li>❌ 分析代码 / 生成长文档 / 构造复杂 prompt</li>
+          <li>❌ 读 knowledge 或 skills 完整内容</li>
+          <li>❌ <strong>提及 skill 名字</strong>（避免平台自动注入污染 context）</li>
+        </ul>
+        <h3>主循环伪代码</h3>
+        <pre><code class="language-python">while True:
+    user_input = listen()
+    state = read_json(f".codenook/tasks/{current_task}/state.json")
+    next_action = route(user_input, state)  # 查路由表
+    if next_action.complex:
+        dispatch("planner", task_id, phase)  # 派 planner 构造 prompt
+        prompt_path = wait_summary().prompt_path
+    else:
+        prompt_path = write_variable_manifest(task_id, phase)
+    result = dispatch(agent_type, f"Execute. See {prompt_path}")
+    update_state(result.summary, result.output_path)  # 只收 summary
+    if context_usage() &gt; 0.5:
+        suggest_user_to_clear()</code></pre>
+        <h3>任务轻量量化</h3>
+        <table>
+          <tr><th>维度</th><th>限制</th></tr>
+          <tr><td>单次 agent context</td><td>≤ 30K tokens</td></tr>
+          <tr><td>单次 agent 输出</td><td>≤ 15K tokens</td></tr>
+          <tr><td>单次 agent 耗时</td><td>≤ 10 分钟</td></tr>
+          <tr><td>单次 agent 职责</td><td>单一</td></tr>
+          <tr><td>超限</td><td>拆为串行子任务</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="d-prompt-as-file">
+      <h2>4. Prompt-as-File 三层结构</h2>
+      <div class="body">
+        <h3>Layer 1: Template（长期固定）</h3>
+        <pre><code>.codenook/prompts-templates/implementer.md  ← 5–10K 完整模板</code></pre>
+        <h3>Layer 2: Variable Manifest（任务特定，~200 tokens）</h3>
+        <pre><code class="language-markdown"># .codenook/tasks/T-003/prompts/phase-3-implementer.md
+
+Template: @prompts-templates/implementer.md
+Variables:
+  task_id: T-003
+  phase: implement
+  iteration: 1
+  dual_mode: serial-A
+  upstream_doc: @../outputs/phase-2-designer-summary.md
+  user_feedback: @../hitl/phase-2-feedback.md
+Output_to: @../outputs/phase-3-implementer.md
+Summary_to: @../outputs/phase-3-implementer-summary.md</code></pre>
+        <h3>Layer 3: Agent Self-Bootstrap</h3>
+        <ol>
+          <li>读 variable manifest</li>
+          <li>读 template</li>
+          <li>读 Variables 里的 @ 引用</li>
+          <li>在自己 context 里合成完整指令</li>
+          <li>执行</li>
+          <li>写 Output_to + Summary_to</li>
+          <li>返回 <code>{status, summary, output_path}</code></li>
+        </ol>
+        <h3>Token 代价对比</h3>
+        <table>
+          <tr><th>方式</th><th>主会话增量 / phase</th></tr>
+          <tr><td>❌ 内联 prompt</td><td>5–10K</td></tr>
+          <tr><td>✅ 主会话写变量清单</td><td>~200</td></tr>
+          <tr><td>✅ Planner 构造（不进主会话）</td><td>~50</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="d-validator">
+      <h2>5. Validator 模式（自动判定夹层）</h2>
+      <div class="body">
+        <p>主会话连"判断输出好坏"都不做，派给 validator agent，只收布尔结果：</p>
+        <div class="mermaid">
+flowchart LR
+  W[Worker Agent] -->|output 文件| V[Validator Agent]
+  V -->|读 output + criteria| V
+  V -->|verdict + reason| M[主会话]
+  M -->|布尔决策| D{pass/fail/needs_human}
+        </div>
+        <h3>Per-phase token 账</h3>
+        <table>
+          <tr><th>环节</th><th>主会话成本</th></tr>
+          <tr><td>Worker dispatch</td><td>~100 tokens</td></tr>
+          <tr><td>Worker summary 回收</td><td>~200 tokens</td></tr>
+          <tr><td>Validator dispatch</td><td>~100 tokens</td></tr>
+          <tr><td>Validator verdict 回收</td><td>~50 tokens</td></tr>
+          <tr><td><strong>合计</strong></td><td><strong>~450 tokens / phase</strong></td></tr>
+        </table>
+        <h3>与 HITL 的关系</h3>
+        <pre><code>Phase 完成
+  ↓
+Validator（自动门，必经）
+  ├─ pass → 是否门控 phase？
+  │         ├─ 是 → HITL 人工复核
+  │         └─ 否 → 直接推进
+  ├─ fail → 自动重试 (≤3 次) 失败后 → HITL
+  └─ needs_human → HITL</code></pre>
+      </div>
+    </section>
+
+    <section id="d-dual-agent">
+      <h2>6. 双 Agent 交叉审查</h2>
+      <div class="body">
+        <p>对关键阶段（implement / review）启用 A/B 双 agent 交叉审查，结果由 synthesizer 合成：</p>
+        <h3>Serial 模式</h3>
+        <pre><code>iteration 1: Agent A → output_A → Agent B 审查 → revise
+iteration 2: Agent A 修订 → Agent B 再审 → ...
+迭代到 B 通过或达上限</code></pre>
+        <h3>Parallel 模式</h3>
+        <pre><code>Agent A & Agent B 并行产出 → synthesizer 合成最终 output</code></pre>
+        <p>所有迭代产物落 <code>.codenook/tasks/T-xxx/iterations/</code>，由 dispatch-audit check [6] 验证一致性。</p>
+      </div>
+    </section>
+
+    <section id="d-security">
+      <h2>7. Workspace 安全（§23）</h2>
+      <div class="body">
+        <h3>三大不变量</h3>
+        <ol>
+          <li><strong>所有凭据进 OS keyring</strong> —— 工作区文件只存 <code>${keyring:codenook/&lt;key&gt;}</code> 引用</li>
+          <li><strong>每次 session 启动必跑 security-auditor</strong> —— 在 greeting 用户之前</li>
+          <li><strong>verdict=fail 时拒绝任务工作</strong> —— 必须修复后才能继续</li>
+        </ol>
+        <h3>跨平台 Keyring</h3>
+        <table>
+          <tr><th>平台</th><th>backend</th><th>额外依赖</th></tr>
+          <tr><td>macOS</td><td>Keychain</td><td>无</td></tr>
+          <tr><td>Windows</td><td>Credential Locker</td><td>无</td></tr>
+          <tr><td>Linux</td><td>SecretService / KWallet</td><td>libsecret（通常预装）</td></tr>
+        </table>
+        <h3>Step 2.5（CLAUDE.md mandate）</h3>
+        <pre><code>1. 加载 core.md
+2. 写 manifest 派 security-auditor
+3. 收 verdict={pass|warn|fail}
+4. fail → 拒绝继续；pass/warn → 进入 Step 3 greeting</code></pre>
+      </div>
+    </section>
+
+    <section id="d-opt7">
+      <h2>8. OPT-7 创建时预检（§22）</h2>
+      <div class="body">
+        <p><strong>设计动机</strong>：v4.x 一个已知缺陷 —— 双代理模式询问只在任务创建流程里问；上一会话跳过后，<code>dual_mode: null</code> 写入 state.json，本会话推进时编排循环只检查 PHASE_ENTRY_QUESTIONS，不会回溯创建时遗漏的问题。</p>
+        <h3>修复</h3>
+        <pre><code class="language-python">while True:
+    # 创建时必答项预检
+    for task in active_tasks:
+        if task.dual_mode is None and task.total_iterations &lt;= 1:
+            backfill_dual_mode_question(task)
+    # ... 主循环</code></pre>
+        <h3>OPT-7 触发条件</h3>
+        <p><code>total_iterations &gt; 0 AND dual_mode == null AND status NOT IN (done, cancelled)</code></p>
+      </div>
+    </section>
+
+    <section id="d-session">
+      <h2>9. Session 生命周期（§18）</h2>
+      <div class="body">
+        <h3>Bootstrap</h3>
+        <ol>
+          <li>用户新 session 或 /clear</li>
+          <li>CLAUDE.md 加载 → 指向 core.md</li>
+          <li>core.md 加载 → 主会话成为"CodeNook 操作员"</li>
+          <li><strong>Step 2.5</strong>: 派 security-auditor</li>
+          <li>读 <code>history/sessions/latest.md</code></li>
+          <li>读 <code>tasks/*/state.json</code> 知道所有任务状态</li>
+          <li>问用户："继续 T-003（phase 3）还是新任务？"</li>
+        </ol>
+        <h3>运行</h3>
+        <pre><code>每 phase 结束:
+  - 写 outputs/phase-N-summary.md
+  - 更新 state.json
+  - 触发 distillation
+  - 检查 context 使用率
+
+到达 HITL 门:
+  - 派 hitl-adapter agent
+  - 决策写入 hitl/
+  - 主会话建议 /clear（如 &gt;50%）</code></pre>
+      </div>
+    </section>
+
+    <section id="d-models">
+      <h2>10. 模型配置（§24）</h2>
+      <div class="body">
+        <p><strong>策略</strong>：所有 sub-agent 默认<strong>继承主会话模型</strong>。任务创建时<strong>不询问</strong>；只在用户主动「调优 T-xxx 模型」时才进入选择流程。子任务（T-xxx.y）始终继承父任务，永远不被询问。</p>
+        <h3>解析优先级（高 → 低）</h3>
+        <pre><code>1. tasks/&lt;T&gt;/state.json  models[role]      (per-task override)
+2. tasks/&lt;T&gt;/state.json  models.default   (per-task default)
+3. config.yaml           models[role]      (workspace override)
+4. config.yaml           models.default    (workspace default)
+5. "inherit"                               (use main session model)</code></pre>
+        <p>第一个非空值胜出。字符串 <code>"inherit"</code> 在任何层级都意味着「dispatch 时不传 --model，让平台沿用主会话模型」。</p>
+        <h3>Helper 命令</h3>
+        <table>
+          <tr><th>命令</th><th>作用</th></tr>
+          <tr><td><code>resolve &lt;task&gt; &lt;role&gt;</code></td><td>打印当前解析结果</td></tr>
+          <tr><td><code>list &lt;task&gt;</code></td><td>打印所有 role 的解析表</td></tr>
+          <tr><td><code>set &lt;task&gt; &lt;role&gt; &lt;value&gt;</code></td><td>写入 task 级 override</td></tr>
+          <tr><td><code>unset &lt;task&gt; &lt;role&gt;</code></td><td>移除 task 级 override</td></tr>
+        </table>
+        <h3>Dispatch 接线</h3>
+        <pre><code class="language-python">m = resolve_model(T, R)        # 5 级优先级
+if m == "inherit":
+    Task(role=R, prompt=...)   # 不传 model，平台继承
+else:
+    Task(role=R, model=m, prompt=...)</code></pre>
+        <p class="callout">Agent profile 本身不读模型；这是 dispatch 时主会话的决策。</p>
+        <h3>调优触发</h3>
+        <p>用户说「调优 T-003 模型」（或类似自然语言），编排器走如下流程：</p>
+        <ol>
+          <li>读 <code>config.yaml</code> 知道本工作区 pipeline 涉及哪些 role</li>
+          <li>派一次 HITL adapter，列出所有 role 与当前解析值</li>
+          <li>用户提供 <code>role=value</code> 覆盖（或接受默认）</li>
+          <li>编排器写入 <code>tasks/T-003/state.json</code> 的 <code>models</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="d-roadmap">
+      <h2>11. 路线图</h2>
+      <div class="body">
+        <table>
+          <tr><th>版本</th><th>主要内容</th><th>状态</th></tr>
+          <tr><td>v4.9.6</td><td>OPT-7 预检 + OPT-3a 任务级知识合并 反向移植</td><td><span class="tag info">待办</span></td></tr>
+          <tr><td>v5.0 POC</td><td>编排器 skill 化 / Context Discipline / Session 持久化 / 安全</td><td><span class="tag ok">已完成</span></td></tr>
+          <tr><td>v5.1</td><td>Pull 模式 / 知识系统增强 / 三维主动提炼自动模式</td><td><span class="tag info">规划中</span></td></tr>
+          <tr><td>v5.2</td><td>HTML 仪表盘 / 远程环境协议</td><td><span class="tag info">规划中</span></td></tr>
+          <tr><td>v6.x</td><td>nook-profile（写作/研究/运维）</td><td><span class="tag info">设想</span></td></tr>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ============ TESTS ============ -->
+  <div class="tab-pane" id="tab-tests">
+
+    <section id="t-overview">
+      <h2>测试总览</h2>
+      <div class="body">
+        <div class="kpi-row">
+          <div class="kpi"><div class="num">22</div><div class="lbl">tests</div></div>
+          <div class="kpi"><div class="num">22</div><div class="lbl">passing</div></div>
+          <div class="kpi"><div class="num">0</div><div class="lbl">failing</div></div>
+          <div class="kpi"><div class="num">7</div><div class="lbl">categories</div></div>
+        </div>
+        <p>所有测试纯 Bash，零外部依赖（Python 3 用于 JSON）。</p>
+        <h3>运行</h3>
+        <pre><code>bash skills/codenook-v5-poc/tests/run-all.sh</code></pre>
+      </div>
+    </section>
+
+    <section id="t-init">
+      <h2>初始化与基础（T1, T8）</h2>
+      <div class="body">
+        <table>
+          <tr><th>ID</th><th>文件</th><th>验证</th></tr>
+          <tr><td>T1</td><td>t1-init-smoke.sh</td><td>init.sh 在临时目录创建完整 .codenook 布局，CLAUDE.md 指向 core</td></tr>
+          <tr><td>T8</td><td>t8-manifest-lint.sh</td><td>所有 prompt manifest 引用的路径在模板中存在</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="t-roles">
+      <h2>角色与模板（T9–T13, T16, T17）</h2>
+      <div class="body">
+        <table>
+          <tr><th>ID</th><th>验证</th></tr>
+          <tr><td>T9</td><td>双 agent 静态 lint：模板含 dual_mode 变量、合成器存在</td></tr>
+          <tr><td>T10</td><td>dual-agent parallel：iterations 目录契约 + synthesizer 输入</td></tr>
+          <tr><td>T11</td><td>clarifier 角色：模板 + agent profile + criteria 三件齐</td></tr>
+          <tr><td>T12</td><td>full pipeline 静态：10 个角色 + 7 个 criteria 全在</td></tr>
+          <tr><td>T13</td><td>planner 子任务：分解契约 + dependency-graph schema</td></tr>
+          <tr><td>T16</td><td>session 持久化：history/sessions, latest.md 入口</td></tr>
+          <tr><td>T17</td><td>HITL adapter：terminal.sh 接口契约</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="t-runtime">
+      <h2>运行时与编排（T18–T21）</h2>
+      <div class="body">
+        <table>
+          <tr><th>ID</th><th>验证</th></tr>
+          <tr><td>T18</td><td>queue-runner 状态机：dispatching/pending/completed 流转</td></tr>
+          <tr><td>T19</td><td>Mode B dispatch：每个 agent profile 含 self-bootstrap 协议块</td></tr>
+          <tr><td>T20</td><td>dispatch-audit checks [1]–[5]：unique invid / manifest / output / phase / containment</td></tr>
+          <tr><td>T21</td><td>subtask-runner：T-001.x 子任务隔离与依赖处理</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="t-skill-rules">
+      <h2>Skill 调用与防泄露（T14, T15）</h2>
+      <div class="body">
+        <table>
+          <tr><th>ID</th><th>验证</th></tr>
+          <tr><td>T14</td><td>每个 agent profile 都有标准 Step 2.5 块（Invoke_skill / verbatim contract）</td></tr>
+          <tr><td>T15</td><td>每个 profile 都有 leak guard："Do NOT include the skill name in your returned ..."</td></tr>
+        </table>
+        <p class="callout warn">⚠️ 新增 agent 必须复制 clarifier.agent.md 的 Step 2.5 模板，否则 T14/T15 失败。</p>
+      </div>
+    </section>
+
+    <section id="t-security">
+      <h2>安全（T22, T23, T25）</h2>
+      <div class="body">
+        <table>
+          <tr><th>ID</th><th>验证</th></tr>
+          <tr><td>T22</td><td>编排器 skill 防注入 + 工作区写边界（仅 .codenook/ 与 git tracked 文件）</td></tr>
+          <tr><td>T23</td><td>Windows 兼容：路径用 / ；脚本使用 POSIX bash 子集</td></tr>
+          <tr><td>T25</td><td>workspace 安全：secret-scan 16 模式 / keyring helper / security-auditor agent / preflight 整合 / CLAUDE.md Step 2.5</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="t-preflight">
+      <h2>预检与会话（T24, T26, T27）</h2>
+      <div class="body">
+        <table>
+          <tr><th>ID</th><th>验证</th></tr>
+          <tr><td>T24</td><td>preflight.sh 11 项检查 + OPT-7 backfill + rebuild-task-board.sh</td></tr>
+          <tr><td>T26</td><td>session-runner 5 命令 (list/latest/tail/prepare-snapshot/prepare-refresh) + 计数器递增 + DISPATCH 行</td></tr>
+          <tr><td>T27</td><td>dispatch-audit check [6]：dual_mode 与 iterations/ 一致性 + 过滤参数</td></tr>
+          <tr><td>T28</td><td>model-config 5 级解析：workspace defaults / task override / subtask 继承 / set+unset / list 全 role</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="t-coverage">
+      <h2>未覆盖（已知）</h2>
+      <div class="body">
+        <ul>
+          <li>真实 LLM 端到端流程（clarify→accept 完整跑通）</li>
+          <li>HITL terminal adapter 的实际交互（仅静态契约测试）</li>
+          <li>concurrent dispatch 在 queue-runner 下的并发竞争</li>
+          <li>跨 session 的 context recovery 真实表现</li>
+          <li>Linux/Windows 真机运行（仅静态兼容测试）</li>
+        </ul>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ============ IMPLEMENTATION ============ -->
+  <div class="tab-pane" id="tab-impl">
+
+    <section id="i-status">
+      <h2>实施状态</h2>
+      <div class="body">
+        <div class="kpi-row">
+          <div class="kpi"><div class="num">3</div><div class="lbl">commits</div></div>
+          <div class="kpi"><div class="num">11</div><div class="lbl">agents</div></div>
+          <div class="kpi"><div class="num">7</div><div class="lbl">helper scripts</div></div>
+          <div class="kpi"><div class="num">1.6K</div><div class="lbl">core.md lines</div></div>
+        </div>
+        <table>
+          <tr><th>Phase</th><th>内容</th><th>Commit</th><th>状态</th></tr>
+          <tr><td>A</td><td>preflight.sh + rebuild-task-board.sh + core §22 OPT-7 + T24</td><td><code>113bda5</code></td><td><span class="tag ok">done</span></td></tr>
+          <tr><td>B</td><td>secret-scan.sh + keyring-helper.sh + security-auditor + core §23 + Step 2.5 + T25</td><td><code>4ce574a</code></td><td><span class="tag ok">done</span></td></tr>
+          <tr><td>C</td><td>session-runner.sh + T26</td><td><code>06b3b23</code></td><td><span class="tag ok">done</span></td></tr>
+          <tr><td>D</td><td>dispatch-audit check [6] + T27</td><td><code>06b3b23</code></td><td><span class="tag ok">done</span></td></tr>
+          <tr><td>E</td><td>prompts-criteria/* (7)</td><td>existing</td><td><span class="tag ok">done</span></td></tr>
+          <tr><td>F</td><td>POC README + 主 README pointer + install.sh banner</td><td><code>06b3b23</code></td><td><span class="tag ok">done</span></td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="i-tree">
+      <h2>仓库布局</h2>
+      <div class="body">
+        <div class="tree">skills/codenook-v5-poc/
+├── README.md
+├── init.sh
+├── docs/
+│   └── v5-poc.html              # 本文档
+├── templates/
+│   ├── core/codenook-core.md    # 1552 行，§1–§23
+│   ├── prompts-templates/       # 10 角色模板
+│   │   ├── clarifier.md  designer.md  planner.md
+│   │   ├── implementer.md  reviewer.md  tester.md
+│   │   ├── acceptor.md  validator.md
+│   │   ├── synthesizer.md  session-distiller.md
+│   ├── prompts-criteria/        # 7 验收标准
+│   │   ├── criteria-clarify.md  criteria-design.md
+│   │   ├── criteria-plan.md  criteria-implement.md
+│   │   ├── criteria-review.md  criteria-test.md  criteria-accept.md
+│   ├── agents/                  # 11 Mode B profile
+│   │   ├── clarifier.agent.md  designer.agent.md
+│   │   ├── planner.agent.md  implementer.agent.md
+│   │   ├── reviewer.agent.md  tester.agent.md
+│   │   ├── acceptor.agent.md  validator.agent.md
+│   │   ├── synthesizer.agent.md  session-distiller.agent.md
+│   │   └── security-auditor.agent.md
+│   ├── hitl-adapters/terminal.sh
+│   ├── preflight.sh             # 11 检查
+│   ├── secret-scan.sh           # 16 模式 + .secretignore + --json/--strict
+│   ├── keyring-helper.sh        # check/set/get/delete/resolve
+│   ├── session-runner.sh        # list/latest/tail/prepare-snapshot/prepare-refresh
+│   ├── rebuild-task-board.sh    # state → task-board.json
+│   ├── dispatch-audit.sh        # 6 检查
+│   ├── queue-runner.sh          # 调度状态机
+│   ├── subtask-runner.sh        # 子任务运行
+│   ├── dependency-graph-schema.md
+│   ├── hitl-item-schema.md
+│   └── CLAUDE.md                # bootloader 模板
+└── tests/                       # 21 测试 + run-all.sh + fixtures/</div>
+      </div>
+    </section>
+
+    <section id="i-helpers">
+      <h2>Helper 脚本目录</h2>
+      <div class="body">
+        <table>
+          <tr><th>脚本</th><th>命令</th><th>功能</th></tr>
+          <tr><td><code>preflight.sh</code></td><td>无</td><td>11 项工作区健康检查；exit 0/1/2 = healthy/warn/error</td></tr>
+          <tr><td><code>secret-scan.sh</code></td><td><code>[--strict] [--json]</code></td><td>16 模式凭据扫描；<code>.secretignore</code> 抑制误报</td></tr>
+          <tr><td><code>keyring-helper.sh</code></td><td><code>check / set / get / delete / resolve</code></td><td>跨平台 OS keyring 读写；service=<code>codenook</code></td></tr>
+          <tr><td><code>session-runner.sh</code></td><td><code>list / latest / tail / prepare-snapshot / prepare-refresh</code></td><td>session 历史导航 + distillation manifest 生成</td></tr>
+          <tr><td><code>model-config.sh</code></td><td><code>resolve / list / set / unset</code></td><td>5 级模型解析 + task 级 override（§24）</td></tr>
+          <tr><td><code>rebuild-task-board.sh</code></td><td><code>[--dry-run]</code></td><td>从各 task state.json 重建 task-board.json</td></tr>
+          <tr><td><code>dispatch-audit.sh</code></td><td><code>[T-xxx]</code></td><td>6 项检查：unique invid / manifest / output / phase / containment / dual-mode</td></tr>
+          <tr><td><code>queue-runner.sh</code></td><td>tick</td><td>处理 completed → 派发 ready，受并发限额</td></tr>
+          <tr><td><code>subtask-runner.sh</code></td><td>—</td><td>父任务下的子任务串行/并行执行</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="i-agents">
+      <h2>Agent Profiles (Mode B, 11)</h2>
+      <div class="body">
+        <p>每个 profile 必含：<code>Self-Bootstrap Protocol</code> · <code>Step 2.5 (Invoke_skill verbatim contract)</code> · <code>Skill name leak guard</code> · <code>Context Budget</code> · <code>Return Contract</code>。</p>
+        <table>
+          <tr><th>Agent</th><th>角色</th><th>典型输出</th></tr>
+          <tr><td>clarifier</td><td>需求澄清</td><td>clarify 文档 + summary</td></tr>
+          <tr><td>designer</td><td>设计</td><td>design 文档 + 取舍说明</td></tr>
+          <tr><td>planner</td><td>分解 + prompt 构造</td><td>decomposition/plan + dependency-graph</td></tr>
+          <tr><td>implementer</td><td>实现</td><td>代码 + impl summary</td></tr>
+          <tr><td>reviewer</td><td>审查</td><td>review 报告</td></tr>
+          <tr><td>tester</td><td>测试</td><td>test plan + 结果</td></tr>
+          <tr><td>acceptor</td><td>验收</td><td>accept 报告</td></tr>
+          <tr><td>validator</td><td>自动判定</td><td>verdict + reason</td></tr>
+          <tr><td>synthesizer</td><td>双 agent 合成</td><td>合成最终输出</td></tr>
+          <tr><td>session-distiller</td><td>会话提炼</td><td>history/sessions/{date}.md</td></tr>
+          <tr><td>security-auditor</td><td>安全审计</td><td>verdict + preflight_rc + secrets + keyring</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="i-init-flow">
+      <h2>init.sh 流程</h2>
+      <div class="body">
+        <pre><code class="language-bash">bash init.sh
+# 1. 创建 .codenook/ 目录骨架
+# 2. 复制 core/codenook-core.md
+# 3. 复制 prompts-templates/* (10) + prompts-criteria/* (7)
+# 4. 复制 agents/* (11) — 含 security-auditor
+# 5. 复制 helper 脚本到 .codenook/ 根（chmod +x）
+# 6. 复制 hitl-adapters/terminal.sh
+# 7. 写初始 state.json (version=5.0-poc, active_tasks=[], counter=0)
+# 8. 写 CLAUDE.md bootloader（指向 core.md + Step 2.5）</code></pre>
+      </div>
+    </section>
+
+    <section id="i-e2e">
+      <h2>真实仓库 E2E smoke 结果</h2>
+      <div class="body">
+        <p>在 <code>~/Documents/workspace/development</code>（空目录）执行 <code>bash init.sh</code>：</p>
+        <pre><code>=== preflight ===
+[10] Keyring backend:
+  ✅ keyring usable: backend: keyring.backends.macOS.Keyring
+
+================ Preflight Summary ================
+  errors:   0
+  warnings: 1   ← cold workspace, no tasks yet (预期)
+===================================================
+
+=== secret-scan ===
+✅ Secret scan: no findings across 1 target(s).
+
+=== dispatch-audit ===
+================ Dispatch Audit Summary ================
+  log entries: 0
+  checks ok:   5
+  warnings:    1
+  violations:  0
+========================================================
+
+=== session-runner ===
+manifest: .codenook/tasks/_workspace/prompts/session-distill-snapshot.md
+DISPATCH (orchestrator runs):
+  Execute session distillation. See .codenook/tasks/_workspace/prompts/session-distill-snapshot.md</code></pre>
+        <p class="callout">所有 helper 在真实仓库运行 ✅。真实 LLM 端到端流程（让 Claude Code/Copilot CLI 接管 orchestrator 跑完一个 T-001）尚未验证。</p>
+      </div>
+    </section>
+
+    <section id="i-remaining">
+      <h2>未完成与已知限制</h2>
+      <div class="body">
+        <h3>POC 范围内</h3>
+        <ul>
+          <li>真实 LLM 端到端流程（脚本就绪，未实跑）</li>
+          <li>v5.0-poc CHANGELOG 条目 + tag 未写</li>
+        </ul>
+        <h3>v5.1 计划</h3>
+        <ul>
+          <li>Pull 模式：废除主会话 push knowledge/profile</li>
+          <li>知识系统：compact_knowledge / 使用追踪 / 智能截断</li>
+          <li>三维主动提炼自动模式（knowledge/skills/config + 后置审计）</li>
+        </ul>
+        <h3>v5.2 计划</h3>
+        <ul>
+          <li>HTML dashboard（任务 Kanban / knowledge 浏览 / timeline）</li>
+          <li>远程环境协议（remotes/*.yaml）</li>
+        </ul>
+        <h3>主要风险</h3>
+        <table>
+          <tr><th>风险</th><th>缓解</th></tr>
+          <tr><td>LLM 不按 profile 读文件</td><td>profile 顶部 MANDATORY 标记 + 返回时回报读到了哪些</td></tr>
+          <tr><td>主会话"偷懒"自己做事</td><td>core.md 明确禁令 + 定期 self-check</td></tr>
+          <tr><td>Prompt-as-File 拼错路径</td><td>相对路径 + task_id 统一规范 + 错误兜底</td></tr>
+          <tr><td>平台 skill 自动加载污染</td><td>永远不 mention skill 名字，只在子 agent prompt 里写</td></tr>
+          <tr><td>子 agent 间协调失败</td><td>全部通过文件 + state.json，无依赖对话</td></tr>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  </main>
+</div>
+
+<footer>
+  CodeNook v5.0 POC · Generated <span id="gen-date"></span> · 21 tests passing · Single-page interactive doc
+</footer>
+
+<script>
+// ---- Sidebar generation per tab ----
+const NAVS = {
+  design: [
+    {g:'核心',  items:[['d-vision','1. 愿景与原则'],['d-layout','2. 工作区布局'],['d-router','3. 主会话路由器']]},
+    {g:'机制',  items:[['d-prompt-as-file','4. Prompt-as-File'],['d-validator','5. Validator 模式'],['d-dual-agent','6. 双 Agent 交叉审查']]},
+    {g:'安全与流程', items:[['d-security','7. Workspace 安全'],['d-opt7','8. OPT-7 预检'],['d-session','9. Session 生命周期']]},
+    {g:'配置与规划', items:[['d-models','10. 模型配置'],['d-roadmap','11. 路线图']]},
+  ],
+  tests: [
+    {g:'总览', items:[['t-overview','测试总览']]},
+    {g:'分类', items:[
+      ['t-init','初始化（T1, T8）'],
+      ['t-roles','角色与模板'],
+      ['t-runtime','运行时与编排'],
+      ['t-skill-rules','Skill 调用规则'],
+      ['t-security','安全'],
+      ['t-preflight','预检与会话'],
+      ['t-coverage','未覆盖']
+    ]},
+  ],
+  impl: [
+    {g:'状态', items:[['i-status','实施状态']]},
+    {g:'结构', items:[['i-tree','仓库布局'],['i-helpers','Helper 脚本'],['i-agents','Agent Profiles'],['i-init-flow','init.sh 流程']]},
+    {g:'验证', items:[['i-e2e','E2E smoke'],['i-remaining','未完成与限制']]},
+  ],
+};
+
+function renderSidebar(tab){
+  const aside = document.getElementById('sidebar');
+  aside.innerHTML='';
+  NAVS[tab].forEach(grp=>{
+    const div = document.createElement('div'); div.className='group';
+    div.innerHTML = `<div class="group-title">${grp.g}</div>` +
+      grp.items.map(([id,label])=>`<a href="#${id}" data-id="${id}">${label}</a>`).join('');
+    aside.appendChild(div);
+  });
+  highlightOnScroll(tab);
+}
+
+function switchTab(tab){
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active', p.id==='tab-'+tab));
+  renderSidebar(tab);
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+
+// ---- Collapsible sections ----
+document.querySelectorAll('section > h2').forEach(h=>{
+  h.onclick = ()=> h.parentElement.classList.toggle('collapsed');
+});
+
+// ---- Sidebar active link via scroll ----
+function highlightOnScroll(tab){
+  const links = document.querySelectorAll('aside a');
+  const obs = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){
+        links.forEach(a=>a.classList.toggle('active', a.dataset.id===e.target.id));
+      }
+    });
+  }, {rootMargin:'-20% 0px -75% 0px'});
+  document.querySelectorAll('#tab-'+tab+' section').forEach(s=>obs.observe(s));
+}
+
+// ---- Smooth scroll ----
+document.addEventListener('click', e=>{
+  if(e.target.tagName==='A' && e.target.getAttribute('href')?.startsWith('#')){
+    e.preventDefault();
+    const t = document.getElementById(e.target.getAttribute('href').slice(1));
+    if(t){ t.scrollIntoView({behavior:'smooth',block:'start'}); }
+  }
+});
+
+// ---- Init ----
+mermaid.initialize({startOnLoad:true,theme:'neutral',securityLevel:'loose'});
+hljs.highlightAll();
+renderSidebar('design');
+document.getElementById('gen-date').textContent = new Date().toISOString().slice(0,10);
+</script>
+</body>
+</html>

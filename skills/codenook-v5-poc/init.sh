@@ -104,6 +104,8 @@ cp "$TEMPLATES_DIR/keyring-helper.sh"                  .codenook/
 chmod +x .codenook/keyring-helper.sh
 cp "$TEMPLATES_DIR/session-runner.sh"                  .codenook/
 chmod +x .codenook/session-runner.sh
+cp "$TEMPLATES_DIR/model-config.sh"                    .codenook/
+chmod +x .codenook/model-config.sh
 mkdir -p .codenook/history/security
 # Default ignore for the secret scanner (false positives can be added by user).
 cat > .codenook/.secretignore <<'EOF'

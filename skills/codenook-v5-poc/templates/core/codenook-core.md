@@ -1550,3 +1550,96 @@ on its own to ignore findings.
   to purge; the scanner only sees the current tree).
 - Compromise of the OS keychain itself.
 - Network exfiltration by sub-agents (out of CodeNook's control).
+
+---
+
+## 24. Model Assignment Protocol
+
+Sub-agent model selection is **task-scoped** and defaults to **inheriting
+the main session model**. Tasks can override per role; subtasks always
+inherit from their parent task.
+
+### 24.1 Resolution Precedence
+
+For a given dispatch of role `R` against task `T`:
+
+```
+1. tasks/<T>/state.json  models[R]      (per-task override)
+2. tasks/<T>/state.json  models.default (per-task default)
+3. config.yaml           models[R]      (workspace override)
+4. config.yaml           models.default (workspace default)
+5. "inherit"                            (use main session model)
+```
+
+The first non-empty value wins. The literal string `"inherit"` at any level
+stops the search and means "do not pass --model when dispatching, let the
+platform inherit".
+
+### 24.2 Subtask Inheritance (MANDATORY)
+
+Subtasks (`T-001.1`, `T-001.2`, …) **never carry their own `models` block**
+and are **never asked**. The scheduler resolves models against the parent
+task's state.json. This keeps decomposition fast and avoids HITL flooding.
+
+### 24.3 Default Behavior at Task Creation
+
+When the orchestrator creates a new task, it writes:
+
+```jsonc
+// tasks/T-xxx/state.json (relevant subset)
+{
+  "task_id": "T-xxx",
+  "models": {}                  // empty = inherit from workspace/session
+}
+```
+
+It does **not** ask the user about models. The task immediately runs with
+whatever `config.yaml` resolves to (default: `inherit` everywhere).
+
+### 24.4 Tuning a Task's Models
+
+The user may request "tune T-003 models" (or any natural-language
+equivalent). On that trigger:
+
+1. The orchestrator reads `config.yaml` to know which roles exist for
+   this workspace's pipeline.
+2. It dispatches a single HITL-adapter call listing all roles and their
+   currently resolved values.
+3. The user provides overrides as `role=value` pairs (or accepts
+   defaults).
+4. The orchestrator writes the result to `tasks/T-003/state.json`
+   under `models`.
+
+The orchestrator MUST NOT ask the user for model choice automatically
+on task creation — only on explicit tune request.
+
+### 24.5 Dispatch Wiring
+
+When the orchestrator dispatches sub-agent `R` for task `T`:
+
+```python
+m = resolve_model(T, R)     # 24.1 precedence
+if m == "inherit":
+    Task(role=R, prompt=f"Execute. See {manifest}")
+else:
+    Task(role=R, model=m, prompt=f"Execute. See {manifest}")
+```
+
+The agent profile itself does **not** read or override the model; it is a
+dispatch-time decision made in the main session.
+
+### 24.6 Helper
+
+`bash .codenook/model-config.sh resolve <task> <role>` prints the
+resolved model (or `inherit`). `model-config.sh set <task> <role> <value>`
+writes the override into the task state. `model-config.sh list <task>`
+prints the full resolution table for human review.
+
+### 24.7 What §24 Does NOT Do
+
+- It does not change the main-session model (that is a platform decision).
+- It does not enforce that overridden models actually exist on the
+  current platform; if the platform rejects an unknown model, the
+  dispatch fails and the orchestrator surfaces the error.
+- It does not gate the pipeline on model availability — there is no
+  preflight check that "model X is reachable".

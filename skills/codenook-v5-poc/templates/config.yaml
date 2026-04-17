@@ -1,19 +1,36 @@
 # CodeNook workspace configuration (v5.0 POC)
 version: "5.0-poc"
 
+# ─────────────────────────────────────────────────────────────────────────
+# Model assignment
+# ─────────────────────────────────────────────────────────────────────────
+# Resolution precedence (highest first):
+#   1. task.models[role]                — per-task override in tasks/<id>/state.json
+#   2. workspace models[role]           — this file
+#   3. workspace models.default         — workspace-wide fallback
+#   4. "inherit"                        — use whatever the main session model is
+#
+# Subtasks (T-001.x) always inherit from their parent task; they never have
+# their own models block and are never asked.
+#
+# A bare `inherit` value means: dispatch the sub-agent without specifying a
+# model, so the platform (Claude Code / Copilot CLI) picks the same model
+# the main session is currently running on.
 models:
-  default: claude-sonnet-4.5
-  clarifier: claude-sonnet-4.5
-  designer: claude-sonnet-4.5
-  planner: claude-sonnet-4.5
-  implementer: claude-sonnet-4.5
-  reviewer: claude-sonnet-4.5
-  reviewer_a: claude-sonnet-4.5
-  reviewer_b: claude-sonnet-4.5
-  synthesizer: claude-sonnet-4.5
-  tester: claude-sonnet-4.5
-  acceptor: claude-sonnet-4.5
-  validator: claude-haiku-4.5
+  default: inherit
+  clarifier: inherit
+  designer: inherit
+  planner: inherit
+  implementer: inherit
+  reviewer: inherit
+  reviewer_a: inherit
+  reviewer_b: inherit
+  synthesizer: inherit
+  tester: inherit
+  acceptor: inherit
+  validator: inherit
+  session-distiller: inherit
+  security-auditor: inherit
   # dedicated dual_a / dual_b reserved for model-diversity experiments
 
 orchestrator:
