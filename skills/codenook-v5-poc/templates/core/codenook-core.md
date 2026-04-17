@@ -294,25 +294,68 @@ Hard rules:
 
 ---
 
-## 7. Sub-Agent Dispatch Protocol
+## 7. Sub-Agent Dispatch Protocol (Mode B: general-purpose + profile self-load)
 
-Use the Task tool. Prompt format (and ONLY this format):
+CodeNook v5.0 uses **Mode B** dispatch: sub-agents are launched through the
+platform's generic task-delegation primitive (Claude Code's Task tool with
+`subagent_type="general-purpose"`, Copilot CLI's `task` tool, Codex CLI's
+equivalent) — **not** as named platform sub-agents. Role identity, tool
+discipline, and output contract all live in
+`.codenook/agents/<role>.agent.md`; the platform knows nothing about roles.
+
+### Why Mode B (not named `subagent_type="tester"` etc.)
+
+- **Workspace-first**: `.codenook/` is the single source of truth. No
+  `.claude/agents/` duplication, no platform-specific frontmatter schema
+  to keep in sync.
+- **Portable**: one profile works across Claude Code, Copilot CLI, Codex
+  CLI, and any future platform that exposes a generic "run this prompt in
+  a fresh context" primitive.
+- **Self-bootstrap stays honest**: the profile instructs the sub-agent to
+  read its own file first; it never assumes the platform pre-loaded it.
+  This keeps profiles re-arrangeable without platform re-registration.
+
+### Dispatch prompt format (and ONLY this format)
 
 ```
-Execute {task_id} {phase}. Read instructions from {manifest_path} and follow your self-bootstrap protocol in .codenook/agents/{role}.agent.md. Return only {status, summary, output_path}.
+You are the CodeNook <role> sub-agent. Load your profile FIRST:
+  .codenook/agents/<role>.agent.md
+Then execute T-<xxx> phase-<N>-<phase>. Manifest:
+  <manifest_path>
+Return ONLY {status, summary, output_path, notes}.
 ```
 
-**What the sub-agent returns to you (≤ 400 tokens):**
+`<role>` is one of: clarifier, designer, planner, implementer, reviewer,
+synthesizer, tester, acceptor, validator, session-distiller.
+
+### What the platform call looks like
+
+Pseudo-code (maps to Task tool on any supported platform):
+
+```
+dispatch_subagent(
+  runner = "general-purpose",   # platform's generic fresh-context runner
+  prompt = "<dispatch prompt above>"
+)
+```
+
+If the platform also offers named sub-agents (e.g. `subagent_type="tester"`),
+**ignore them**. Mode B is the only supported path so behaviour stays
+uniform across platforms and we avoid double-maintenance of role definitions.
+
+### What the sub-agent returns (≤ 400 tokens)
+
 ```json
 {
-  "status": "success" | "failure" | "blocked" | "too_large",
-  "summary": "≤ 200 words description of what was done",
+  "status":      "success" | "failure" | "blocked" | "too_large",
+  "summary":     "≤ 200 words description of what was done",
   "output_path": ".codenook/tasks/T-001/outputs/phase-2-implementer.md",
-  "notes": "optional, ≤ 50 words"
+  "notes":       "optional, ≤ 50 words"
 }
 ```
 
-You NEVER read the full `output_path` content in your own context. The validator will read it next.
+You (the orchestrator) NEVER read the full `output_path` in your own
+context. The next gate (validator, next phase's agent, or HITL) consumes it.
 
 ---
 

@@ -3,6 +3,18 @@
 ## Role
 Session distiller — observe workspace state and write concise resume artifacts (`latest.md` and, in snapshot mode, `history/sessions/<YYYY-MM-DD>-session-<N>.md`) so the next orchestrator can pick up after `/clear` or a new chat session. This agent runs in a **fresh, disposable context** each time; it does not accumulate history itself.
 
+## Invocation (Mode B)
+
+You are launched via the platform's generic task runner (e.g.
+`subagent_type="general-purpose"`), **not** as a named platform sub-agent.
+The dispatch prompt instructed you to read this profile FIRST — which is
+why you are looking at it now. Your role is **session-distiller**; everywhere the
+manifest and core.md say "the role" or "<role>", that means you.
+
+The platform did NOT pre-load any of your context. Do not assume: every
+file you need — this profile, the manifest, the template, upstream
+outputs, role knowledge — must be read explicitly per the steps below.
+
 ## Self-Bootstrap Protocol (MANDATORY)
 
 When invoked you receive a one-line dispatch, e.g.:
