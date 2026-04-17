@@ -964,3 +964,160 @@ be thinner").
 
 On first bootstrap read (§4), if `state.session_counter == 0` and no
 session files exist, skip Step 3 (prior session read) entirely.
+
+## 19. Queue Runtime & Scheduler (Parallel Dispatch)
+
+The Queue Runtime turns the main loop from **one-agent-at-a-time** into a
+**file-driven scheduler** that can dispatch multiple sub-agents in flight and
+reconcile their completions on each turn. It is the execution substrate for
+the parallel variant of §17 (subtask fan-out) and for cross-task concurrency
+across `.codenook/tasks/*/`.
+
+### 19.1 Files
+
+```
+.codenook/queue/
+  pending.json       # ready-but-not-yet-dispatched items (FIFO by queued_at)
+  dispatching.json   # items whose sub-agent has been launched
+  completed.json     # items whose output file appeared (awaiting orchestrator
+                     # post-processing) OR whose status was terminal
+.codenook/locks/
+  <slug>.lock        # file-level cooperative lock (workspace-wide)
+```
+
+All three queue files follow the same schema: `{"items": [...]}`. One item:
+
+```json
+{
+  "agent_id":        "T-003.2-implement-1737200000",
+  "agent_type":      "implementer",
+  "task_id":         "T-003.2",
+  "parent_task_id":  "T-003",
+  "phase":           "implement",
+  "prompt_file":     ".codenook/tasks/T-003.2/prompts/phase-3-implementer.md",
+  "expected_output": ".codenook/tasks/T-003.2/outputs/phase-3-implementer.md",
+  "depends_on":      ["T-003.1-implement-..."],
+  "priority":        "normal",
+  "queued_at":       "2025-01-20T10:15:00Z",
+  "dispatched_at":   null,
+  "completed_at":    null,
+  "status":          "ready"
+}
+```
+
+`agent_id` is globally unique: `<task_id>-<phase>-<unix-seconds>`.
+`depends_on` references other `agent_id`s (NOT task ids) so the scheduler can
+reason at sub-agent granularity even when one task fans out.
+
+### 19.2 Tick protocol (MANDATORY, runs at top of every turn when concurrency.enabled)
+
+```
+tick():
+  # 1. SWEEP — detect completions
+  for item in dispatching.items:
+    if exists(item.expected_output):
+      item.completed_at = now_iso()
+      item.status = item.status or "success"
+      move item from dispatching → completed
+
+  # 2. PROCESS — hand completed items back to the phase logic
+  for item in completed.items:
+    if not item.processed:
+      read summary file (item.expected_output's sibling *-summary.md)
+      update tasks/<task_id>/state.json (phase verdict, iteration counters)
+      mark item.processed = true
+      (keep in completed.json as audit trail until task-accept)
+
+  # 3. READY — compute newly-ready items
+  for every active task:
+    ready = subtasks whose depends_on ⊆ {done subtasks in state.json}
+    enqueue any ready item not already in pending/dispatching/completed
+
+  # 4. DISPATCH — respect concurrency caps
+  free_slots   = max_parallel_agents     - len(dispatching.items)
+  task_slots   = max_parallel_tasks      - distinct_task_ids(dispatching)
+  role_slots_R = per_role_limit[R]       - count_role(dispatching, R)
+  while pending.items and free_slots>0 and task_slots>0 and role_slots_R>0 for item.role:
+    item = pending.items[0]  # FIFO
+    item.dispatched_at = now_iso()
+    item.status = "dispatching"
+    move to dispatching
+    Task(agent_profile=item.agent_type,
+         prompt="Execute {item.task_id} {item.phase}. See {item.prompt_file}")
+    update slot counters
+```
+
+The orchestrator calls `tick()` **once per main-loop iteration** and then
+proceeds with any turn-level logic (HITL gate, user reply, validator). The
+same algorithm runs the serial path (max_parallel_agents=1) as a degenerate
+case — concurrency is a config toggle, not a code-path fork.
+
+### 19.3 Dependency graph
+
+When planner decomposes a task, it writes
+`.codenook/tasks/<T-xxx>/decomposition/dependency-graph.md` per the schema at
+`.codenook/dependency-graph-schema.md`. The scheduler reads it to seed the
+`depends_on` edges when enqueueing subtask agents.
+
+Cycle detection runs on every re-read; cycles raise HITL (reason:
+`scheduler:cycle_detected`) and block further dispatch for that task.
+
+Max depth **2** (task → subtask). If planner proposes a deeper tree, it must
+flatten it first (or escalate HITL).
+
+### 19.4 File-level locks
+
+When two sub-agents could write to the same file (e.g. two implementers
+patching `src/module.py`), the planner annotates the subtask with
+`writes: [src/module.py]`. Before dispatch the scheduler takes locks via
+`queue-runner.sh lock <path> <agent_id>`; conflicting enqueues stay in
+`pending` until the holder releases on completion.
+
+`locks/<slug>.lock` file format:
+```
+holder: <agent_id>
+acquired_at: <iso-8601>
+path: <original-path>
+```
+
+The slug rule is `tr '/' '-'` on the path (so `src/module.py` →
+`src-module.py.lock`). This is simplistic but sufficient for POC; v5.1 may
+switch to base64 or sha1.
+
+### 19.5 Companion tool: `queue-runner.sh`
+
+`.codenook/queue-runner.sh` provides read-side and maintenance commands for
+humans and external tooling:
+
+- `status`                       — counts across the three queues
+- `list <queue>`                 — agent_ids in a queue
+- `sweep`                        — run step 1 of tick() standalone (useful
+  when orchestrator is idle and a long-running background agent just
+  produced its output file)
+- `ready <task_id>`              — print subtasks ready to run (parses
+  dependency-graph.md against task state.json)
+- `deps <task_id>`               — dump parsed edges (TSV)
+- `cycles <task_id>`             — detect cycles; exit 2 if any
+- `lock <path> <agent_id>`       — acquire file lock
+- `unlock <path>`                — release file lock
+
+The runner mirrors the orchestrator's behaviour for steps 1, 3, and the lock
+protocol, so dispatching state stays consistent whether moved by the chat
+session or by an external cron/human.
+
+### 19.6 HITL interactions
+
+Queue items that trigger a verdict requiring a decision (validator
+`needs_human`, dual-agent irreconcilable disagreement, cycle, lock timeout)
+call `queue_hitl()` (§9) with `source: scheduler` and never resume
+automatically — they wait for a `hitl_response`. The scheduler does **not**
+auto-kill stuck dispatching items; `stale_dispatch_minutes` only flags them in
+`status` output.
+
+### 19.7 Default: OFF
+
+`config.yaml` ships with `concurrency.enabled: false`. While disabled, the
+orchestrator **still** uses `pending.json`/`dispatching.json`/`completed.json`
+as a log (everything is max-1 in flight) so that switching the flag on does
+not require any data migration. This is the same degenerate-serial pattern as
+§19.2.

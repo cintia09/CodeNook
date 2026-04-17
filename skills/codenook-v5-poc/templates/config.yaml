@@ -67,8 +67,15 @@ hitl:
   adapter: terminal-inline   # POC: only inline mode
 
 concurrency:
-  enabled: false             # POC: serial only
-  max_parallel_agents: 1
+  enabled: false             # POC: serial only (opt-in; see core §19)
+  max_parallel_agents: 1     # upper bound across the workspace
+  max_parallel_tasks: 1      # upper bound on distinct task_ids in flight
+  per_role_limit:            # caps per agent role
+    implementer: 1
+    reviewer: 1
+    validator: 1
+  tick_interval_seconds: 0   # 0 = tick on every orchestrator turn; >0 reserved for future daemon mode
+  stale_dispatch_minutes: 30 # dispatching items older than this are flagged (not auto-killed)
 
 distillation:
   enabled: false             # POC: no auto-distill
