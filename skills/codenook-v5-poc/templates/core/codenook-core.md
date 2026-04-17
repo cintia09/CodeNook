@@ -1555,9 +1555,10 @@ on its own to ignore findings.
 
 ## 24. Model Assignment Protocol
 
-Sub-agent model selection is **task-scoped** and defaults to **inheriting
-the main session model**. Tasks can override per role; subtasks always
-inherit from their parent task.
+Sub-agent model selection is **task-scoped**. Workspaces are initialized
+with an explicit default model (asked once at `init` time); per-task and
+per-role overrides apply on top. Subtasks always inherit from their
+parent task.
 
 ### 24.1 Resolution Precedence
 
@@ -1568,12 +1569,19 @@ For a given dispatch of role `R` against task `T`:
 2. tasks/<T>/state.json  models.default (per-task default)
 3. config.yaml           models[R]      (workspace override)
 4. config.yaml           models.default (workspace default)
-5. "inherit"                            (use main session model)
+5. "platform-default"                   (sentinel: dispatch without --model)
 ```
 
-The first non-empty value wins. The literal string `"inherit"` at any level
-stops the search and means "do not pass --model when dispatching, let the
-platform inherit".
+The first non-empty value wins. The literal string `"platform-default"`
+at any level stops the search and means "do not pass --model when
+dispatching, let the platform pick its general-purpose default" (e.g.,
+Claude Code → Sonnet 4.6). This is a fallback, not the recommended
+state — `init` writes a real model name (default `claude-opus-4.7`) into
+every role.
+
+> **Why not "inherit from main session"?** The main session cannot
+> reliably introspect its own model, so a literal "inherit" cannot be
+> implemented. The sentinel above is the closest honest equivalent.
 
 ### 24.2 Subtask Inheritance (MANDATORY)
 
@@ -1589,12 +1597,13 @@ When the orchestrator creates a new task, it writes:
 // tasks/T-xxx/state.json (relevant subset)
 {
   "task_id": "T-xxx",
-  "models": {}                  // empty = inherit from workspace/session
+  "models": {}                  // empty = resolve via config.yaml
 }
 ```
 
 It does **not** ask the user about models. The task immediately runs with
-whatever `config.yaml` resolves to (default: `inherit` everywhere).
+whatever `config.yaml` resolves to (default: `claude-opus-4.7`
+everywhere unless changed).
 
 ### 24.4 Tuning a Task's Models
 
@@ -1619,7 +1628,7 @@ When the orchestrator dispatches sub-agent `R` for task `T`:
 
 ```python
 m = resolve_model(T, R)     # 24.1 precedence
-if m == "inherit":
+if m == "platform-default":
     Task(role=R, prompt=f"Execute. See {manifest}")
 else:
     Task(role=R, model=m, prompt=f"Execute. See {manifest}")
@@ -1631,7 +1640,7 @@ dispatch-time decision made in the main session.
 ### 24.6 Helper
 
 `bash .codenook/model-config.sh resolve <task> <role>` prints the
-resolved model (or `inherit`). `model-config.sh set <task> <role> <value>`
+resolved model (or `platform-default`). `model-config.sh set <task> <role> <value>`
 writes the override into the task state. `model-config.sh list <task>`
 prints the full resolution table for human review.
 

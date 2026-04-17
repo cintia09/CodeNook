@@ -349,14 +349,14 @@ iteration 2: Agent A 修订 → Agent B 再审 → ...
     <section id="d-models">
       <h2>10. 模型配置（§24）</h2>
       <div class="body">
-        <p><strong>策略</strong>：所有 sub-agent 默认<strong>继承主会话模型</strong>。任务创建时<strong>不询问</strong>；只在用户主动「调优 T-xxx 模型」时才进入选择流程。子任务（T-xxx.y）始终继承父任务，永远不被询问。</p>
+        <p><strong>策略</strong>：每个 role 在 <code>config.yaml</code> 写明真实模型（init 时询问一次，默认 <code>claude-opus-4.7</code>）。任务创建时<strong>不再询问</strong>；只在用户主动「调优 T-xxx 模型」时才进入选择流程。子任务（T-xxx.y）始终继承父任务，永远不被询问。</p>
         <h3>解析优先级（高 → 低）</h3>
         <pre><code>1. tasks/&lt;T&gt;/state.json  models[role]      (per-task override)
 2. tasks/&lt;T&gt;/state.json  models.default   (per-task default)
 3. config.yaml           models[role]      (workspace override)
 4. config.yaml           models.default    (workspace default)
-5. "inherit"                               (use main session model)</code></pre>
-        <p>第一个非空值胜出。字符串 <code>"inherit"</code> 在任何层级都意味着「dispatch 时不传 --model，让平台沿用主会话模型」。</p>
+5. "platform-default"                      (sentinel: dispatch 时不传 --model)</code></pre>
+        <p>第一个非空值胜出。字符串 <code>"platform-default"</code> 是 fallback sentinel——dispatch 时不传 <code>--model</code>，让平台 (Claude Code 等) 选 general-purpose 默认值（通常 Sonnet 4.6）。<strong>主会话无法可靠 introspect 自己的当前模型</strong>，所以历史的「inherit from main session」语义无法实现，应当在 init 时给每个 role 写明实际想用的模型。</p>
         <h3>Helper 命令</h3>
         <table>
           <tr><th>命令</th><th>作用</th></tr>
@@ -367,8 +367,8 @@ iteration 2: Agent A 修订 → Agent B 再审 → ...
         </table>
         <h3>Dispatch 接线</h3>
         <pre><code class="language-python">m = resolve_model(T, R)        # 5 级优先级
-if m == "inherit":
-    Task(role=R, prompt=...)   # 不传 model，平台继承
+if m == "platform-default":
+    Task(role=R, prompt=...)   # 不传 model，平台默认
 else:
     Task(role=R, model=m, prompt=...)</code></pre>
         <p class="callout">Agent profile 本身不读模型；这是 dispatch 时主会话的决策。</p>
@@ -516,7 +516,7 @@ else:
       <h2>实施状态</h2>
       <div class="body">
         <div class="kpi-row">
-          <div class="kpi"><div class="num">4</div><div class="lbl">commits</div></div>
+          <div class="kpi"><div class="num">5</div><div class="lbl">commits</div></div>
           <div class="kpi"><div class="num">11</div><div class="lbl">agents</div></div>
           <div class="kpi"><div class="num">8</div><div class="lbl">helper scripts</div></div>
           <div class="kpi"><div class="num">1.6K</div><div class="lbl">core.md lines</div></div>
@@ -530,6 +530,7 @@ else:
           <tr><td>E</td><td>prompts-criteria/* (7)</td><td>existing</td><td><span class="tag ok">done</span></td></tr>
           <tr><td>F</td><td>POC README + 主 README pointer + install.sh banner</td><td><code>06b3b23</code></td><td><span class="tag ok">done</span></td></tr>
           <tr><td>G</td><td>core §24 模型分配协议 + model-config.sh + T28 + 本 HTML 文档</td><td><code>44d6e80</code></td><td><span class="tag ok">done</span></td></tr>
+          <tr><td>H</td><td>init.sh upgrade vs overwrite + 显式默认模型 (claude-opus-4.7) + §24 platform-default 语义修正</td><td><code>52d9090…</code></td><td><span class="tag ok">done</span></td></tr>
         </table>
       </div>
     </section>

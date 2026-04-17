@@ -100,6 +100,37 @@ if [[ $UPGRADE_MODE -eq 1 && -f .codenook/config.yaml ]]; then
   cp "$TEMPLATES_DIR/config.yaml"                      .codenook/config.yaml.template
 else
   mv .codenook/config.yaml.new .codenook/config.yaml
+  # Prompt once for default model (fresh install only). Non-TTY → accept default.
+  DEFAULT_MODEL="${CODENOOK_DEFAULT_MODEL:-claude-opus-4.7}"
+  if [[ -t 0 && -z "${CODENOOK_DEFAULT_MODEL:-}" ]]; then
+    echo ""
+    echo "Default model for all sub-agent roles?"
+    echo "  Common choices: claude-opus-4.7, claude-sonnet-4.6, claude-haiku-4.5,"
+    echo "                  gpt-5.4, gpt-5.3-codex, platform-default"
+    echo "  ('platform-default' = dispatch without --model; platform picks)"
+    read -p "Default model [claude-opus-4.7]: " -r REPLY_MODEL
+    [[ -n "$REPLY_MODEL" ]] && DEFAULT_MODEL="$REPLY_MODEL"
+  fi
+  if [[ "$DEFAULT_MODEL" != "claude-opus-4.7" ]]; then
+    # Replace every `: claude-opus-4.7` line in the models: block with the chosen model.
+    python3 - "$DEFAULT_MODEL" <<'PY'
+import sys, re
+m = sys.argv[1]
+p = ".codenook/config.yaml"
+src = open(p).read()
+out, in_models = [], False
+for line in src.splitlines():
+    if re.match(r'^models:\s*$', line):
+        in_models = True; out.append(line); continue
+    if in_models and line and not line.startswith((' ', '\t')) and not line.startswith('#'):
+        in_models = False
+    if in_models:
+        line = re.sub(r'(:\s*)claude-opus-4\.7\s*$', r'\1' + m, line)
+    out.append(line)
+open(p, 'w').write('\n'.join(out) + '\n')
+PY
+  fi
+  echo "  default model: $DEFAULT_MODEL"
 fi
 if [[ $UPGRADE_MODE -eq 1 && -f .codenook/state.json ]]; then
   echo "  kept existing state.json"

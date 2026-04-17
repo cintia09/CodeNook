@@ -2,7 +2,7 @@
 # CodeNook v5.0 — Model assignment helper (core.md §24)
 #
 # Subcommands:
-#   resolve <task_id> <role>        Print the resolved model or "inherit"
+#   resolve <task_id> <role>        Print the resolved model or "platform-default"
 #   list    <task_id>               Print the resolution table for a task
 #   set     <task_id> <role> <val>  Write task-level override into state.json
 #   unset   <task_id> <role>        Remove a per-role override
@@ -12,7 +12,7 @@
 #   tasks/<id>/state.json models.default
 #   .codenook/config.yaml models[role]
 #   .codenook/config.yaml models.default
-#   "inherit"
+#   "platform-default"   (sentinel: dispatch w/o --model; platform picks default)
 #
 # Subtasks (T-xxx.y) always resolve against parent T-xxx.
 
@@ -88,7 +88,7 @@ resolve() {
   [[ -n "$v" ]] && { echo "$v"; return; }
   v=$(read_workspace_model "$role")
   [[ -n "$v" ]] && { echo "$v"; return; }
-  echo "inherit"
+  echo "platform-default"
 }
 
 # --- subcommands -----------------------------------------------------------

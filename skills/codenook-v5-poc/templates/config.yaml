@@ -8,30 +8,35 @@ version: "5.0-poc"
 #   1. task.models[role]                — per-task override in tasks/<id>/state.json
 #   2. workspace models[role]           — this file
 #   3. workspace models.default         — workspace-wide fallback
-#   4. "inherit"                        — use whatever the main session model is
+#   4. "platform-default"               — sentinel: dispatch without --model,
+#                                         let the platform pick (typically
+#                                         general-purpose default; e.g.,
+#                                         Claude Code → Sonnet 4.6).
 #
 # Subtasks (T-001.x) always inherit from their parent task; they never have
 # their own models block and are never asked.
 #
-# A bare `inherit` value means: dispatch the sub-agent without specifying a
-# model, so the platform (Claude Code / Copilot CLI) picks the same model
-# the main session is currently running on.
+# Default below: claude-opus-4.7 for every role. Edit per role to taste.
+# Init prompts once for the global default; you can rerun init in upgrade
+# mode anytime — your config.yaml is preserved (new template lands at
+# config.yaml.template for diff).
 models:
-  default: inherit
-  clarifier: inherit
-  designer: inherit
-  planner: inherit
-  implementer: inherit
-  reviewer: inherit
-  reviewer_a: inherit
-  reviewer_b: inherit
-  synthesizer: inherit
-  tester: inherit
-  acceptor: inherit
-  validator: inherit
-  session-distiller: inherit
-  security-auditor: inherit
-  # dedicated dual_a / dual_b reserved for model-diversity experiments
+  default: claude-opus-4.7
+  clarifier: claude-opus-4.7
+  designer: claude-opus-4.7
+  planner: claude-opus-4.7
+  implementer: claude-opus-4.7
+  reviewer: claude-opus-4.7
+  reviewer_a: claude-opus-4.7
+  reviewer_b: claude-opus-4.7
+  synthesizer: claude-opus-4.7
+  tester: claude-opus-4.7
+  acceptor: claude-opus-4.7
+  validator: claude-opus-4.7
+  session-distiller: claude-opus-4.7
+  security-auditor: claude-opus-4.7
+  # Tip for model diversity: set reviewer_a / reviewer_b to different
+  # providers (e.g., claude-opus-4.7 vs gpt-5.4) for dual-review variance.
 
 orchestrator:
   max_context_ratio_warn: 0.5
