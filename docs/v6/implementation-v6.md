@@ -48,6 +48,8 @@
 
 → 设计依据：架构文档 §2.1、§3.1.5、§3.2.7、§6
 
+**M1 简化口径**：M1 的 `config-resolve` 暂不读 plugin `config-schema.yaml` 的 `x-merge` 注解，统一按"deep-merge + 列表 replace"实现（足以通过 F-031）；schema-driven merge（`replace | deep | append` 三态）于 M5 启用，见 M5 DoD。M1 的 `model-probe` 必须实现"无 `--catalog` 时的默认位置解析与自动写回"算法（见 §3.5.1.2）。
+
 ---
 
 ### M2 — Plugin 安装管线（Install Pipeline）
@@ -143,6 +145,8 @@
 6. **`task-config-set set task=T-007 role=reviewer model=tier_cheap`** → `tasks/T-007/state.json.config_overrides.models.reviewer` 写入；`config-resolve task=T-007` 的 effective `models.reviewer` 反映该值；`history/config-changes.jsonl` 追加 `{actor:user, scope:task}` entry
 7. **Router 默认模型解析**：在 mock catalog 下，默认 router agent 走 `tier_strong`，最终 literal id 等于 `model_catalog.resolved_tiers.strong`；用户在 `defaults.models.router` 显式写 `tier_cheap` 后，re-resolve 反映为 cheap 档
 8. **`config-resolve` 输出含 `_provenance`**：每个 `models.<role>` 字段带 `{value, from_layer, symbol, resolved_via}`，多层覆盖时 `from_layer` 为最高层号
+
+8. **`config-resolve` 升级为 schema-driven merge**：按 plugin `config-schema.yaml` 的 `x-merge` 注解执行 `replace | deep | append` 三态语义（替代 M1 的"deep-merge + 列表 replace"简化实现）；F-053（M5 deferred case）通过
 
 → 设计依据：架构文档 §3.2 全节、§3.2.4.1、§3.2.4.2
 
@@ -1193,15 +1197,32 @@ def resume():
 
 ## 算法（伪代码）
 
+# 顶层 key 白名单（架构 §3.2.4 决议 #45）
+KNOWN_TOP_KEYS = {
+    "models", "hitl", "knowledge", "concurrency",
+    "skills", "memory", "router",
+    "plugins", "defaults", "secrets",
+}
+
+# Layer 0 builtin defaults（架构 §3.2.4.1 决议 #44）
+BUILTIN_DEFAULTS = {
+    "models": {
+        "default": "tier_strong",
+        "router":  "tier_strong",   # router 例外的兜底；plugin 不能覆盖
+    },
+    # 其它 builtin 兜底...
+}
+
 def resolve(plugin, task=None):
     # Layer 0: builtin defaults
-    layer0 = read_yaml(BUILTIN_DEFAULTS_YAML)        # 内嵌在 core 里
+    layer0 = BUILTIN_DEFAULTS
 
     # Layer 1: plugin baseline
     layer1 = read_yaml(f".codenook/plugins/{plugin}/config-defaults.yaml")
 
     # Layer 2: workspace defaults
     full = read_yaml(".codenook/config.yaml")
+    validate_top_keys(full, KNOWN_TOP_KEYS)   # 未知 key → unknown_top_key 报错
     layer2 = full.get("defaults", {})
 
     # Layer 3: workspace per-plugin overrides
@@ -1213,20 +1234,26 @@ def resolve(plugin, task=None):
         ts = read_json(f".codenook/tasks/{task}/state.json")
         layer4 = ts.get("config_overrides", {})
 
+    # M1: 简单 deep-merge + 列表 replace；M5 起按 schema x-merge 注解执行
     merged = deep_merge_with_strategy([layer0, layer1, layer2, layer3, layer4],
                                        schema=load_schema(plugin))
 
     # Step 5 — model symbol expansion (§3.2.4.2)
-    catalog = read_json(".codenook/state.json").get("model_catalog", {})
+    catalog = load_catalog_default()   # 见 §3.5.1.2 默认位置解析
     for path, value in walk_models(merged):
         if isinstance(value, str) and value.startswith("tier_"):
             tier = value[len("tier_"):]
             literal = catalog.get("resolved_tiers", {}).get(tier)
             if literal is None:
-                warn(f"unknown tier {value} at {path}; falling back to tier_strong")
+                # 决议 #43：未知 tier → warn + fallback tier_strong，不抛错
+                warn(f"unknown tier {value} at {path} (legal: strong|balanced|cheap); "
+                     f"falling back to tier_strong")
                 literal = catalog.get("resolved_tiers", {}).get("strong")
-            set_at(merged, path, literal, symbol=value,
-                   resolved_via=f"model_catalog.resolved_tiers.{tier}")
+                set_at(merged, path, literal, symbol=value,
+                       resolved_via="fallback:tier_strong")
+            else:
+                set_at(merged, path, literal, symbol=value,
+                       resolved_via=f"model_catalog.resolved_tiers.{tier}")
         elif value not in (catalog.get("available", []) | {None}):
             # literal value not in catalog → warn + fall back to tier_strong
             warn(f"literal model {value} at {path} not in catalog; using tier_strong")
@@ -1252,13 +1279,17 @@ def annotate_provenance(merged, layers):
 
 def deep_merge_with_strategy(layers, schema):
     """
-    schema 中标注 merge: replace 的字段 → 高层完全替换低层
-    其他字段 → 字典递归深合并、列表默认 replace
+    M1 简化口径：忽略 schema，统一按 deep-merge + 列表 replace（足以通过 F-031）。
+    M5 起：按 schema 中字段的 `x-merge` 注解执行：
+      - replace → 高层完全替换低层
+      - deep    → 字典/列表递归深合并
+      - append  → 列表追加去重
+    未声明者按字段类型推断（标量=replace，map=deep，list=replace）。
     """
     result = {}
     for layer in layers:
         for path, value in walk(layer):
-            strategy = schema_strategy_at(schema, path)   # "merge" | "replace"
+            strategy = schema_strategy_at(schema, path)   # M1: 始终视作默认
             apply(result, path, value, strategy)
     return result
 ```
@@ -1302,6 +1333,45 @@ Layer 4  Task overrides         tasks/T-NNN/state.json.config_overrides.models
 **Router 例外**：router 在 plugin 选定**之前**运行，只读 Layer 0 / Layer 2（`config.yaml.defaults.models.router`），永不读 Layer 1/3。默认 `tier_strong`（路由错误成本高）；用户可显式降档。
 
 #### 3.5.1.2 `model-probe/SKILL.md` 算法（伪代码）
+
+**默认 catalog 位置解析**（架构 §3.2.4.2；M1 必须实现）：
+
+```python
+def resolve_catalog_path(explicit_catalog=None):
+    """
+    `model-probe` / `config-resolve` 在未显式传 --catalog 时的统一解析。
+    返回 (workspace_root, catalog_path, exists_bool)。
+    """
+    if explicit_catalog:
+        # 显式 --catalog 总优先；不触发自动写回（避免污染只读 fixture）
+        return (None, explicit_catalog, os.path.exists(explicit_catalog))
+
+    # 1) 环境变量
+    ws = os.environ.get("CODENOOK_WORKSPACE")
+    if not ws:
+        # 2) 从 cwd 向上搜索 .codenook/
+        ws = find_upward(".codenook", start=os.getcwd())
+    if not ws:
+        # 极端兜底：无 workspace 上下文
+        warn("no workspace catalog; using hardcoded fallback")
+        return (None, None, False)
+
+    catalog_path = os.path.join(ws, ".codenook", "state.json")
+    return (ws, catalog_path, os.path.exists(catalog_path))
+
+
+def load_catalog_default(explicit_catalog=None):
+    ws, path, exists = resolve_catalog_path(explicit_catalog)
+    if exists:
+        cat = read_json(path).get("model_catalog")
+        if cat:
+            return cat
+    # state.json 缺失或无 model_catalog → 即时探测 + 自动写回
+    cat = probe()
+    if ws and not explicit_catalog:
+        write_json_at(path, "model_catalog", cat)   # 自动写回
+    return cat
+```
 
 ```python
 # 触发：

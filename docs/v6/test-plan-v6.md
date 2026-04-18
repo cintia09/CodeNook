@@ -555,9 +555,10 @@
 - 前置：schema 标 `hitl.gates: { merge: replace }`；高层 `gates: [accept]`，低层 `gates: [design, accept]`。
 - 期望：merged = `[accept]`（不并集）。
 
-**F-032 — Schema 校验未知 key 报错**
-- 前置：`overrides.weird_key: 1`。
-- 期望：`config-validate` 报错；OT 拒绝执行 phase；MS 提示用户修正。
+**F-032 — Schema 校验未知顶层 key 报错（决议 #45）**
+- 前置：`config.yaml` 顶层加 `weird_key: 1`。
+- 期望：`config-validate` 报 `unknown_top_key` 错；OT 拒绝执行 phase；MS 提示用户修正。
+- 白名单（顶层只允许这 10 个 key）：`models, hitl, knowledge, concurrency, skills, memory, router, plugins, defaults, secrets`。其它 key 一律拒绝（包括驼峰 / 复数变体）。
 
 **F-033 — Schema 校验类型错误**
 - 前置：`models.main: 42`（应为字符串）。
@@ -603,6 +604,11 @@
 
 **F-046 — 任务级覆盖不被 mutator 触及**
 - 期望：mutator 只动 Layer 3；从不动 Layer 4。
+
+**F-053 — Schema-driven merge（`merge: append` / list `merge: deep`）—— M5 才启用**
+- 状态：**deferred to M5**；M1 不实现（M1 的 `config-resolve` 统一按 deep-merge + 列表 replace，见架构 §3.2.4 M1 简化口径）。
+- 前置：plugin `config-schema.yaml` 给 `knowledge.consumes` 标 `x-merge: append`；Layer 1 `consumes=[a,b]`，Layer 2 `consumes=[b,c]`。
+- 期望（M5 起）：merged `consumes=[a,b,c]`（追加去重保序，不被 replace）；同理给 list 标 `x-merge: deep` 时元素按 key 递归合并。M5 DoD #8 要求本用例通过。
 
 #### F.4 History 单时间线 + tag（§3.2.5）
 
@@ -751,9 +757,10 @@
 - 步骤：同 M-006。
 - 期望：解析为 `gpt-5.4`；`resolved_tiers.strong="gpt-5.4"`。
 
-**M-008 — unknown tier 报错**
-- 步骤：plugin 写 `models.reviewer=tier_super_strong`。
-- 期望：`config-resolve` 抛 `UnknownTier`；error 信息包含合法 tier 列表 `[strong, balanced, cheap]`。
+**M-008 — unknown tier 符号回退（决议 #43，已与实现一致）**
+- 步骤：plugin 写 `models.reviewer=tier_super_strong`；调 `config-resolve plugin=development`。
+- 期望：**不抛错**；stderr 含 warning（提及合法 tier 列表 `[strong, balanced, cheap]`）；effective `models.reviewer` 等于 `model_catalog.resolved_tiers.strong`；`_provenance.symbol="tier_super_strong"`，`_provenance.resolved_via="fallback:tier_strong"`，`_provenance.from_layer` 与原写入层一致。
+- 备注：原 M-008 期望"抛 `UnknownTier`"；M1 TDD 落地时与用户确认采用"warn + fallback `tier_strong`"以保持与字面值不在 catalog 时的口径一致；本用例已据此重写并归档为决议 #43。
 
 **M-009 — `tier_priority` 用户覆盖**
 - 步骤：`config.yaml.models.tier_priority.strong=[gpt-5.4, opus-4.7]`（颠倒）；catalog 含两者；`init.sh --refresh-models`。
@@ -832,6 +839,14 @@
 - 前置：`state.json.model_catalog` 不存在（极端兜底路径）。
 - 步骤：`config-resolve plugin=development`。
 - 期望：所有 model 字段 `value="opus-4.7"`（硬编码兜底）；`resolved_via="fallback:hardcoded"`；同时 stderr 打 warning。
+
+**M-026 — `model-probe` 无 `--catalog` 时读写 state.json.model_catalog（M1.5 deferred）**
+- 状态：**deferred to M1.5**；M1 测试默认显式传 `--catalog`，本用例验证默认位置解析与自动写回。
+- 前置：mock workspace 有 `.codenook/`；环境变量 `CODENOOK_WORKSPACE` 设为该 workspace 根；`state.json` 存在但无 `model_catalog` 字段。
+- 步骤：(a) 不传 `--catalog`，跑 `model-probe`；(b) 进入 workspace 子目录，仍不传 `--catalog`，再跑一次。
+- 期望：(a) `<workspace>/.codenook/state.json.model_catalog` 被写入（`refreshed_at / runtime / available[] / resolved_tiers`）；(b) 通过 cwd 向上搜索定位到同一 workspace；catalog 命中后不重复探测（除非 TTL 过期）。
+- 反例：清掉 `CODENOOK_WORKSPACE` 且 cwd 不在任何 `.codenook/` 子树下 → stderr warning `"no workspace catalog; using hardcoded fallback"`，且**不**写盘。
+- 与 `--catalog` 显式路径对比：显式路径 `model-probe --catalog ./fixtures/cat.json` 读后**不**触发自动写回，避免污染只读 fixture。
 
 → 设计依据：架构文档 §3.2.4.1、§3.2.4.2、§12 决议 #36–#42
 
@@ -1075,7 +1090,7 @@ mock-cycle.json           # tier_priority 循环引用（R-28 用，例如自定
 
 ## 7. 已识别的可测试性歧义（反馈给设计文档）
 
-> **状态更新（2026-04-18）**：以下 13 条原歧义已全部被架构文档 §12 的落地反馈决议（#T-1..#T-13、#I-1..#I-10）解决；#36–#42 进一步覆盖模型路由领域并未引入新歧义。逐条标注 ✅ + 解决出处。
+> **状态更新（2026-04-18）**：以下 13 条原歧义已全部被架构文档 §12 的落地反馈决议（#T-1..#T-13、#I-1..#I-10）解决；#36–#42 进一步覆盖模型路由领域。**M1 TDD 落地反馈（2026-04-18 追加）**：另有 3 条边缘歧义在 M1 实现期间被识别并归档为决议 **#43 / #44 / #45**（未知 tier 回退、Layer 0 publish `models.router`、顶层 key 白名单），见下方追加段。逐条标注 ✅ + 解决出处。
 
 1. ✅ **§3.1.3 OT 触发频率** — 由 #T-1 解决：默认 focus task 1 次/回合；"全部继续"按 active_tasks fan-out。
 2. ✅ **§3.1.4 SR 实现技术栈** — 由 #T-2 解决：MVP 为确定性脚本（无 LLM），未来可升级，token ≤500。
@@ -1093,6 +1108,12 @@ mock-cycle.json           # tier_priority 循环引用（R-28 用，例如自定
 
 **模型路由领域（#36–#42）落地后未发现新歧义**：5 层链 / Router 例外 / `task-config-set` / `model-probe` / 三档符号 / `tier_priority` / 30 天 TTL / `_provenance` 字段语义在架构 §3.2.4.1 + §3.2.4.2 已给出可判定的伪代码与字段 schema，M-001..M-025 全部可机械化验证。
 
+**M1 TDD 追加决议（#43 / #44 / #45）**：
+- ✅ **#43**（架构 §3.2.4.2）未知 tier 符号 → warn + fallback `tier_strong`；M-008 已据此重写。
+- ✅ **#44**（架构 §3.2.4.1 / §3.2.4.2）Layer 0 同时发布 `models.default` 与 `models.router`；M-016 据此可机械化验证 plugin 写的 router 值被忽略。
+- ✅ **#45**（架构 §3.2.4）`config.yaml` 顶层 key 白名单固化为 10 项；F-032 已据此重写。
+- 新增用例：F-053（M5 deferred）schema-driven merge；M-026（M1.5 deferred）`model-probe` 无 `--catalog` 时读写 `state.json.model_catalog` + 自动写回。
+
 → 设计依据：架构文档 §12（决议 #I-1..#I-10、#T-1..#T-13、#36..#42）
 
 ---
@@ -1104,13 +1125,13 @@ mock-cycle.json           # tier_priority 循环引用（R-28 用，例如自定
 - C 子系统：C-001..C-030（30 例）
 - D 子系统：D-001..D-012（12 例）
 - E 子系统：E-001..E-012, E-021..E-040, E-041..E-055, E-061..E-065（57 例）
-- F 子系统：F-001..F-052（52 例）
+- F 子系统：F-001..F-052 + F-053（M5 deferred）（53 例）
 - G 子系统：G-001..G-016（16 例）
 - H 子系统：H-001..H-005（5 例）
-- **M 子系统：M-001..M-025（25 例）**
+- **M 子系统：M-001..M-025 + M-026（M1.5 deferred）（26 例）**
 - 风险矩阵：R-01..R-28（28 项，引用上述用例）
 
-**用例总数：14 + 17 + 30 + 12 + 57 + 52 + 16 + 5 + 25 = 228**
+**用例总数：14 + 17 + 30 + 12 + 57 + 53 + 16 + 5 + 26 = 230**
 
 → 设计依据：架构文档 §2–§9
 

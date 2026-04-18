@@ -404,6 +404,21 @@ plugins:
 
 **Schema 校验**：plugin 自带 `config-schema.yaml` 声明它认得的 key；用户改 overrides 时由 builtin skill `config-validate` 对照校验，不识别的 key 报错（防静默失效）。
 
+**顶层 key 白名单（v6 决议 #45）**：`config.yaml` 顶层只允许以下 10 个 key，其它一律由 `config-validate` 报错（`unknown_top_key`）：
+
+| Key | 用途 |
+|---|---|
+| `models` | 模型分配（见 §3.2.4.1） |
+| `hitl` | HITL adapter / gates |
+| `knowledge` | 知识层路由 |
+| `concurrency` | 并发开关 |
+| `skills` | skill 路由配置 |
+| `memory` | 记忆/蒸馏配置 |
+| `router` | router 阈值与策略 |
+| `plugins` | 各 plugin 启停与 overrides |
+| `defaults` | 跨 plugin 的 workspace 默认（Layer 2） |
+| `secrets` | secret 引用占位（实际值在 `.codenook/secrets.yaml`） |
+
 **`config-defaults.yaml` vs `plugin.yaml` 内嵌字段（v6 决议 #I-1）**：
 - **能力声明 / catalog 字段** → `plugin.yaml`（如 `name / summary / keywords / supports_*` / `data_layout`）。这些是 router 与安装器要读的元数据，**不参与配置覆盖链**。
 - **可调参数** → `config-defaults.yaml`（如默认 model、HITL gates 列表、`max_iterations`、`concurrency.enabled`）。这些进入 §3.2.4 的 Layer 1，可被 workspace / task 覆盖。
@@ -432,6 +447,8 @@ default_question_set:
 
 合法值：`replace | deep | append`。不声明时按字段类型推断（标量=replace，map=deep，list=replace 以避免歧义堆叠）。
 
+**M1 阶段简化口径**：M1 的 `config-resolve` 实现 **不读** `config-schema.yaml` 的 `x-merge` 注解，统一按"deep-merge + 列表 replace"处理，足以覆盖 M1 全部用例（含 F-031）。**M5 起**（模块化子系统落位完成时）`config-resolve` 升级为 schema-driven merge，按字段 `x-merge` 注解执行 `replace | deep | append` 三态语义；届时 `merge: deep`（list）与 `merge: append` 才真正生效。
+
 **自动 mutator 并发裁决（v6 决议 #T-5）**：当 distiller 的 `config-mutator` 与 task 写入 `config_overrides` 可能并发时：
 1. **fs-level advisory lock**：写 `config.yaml` / `tasks/T-NNN/state.json` 前 `flock` 对应文件；
 2. **乐观并发版本号**：每个被写文件首段含 `_version: <int>`，mutator 读时记录 `expected_version`，写时若实际 `_version != expected_version` 则 abort，重读、重算、重试（最多 3 次）；
@@ -457,12 +474,15 @@ models.default          # 任何未列出 role 的兜底
 **5 层解析链**（在标准 4 层 config 之上明示）：
 
 ```
-Layer 0  Builtin                models.default = "opus-4.7"        硬编码兜底
+Layer 0  Builtin                models.default = "tier_strong"     硬编码兜底
+                                models.router  = "tier_strong"     router 例外的兜底（决议 #44）
 Layer 1  Plugin baseline        plugins/<p>/config-defaults.yaml   plugin 作者推荐
 Layer 2  Workspace defaults     config.yaml -> defaults.models     用户全局口味
 Layer 3  Plugin overrides       config.yaml -> plugins.<p>.overrides.models
 Layer 4  Task overrides         tasks/T-NNN/state.json -> config_overrides.models
 ```
+
+**Layer 0 同时发布两个 key**（v6 决议 #44）：`models.default` 与 `models.router` 都默认 `tier_strong`。原因：router 例外只读 Layer 0/2，若 Layer 0 仅暴露 `models.default`，任何 plugin 在 `config-defaults.yaml.models.router` 写值都会因合并链顺序意外被 plugin 影响；显式发布 `models.router` 让"plugin 写的 router 值被忽略"成为可机械化测试的不变量（见 test-plan M-016）。
 
 **Plugin 作者声明**（`plugins/<p>/config-defaults.yaml`）：
 
@@ -596,12 +616,20 @@ config-resolve 流程：
   5. 返回最终 {role: literal_model_id} 字典
 ```
 
+**未知 tier 符号的统一口径**（v6 决议 #43）：
+
+- 若 `models.<role>` 形如 `tier_<unknown>`（如 `tier_super_strong`），**不抛错**；
+- 行为：向 stderr 打 warning（含合法 tier 列表 `[strong, balanced, cheap]`）+ **回退到 `tier_strong`** 解析；
+- `_provenance.resolved_via` 标记为 `"fallback:tier_strong"`、`symbol` 保留原始未知符号便于回溯；
+- 理由：与字面值不在 catalog 时的 fallback、与 router 例外的优雅降级口径一致；避免一个写"前瞻型" tier 名（为未来新档预留）的 plugin 把工作区整条流程 hard-block。
+
 **5) Layer 0 兜底改写**
 
 之前 §3.2.4.1 写的 "Layer 0: opus-4.7"——修订为：
 
 ```
 Layer 0  Builtin                models.default = "tier_strong"
+                                 models.router  = "tier_strong"   # 决议 #44，router 例外的兜底
                                  → 解析时展开为 catalog.resolved_tiers.strong
                                  → 若 catalog 缺失（极端兜底）才硬编码 "opus-4.7"
 ```
@@ -618,6 +646,20 @@ init.sh --refresh-models
 ```
 
 → `model-probe` 重跑 → catalog 更新 → 所有用 tier 符号的 plugin 自动用上更强模型，**无需改任何 plugin**。
+
+**Catalog 默认位置与自动写回**：`model-probe` 与 `config-resolve` 都需要读 catalog。当 CLI 未显式传 `--catalog <path>` 时，按以下顺序解析：
+
+```
+1. 环境变量 CODENOOK_WORKSPACE（若设）→ <CODENOOK_WORKSPACE>/.codenook/state.json
+2. 否则从 cwd 向上搜索首个含 .codenook/ 的目录作为 workspace_root
+3. 读 <workspace_root>/.codenook/state.json -> model_catalog
+4. 若 state.json 不存在 / 无 model_catalog → model-probe 即时探测一次，
+   并把结果 **写回** <workspace_root>/.codenook/state.json -> model_catalog
+5. 若 1/2 均失败（无 workspace 上下文）→ 退到极端兜底：硬编码 opus-4.7（同 Layer 0），
+   并 stderr warning "no workspace catalog; using hardcoded fallback"
+```
+
+显式 `--catalog <path>` 总是优先于上述自动解析。自动写回只发生在自动解析路径，避免 `--catalog` 临时指向只读 fixture 时被污染。
 
 **7) 可观测性**
 
@@ -1459,3 +1501,6 @@ Run `./init.sh --upgrade-core` (recommended) or install a compatible plugin vers
 40. ✅ **#40**（§3.2.4.2）引入 `tier_strong / tier_balanced / tier_cheap` 符号；`tier_priority` 排名可在 `config.yaml.models.tier_priority` 覆盖
 41. ✅ **#41**（§3.2.4.2）`init.sh --refresh-models` + 主会话"刷新模型"触发；catalog 缓存 30 天 TTL，存 `state.json.model_catalog`
 42. ✅ **#42**（§3.2.4.2）`config-resolve` 输出 `_provenance` 字段，可回溯每个 role 的最终模型来自哪一层 / 哪个符号
+43. ✅ **#43**（§3.2.4.2）未知 tier 符号（如 `tier_super_strong`）→ stderr warning + 回退 `tier_strong`，**不抛错**；`_provenance.resolved_via="fallback:tier_strong"`，与字面值不在 catalog 时的 fallback 口径一致，避免 plugin 用前瞻型 tier 名 hard-block 工作区
+44. ✅ **#44**（§3.2.4.1 / §3.2.4.2）Layer 0 同时发布 `models.default = tier_strong` **和** `models.router = tier_strong`；router 例外只读 Layer 0/2，使"plugin 写的 router 值被忽略"成为可机械化测试的不变量
+45. ✅ **#45**（§3.2.4）`config.yaml` 顶层 key 白名单固化为 10 项：`models / hitl / knowledge / concurrency / skills / memory / router / plugins / defaults / secrets`；其它 key 由 `config-validate` 报 `unknown_top_key` 错误

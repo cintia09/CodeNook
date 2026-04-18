@@ -44,3 +44,6 @@ __pycache__/
 *.mp3
 *.pptx
 *.mp4
+
+# markdown-to-html auto-backup files
+*.bak-*
