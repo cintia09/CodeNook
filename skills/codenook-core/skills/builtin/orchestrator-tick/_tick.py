@@ -180,7 +180,8 @@ def hitl_required(state: dict, phase: dict, cfg: dict) -> bool:
     return bool(cfg.get("hitl_required", {}).get(phase.get("id")))
 
 
-def write_hitl_entry(workspace: Path, state: dict, phase: dict) -> Path:
+def write_hitl_entry(workspace: Path, state: dict, phase: dict,
+                     verdict: str | None = None) -> Path:
     gate = phase.get("gate") or phase.get("id")
     qdir = workspace / ".codenook" / "hitl-queue"
     qdir.mkdir(parents=True, exist_ok=True)
@@ -197,9 +198,47 @@ def write_hitl_entry(workspace: Path, state: dict, phase: dict) -> Path:
         "decided_at": None,
         "reviewer": None,
         "comment": None,
+        "verdict_at_gate": verdict,
     }
     atomic_write_json(str(path), entry)
     return path
+
+
+# ── HITL decision consumer ──────────────────────────────────────────────
+def hitl_check_resolved(ws: Path, state: dict, cur_phase: dict
+                        ) -> tuple[str, str | None]:
+    """Return (status, stored_verdict). Status is one of:
+       "pending", "approve", "reject", "needs_changes", "not_found"."""
+    gate = cur_phase.get("gate") or cur_phase.get("id")
+    eid = f"{state['task_id']}-{gate}"
+    p = ws / ".codenook" / "hitl-queue" / f"{eid}.json"
+    if not p.is_file():
+        return ("not_found", None)
+    try:
+        entry = read_json(p)
+    except Exception:
+        return ("not_found", None)
+    decision = entry.get("decision")
+    if decision in (None, ""):
+        return ("pending", None)
+    if decision == "approve":
+        return ("approve", entry.get("verdict_at_gate"))
+    if decision == "reject":
+        return ("reject", None)
+    if decision == "needs_changes":
+        return ("needs_changes", None)
+    return ("pending", None)
+
+
+def hitl_consume_entry(ws: Path, state: dict, cur_phase: dict) -> None:
+    gate = cur_phase.get("gate") or cur_phase.get("id")
+    eid = f"{state['task_id']}-{gate}"
+    src = ws / ".codenook" / "hitl-queue" / f"{eid}.json"
+    if not src.is_file():
+        return
+    dst_dir = ws / ".codenook" / "hitl-queue" / "_consumed"
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    os.replace(str(src), str(dst_dir / f"{eid}.json"))
 
 
 # ── entry-questions ────────────────────────────────────────────────────
@@ -319,12 +358,24 @@ def tick(workspace: Path, state_file: Path) -> tuple[dict, dict]:
     cfg = state.get("config_overrides", {})  # M5 will full-merge; M4 uses task-only
 
     state["last_tick_ts"] = now_iso()
+    status_in = state.get("status")
 
-    # ── 0. terminal ──
-    if state.get("status") in ("done", "cancelled", "error"):
-        # No mutation on terminal noop (preserve byte equality with snapshot).
+    # ── 0. terminal / waiting short-circuit ──
+    if status_in in ("done", "cancelled", "error"):
         del state["last_tick_ts"]
-        return state, {"status": state["status"], "next_action": "noop"}
+        return state, {"status": status_in, "next_action": "noop"}
+
+    if status_in == "waiting":
+        cur_w = find_phase(phases, state.get("phase")) if state.get("phase") else None
+        decided = False
+        if cur_w is not None and hitl_required(state, cur_w, cfg):
+            res, _ = hitl_check_resolved(workspace, state, cur_w)
+            if res in ("approve", "reject", "needs_changes"):
+                decided = True
+        if not decided:
+            del state["last_tick_ts"]
+            return state, {"status": "waiting", "next_action": "noop"}
+        # else: fall through to step 3.5 via main flow.
 
     # ── 1. phase=null → dispatch first ──
     if state.get("phase") in (None, ""):
@@ -347,33 +398,77 @@ def tick(workspace: Path, state_file: Path) -> tuple[dict, dict]:
 
     # ── 2. in_flight present ──
     in_flight = state.get("in_flight_agent")
+    just_consumed_verdict: str | None = None
     if in_flight:
         expected = in_flight.get("expected_output", "")
         if not output_ready(workspace, state["task_id"], expected):
-            # Roll back the bookkeeping mutation so test snapshot equality holds.
             del state["last_tick_ts"]
             return state, {
                 "status": "waiting",
                 "next_action": f"awaiting {in_flight.get('role')}",
             }
-        verdict = read_verdict(workspace, state["task_id"], expected) or "ok"
+        just_consumed_verdict = read_verdict(workspace, state["task_id"], expected) or "ok"
         state["history"].append(
-            {"ts": now_iso(), "phase": cur.get("id"), "verdict": verdict}
+            {"ts": now_iso(), "phase": cur.get("id"), "verdict": just_consumed_verdict}
         )
         state["in_flight_agent"] = None
         if cur.get("post_validate"):
             run_post_validate(workspace, plugin, cur["post_validate"], state)
-        if hitl_required(state, cur, cfg):
-            write_hitl_entry(workspace, state, cur)
-            state["status"] = "waiting"
-            return state, {
-                "status": "waiting",
-                "next_action": f"hitl:{cur.get('gate') or cur.get('id')}",
-            }
-        nxt = lookup_transition(trans_doc, cur.get("id"), verdict)
+        # fall through to step 3.5
+
+    # ── 3.5. HITL gate consumer ──
+    verdict_for_transition = just_consumed_verdict
+    if hitl_required(state, cur, cfg):
+        resolution, stored = hitl_check_resolved(workspace, state, cur)
+        if resolution == "approve":
+            verdict_for_transition = stored or just_consumed_verdict or "ok"
+            hitl_consume_entry(workspace, state, cur)
+            state["status"] = "in_progress"
+            state["history"].append(
+                {"ts": now_iso(), "phase": cur.get("id"),
+                 "_warning": "hitl_approved"}
+            )
+            # fall through to transition step 5
+        elif resolution == "reject":
+            state["status"] = "blocked"
+            state["history"].append(
+                {"ts": now_iso(), "phase": cur.get("id"),
+                 "_warning": "hitl_rejected"}
+            )
+            return state, {"status": "blocked",
+                           "next_action": "hitl_rejected"}
+        elif resolution == "needs_changes":
+            hitl_consume_entry(workspace, state, cur)
+            state["iteration"] = state.get("iteration", 0) + 1
+            if state["iteration"] > state.get("max_iterations", 0):
+                state["status"] = "blocked"
+                return state, {"status": "blocked",
+                               "next_action": "max_iterations exceeded"}
+            state["status"] = "in_progress"
+            state["history"].append(
+                {"ts": now_iso(), "phase": cur.get("id"),
+                 "_warning": "hitl_needs_changes"}
+            )
+            return state, dispatch_role(workspace, state, cur, cfg)
+        else:
+            # pending or not_found
+            if just_consumed_verdict is not None:
+                write_hitl_entry(workspace, state, cur, just_consumed_verdict)
+                state["status"] = "waiting"
+                return state, {
+                    "status": "waiting",
+                    "next_action": f"hitl:{cur.get('gate') or cur.get('id')}",
+                }
+            # waiting + still pending → noop
+            del state["last_tick_ts"]
+            return state, {"status": "waiting", "next_action": "noop"}
+
+    # ── 5. transition (only when we have a verdict to act on) ──
+    if verdict_for_transition is not None:
+        nxt = lookup_transition(trans_doc, cur.get("id"), verdict_for_transition)
         if nxt is None:
             return state, {"status": "error",
-                           "next_action": f"no transition from {cur.get('id')}/{verdict}"}
+                           "next_action": f"no transition from {cur.get('id')}/{verdict_for_transition}"}
         if nxt == "complete":
             state["status"] = "done"
             state["phase"] = "complete"
@@ -392,12 +487,17 @@ def tick(workspace: Path, state_file: Path) -> tuple[dict, dict]:
                            "next_action": f"transition target unknown: {nxt}"}
         return state, dispatch_role(workspace, state, nxt_phase, cfg)
 
-    # ── 6. recovery (phase set, no in_flight) ──
-    state["history"].append(
-        {"ts": now_iso(), "phase": cur.get("id"),
-         "_warning": "recover: re-dispatch (no in_flight)"}
-    )
-    return state, dispatch_role(workspace, state, cur, cfg)
+    # ── 6. recovery (only when status==in_progress + phase set + no in_flight) ──
+    if state.get("status") == "in_progress":
+        state["history"].append(
+            {"ts": now_iso(), "phase": cur.get("id"),
+             "_warning": "recover: re-dispatch (no in_flight)"}
+        )
+        return state, dispatch_role(workspace, state, cur, cfg)
+
+    # Default: nothing to do (e.g., status=blocked + phase set + no in_flight).
+    del state["last_tick_ts"]
+    return state, {"status": state.get("status", "noop"), "next_action": "noop"}
 
 
 # ── legacy stub mode (M1) ────────────────────────────────────────────────
@@ -524,13 +624,12 @@ def main() -> None:
     prior_state = read_json(state_file)
     new_state, summary = tick(workspace, state_file)
     # Skip persist for pure observers (no progress made):
-    #   - waiting on an in-flight agent that hasn't produced output
-    #   - terminal noop on an already-terminal task
     waiting_noop = (summary.get("status") == "waiting"
                     and summary.get("next_action", "").startswith("awaiting"))
-    terminal_noop = (summary.get("next_action") == "noop"
-                     and prior_state.get("status") in ("done", "cancelled", "error"))
-    if not (waiting_noop or terminal_noop):
+    inert_noop = (summary.get("next_action") == "noop"
+                  and prior_state.get("status") in
+                  ("done", "cancelled", "error", "blocked", "waiting"))
+    if not (waiting_noop or inert_noop):
         new_state["updated_at"] = now_iso()
         atomic_write_json(str(state_file), new_state)
     if json_mode:

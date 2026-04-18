@@ -15,6 +15,7 @@
     "decision": {"type": ["string", "null"], "enum": [null, "approve", "reject", "needs_changes"]},
     "decided_at": {"type": ["string", "null"]},
     "reviewer": {"type": ["string", "null"]},
-    "comment": {"type": ["string", "null"]}
+    "comment": {"type": ["string", "null"]},
+    "verdict_at_gate": {"type": ["string", "null"]}
   }
 }
