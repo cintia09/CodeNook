@@ -1,0 +1,5 @@
+id: bad-version-downgrade
+version: 0.0.1
+type: domain
+entry_points: {install: x.sh}
+declared_subsystems: []

@@ -1,0 +1,7 @@
+id: bad-deps-too-old
+version: 0.1.0
+type: domain
+entry_points: {install: x.sh}
+declared_subsystems: []
+requires:
+  core_version: '>=99.0.0'

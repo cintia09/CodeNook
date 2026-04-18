@@ -1,0 +1,5 @@
+id: bad-shebang-perl
+version: 0.1.0
+type: domain
+entry_points: {install: script.pl}
+declared_subsystems: []

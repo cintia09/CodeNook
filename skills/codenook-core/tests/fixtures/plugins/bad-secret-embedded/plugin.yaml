@@ -1,0 +1,5 @@
+id: bad-secret-embedded
+version: 0.1.0
+type: domain
+entry_points: {install: x.sh}
+declared_subsystems: []

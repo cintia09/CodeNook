@@ -1,0 +1,9 @@
+id: good-minimal
+version: 0.2.0
+type: domain
+entry_points:
+  install: skills/x/run.sh
+declared_subsystems:
+  - skills/good-minimal-runner
+requires:
+  core_version: '>=0.2.0-m2'

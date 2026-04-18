@@ -1,0 +1,6 @@
+id: bad-path-traversal
+version: 0.1.0
+type: domain
+entry_points:
+  install: ../escape.sh
+declared_subsystems: []
