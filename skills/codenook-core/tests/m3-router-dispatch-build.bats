@@ -81,7 +81,8 @@ stage_ws() {
   # Force a target whose id is itself huge so the envelope can't fit.
   ws="$(make_scratch)/ws"
   mkdir -p "$ws/.codenook/plugins"
-  big_id=$(python3 -c "print('p'*400, end='')")
+  big_id=$(python3 -c "print('p'*230, end='')")
+  big_input=$(python3 -c "print('q'*250, end='')")
   mkdir -p "$ws/.codenook/plugins/$big_id"
   cat > "$ws/.codenook/plugins/$big_id/plugin.yaml" <<EOF
 id: $big_id
@@ -93,7 +94,7 @@ EOF
   cat > "$ws/.codenook/state.json" <<EOF
 {"schema_version":1,"installed_plugins":{"$big_id":{"version":"0.1.0"}},"active_tasks":[]}
 EOF
-  run_with_stderr "\"$BUILD_SH\" --target $big_id --user-input 'x' --workspace \"$ws\" --json"
+  run_with_stderr "\"$BUILD_SH\" --target $big_id --user-input '$big_input' --workspace \"$ws\" --json"
   [ "$status" -eq 1 ]
   assert_contains "$STDERR" "payload still too large"
 }
