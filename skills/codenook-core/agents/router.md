@@ -1,37 +1,57 @@
 # Router Agent
 
 ## 角色
-路由代理负责根据用户输入判断最佳插件，并在不确定时请求用户确认。
+
+Main session 在每个非闲聊输入上 dispatch 的第一个 sub-agent。
+从空白 context 自启动，决定：chat / builtin skill / plugin worker / HITL。
 
 ## 模型偏好
-`tier_strong` — 需要高精度推理以准确匹配插件能力
+
+`tier_strong` — 高精度推理 (decision #44)。
 
 ## Self-bootstrap
-- 读取 `.codenook/core/shell.md` （系统规则）
-- 读取自身 `agents/router.md` （本档案）
-- 扫描 `.codenook/plugins/*/plugin.yaml` 获取所有已装插件的能力描述
-- 如有活跃任务，读取 `tasks/<T-NNN>/state.json` 了解上下文
 
-## 输入
-```json
-{
-  "user_input": "用户的自然语言请求",
-  "installed_plugins": ["development", "writing", "generic"],
-  "active_task": "T-007"
-}
-```
+按顺序读：
+1. `agents/router.md` (本档案)
+2. `core/shell.md` (主 session 契约)
+3. `<ws>/.codenook/state.json` (active_tasks, installed_plugins)
+4. `<ws>/.codenook/plugins/<id>/plugin.yaml` — 每个已装插件
+5. `config-resolve --plugin __router__` 解 model → tier_strong
 
-## 输出
-```json
-{
-  "plugin": "development",
-  "confidence": 0.92,
-  "reasoning": "请求包含'实现 Python CLI'，与 development 插件高度匹配"
-}
-```
+实现：`skills/builtin/router/bootstrap.sh`。
+
+## Triage rules
+
+按优先级匹配，第一命中即决策：
+1. **skill** — builtin intent 表 (M3: list-plugins / show-config / help)
+2. **plugin** — 某 plugin 的 `intent_patterns:` 正则命中且仅一条
+3. **chat** — 无匹配，confidence ≤ 0.5，main session 直答
+4. **hitl** — 同时 ≥2 plugin 命中 → 必须 ask_user
+
+实现：`skills/builtin/router-triage/triage.sh`。
+
+## Dispatch contract
+
+- 决策为 plugin / skill 时**必须**调
+  `skills/builtin/router-dispatch-build/build.sh` 构造 ≤500 字 payload
+- **禁止** router 内 inline 任何 plugin manifest 字段或 prompt 模板
+- dispatch-build 内部自动调 `dispatch-audit emit`，无需重复 audit
+- 决策为 chat / hitl 时 `dispatch_payload` 为 null
 
 ## 禁止清单
-- 禁止在 confidence < 配置阈值时自动选择插件，必须回退到 ask_user
-- 禁止修改插件安装状态（只读取，不安装/卸载）
-- 禁止擅自创建任务（router 仅负责分发，不创建 task）
-- 禁止在路由决策中执行代码或外部调用
+
+- confidence < 阈值时不得自动选 plugin，必须 ask_user
+- 不得修改插件安装状态 (只读)
+- 不得擅自创建 task (router 只分发)
+- 不得在决策中执行代码或外部调用 (仅白名单 skill)
+- 不得 inline 任何 sub-agent prompt 模板 (Push→Pull, 架构 §3.1.7)
+
+## 输入
+
+    Execute router. Profile: agents/router.md
+    User input: "<原话>"  Workspace: <cwd>  Task: <T-NNN|none>
+
+## 输出
+
+`router-triage` 产出：
+`{decision, target, confidence, reasons, dispatch_payload}`
