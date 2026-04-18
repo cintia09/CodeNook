@@ -26,6 +26,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -54,14 +55,27 @@ MAX_FILE_BYTES = 1 * 1024 * 1024
 def stage_source(src: Path, staging_root: Path) -> Path:
     """Copy/extract src into a fresh staging dir; return staged path."""
     staging_root.mkdir(parents=True, exist_ok=True)
-    name = "stage-" + secrets.token_hex(6)
-    dest = staging_root / name
+    # Tighten staging-root mode to 0700 even if it pre-existed with looser
+    # perms; closes a local information-disclosure window during install.
+    try:
+        os.chmod(staging_root, 0o700)
+    except OSError:
+        pass
+    # mkdtemp creates the per-install staged dir with mode 0700 by default.
+    dest = Path(tempfile.mkdtemp(dir=str(staging_root), prefix="stage-"))
     if src.is_dir():
+        # copytree requires the dest to NOT exist; remove the empty mkdtemp
+        # placeholder, then copy. Re-tighten perms after copy.
+        dest.rmdir()
         shutil.copytree(src, dest, symlinks=True)
+        try:
+            os.chmod(dest, 0o700)
+        except OSError:
+            pass
         return dest
     if src.is_file() and (src.suffixes[-2:] == [".tar", ".gz"]
                           or src.suffix in (".tgz", ".gz")):
-        dest.mkdir()
+        # dest already exists (mkdtemp) with mode 0700.
         with tarfile.open(src, "r:gz") as tf:
             # safe extract: refuse absolute / .. members and dangerous
             # member kinds; also validate linkname for hard/symlinks.
@@ -91,6 +105,11 @@ def stage_source(src: Path, staging_root: Path) -> Path:
                 shutil.move(str(child), str(dest / child.name))
             inner.rmdir()
         return dest
+    # Unsupported source: clean up the empty placeholder mkdtemp dir.
+    try:
+        dest.rmdir()
+    except OSError:
+        pass
     raise RuntimeError(f"unsupported --src kind: {src}")
 
 
