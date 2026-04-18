@@ -2,7 +2,9 @@
 # task-config-set/set.sh — write Layer-4 override
 set -euo pipefail
 
-TASK=""; KEY=""; VALUE=""; WORKSPACE="${CODENOOK_WORKSPACE:-}"; UNSET="0"; VALUE_SET="0"
+TASK=""; KEY=""; VALUE=""; WORKSPACE="${CODENOOK_WORKSPACE:-}"
+UNSET="0"; VALUE_SET="0"
+MODE=""; PLUGIN=""; ROLE=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -11,14 +13,27 @@ while [ $# -gt 0 ]; do
     --value)     VALUE="$2"; VALUE_SET="1"; shift 2 ;;
     --workspace) WORKSPACE="$2"; shift 2 ;;
     --unset)     UNSET="1"; shift ;;
+    --mode)      MODE="$2"; shift 2 ;;
+    --plugin)    PLUGIN="$2"; shift 2 ;;
+    --role)      ROLE="$2"; shift 2 ;;
     -h|--help)
       sed -n '1,40p' "$(dirname "$0")/SKILL.md"; exit 0 ;;
     *) echo "set.sh: unknown arg: $1" >&2; exit 2 ;;
   esac
 done
 
+# M5: --mode clear is shorthand for --unset; --role <r> sets KEY=models.<r>.
+if [ "$MODE" = "clear" ]; then
+  UNSET="1"
+elif [ "$MODE" = "set" ]; then
+  : # explicit, no-op
+fi
+if [ -z "$KEY" ] && [ -n "$ROLE" ]; then
+  KEY="models.$ROLE"
+fi
+
 if [ -z "$TASK" ] || [ -z "$KEY" ]; then
-  echo "set.sh: --task and --key are required" >&2
+  echo "set.sh: --task and --key (or --role) are required" >&2
   exit 2
 fi
 
@@ -62,4 +77,6 @@ CN_KEY="$KEY" \
 CN_VALUE="$VALUE" \
 CN_UNSET="$UNSET" \
 CN_STATE_FILE="$STATE_FILE" \
+CN_WORKSPACE="$WORKSPACE" \
+CN_PLUGIN="$PLUGIN" \
 exec python3 "$(dirname "$0")/_set.py"
