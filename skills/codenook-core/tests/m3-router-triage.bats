@@ -72,7 +72,7 @@ stage_ws() {
   echo "$output" | jq -e '.target   == "show-config"' >/dev/null
 }
 
-@test "plugin decision: '新建小说章节' → writing-stub" {
+@test "plugin decision: chinese intent matches writing-stub" {
   ws="$(stage_ws "$M3_FX/workspaces/full")"
   run_with_stderr "\"$TRIAGE_SH\" --user-input '新建小说章节' --workspace \"$ws\" --json"
   [ "$status" -eq 0 ]
@@ -88,7 +88,7 @@ stage_ws() {
   echo "$output" | jq -e '.target   == "coding-stub"' >/dev/null
 }
 
-@test "plugin decision: regex anchor — '写章节' matches writing-stub" {
+@test "plugin decision: regex anchor matches writing-stub on chinese partial" {
   ws="$(stage_ws "$M3_FX/workspaces/full")"
   run_with_stderr "\"$TRIAGE_SH\" --user-input '请帮我写章节五' --workspace \"$ws\" --json"
   [ "$status" -eq 0 ]
