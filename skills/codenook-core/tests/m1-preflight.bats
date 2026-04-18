@@ -166,3 +166,59 @@ EOF
   sorted=$(echo "$reasons" | sort)
   [ "$reasons" = "$sorted" ]
 }
+
+@test "nested override models.bogus_role rejected (whitelist exact-match)" {
+  ws="$(mk_ws)"
+  local tdir="$ws/.codenook/tasks/T-100"
+  mkdir -p "$tdir"
+  cat >"$tdir/state.json" <<JSON
+{
+  "task_id": "T-100",
+  "phase": "start",
+  "iteration": 0,
+  "total_iterations": 5,
+  "dual_mode": "serial",
+  "config_overrides": {"models": {"bogus_role": "tier_strong"}}
+}
+JSON
+  run bash -c "\"$PREFLIGHT_SH\" --task T-100 --workspace \"$ws\" --json"
+  [ "$status" -eq 1 ]
+  echo "$output" | jq -e '.reasons | map(select(. == "invalid config override key: models.bogus_role")) | length == 1' >/dev/null
+}
+
+@test "nested override hitl.evil rejected (whitelist exact-match)" {
+  ws="$(mk_ws)"
+  local tdir="$ws/.codenook/tasks/T-101"
+  mkdir -p "$tdir"
+  cat >"$tdir/state.json" <<JSON
+{
+  "task_id": "T-101",
+  "phase": "start",
+  "iteration": 0,
+  "total_iterations": 5,
+  "dual_mode": "serial",
+  "config_overrides": {"hitl": {"evil": "true"}}
+}
+JSON
+  run bash -c "\"$PREFLIGHT_SH\" --task T-101 --workspace \"$ws\" --json"
+  [ "$status" -eq 1 ]
+  echo "$output" | jq -e '.reasons | map(select(. == "invalid config override key: hitl.evil")) | length == 1' >/dev/null
+}
+
+@test "nested override valid keys (models.reviewer + hitl.mode) accepted" {
+  ws="$(mk_ws)"
+  local tdir="$ws/.codenook/tasks/T-102"
+  mkdir -p "$tdir"
+  cat >"$tdir/state.json" <<JSON
+{
+  "task_id": "T-102",
+  "phase": "start",
+  "iteration": 0,
+  "total_iterations": 5,
+  "dual_mode": "serial",
+  "config_overrides": {"models": {"reviewer": "tier_cheap"}, "hitl": {"mode": "strict"}}
+}
+JSON
+  run bash -c "\"$PREFLIGHT_SH\" --task T-102 --workspace \"$ws\" --json"
+  [ "$status" -eq 0 ]
+}

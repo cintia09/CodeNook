@@ -49,19 +49,26 @@ def main():
                     pass
     
     # Check 4: config overrides validation (whitelist from #45)
-    ALLOWED_OVERRIDE_KEYS = [
-        "models.default", "models.router", "models.planner", "models.executor", 
-        "models.reviewer", "models.distiller", "hitl.mode"
-    ]
-    for key in config_overrides.keys():
-        # Check top-level or nested keys
-        is_allowed = False
-        for allowed in ALLOWED_OVERRIDE_KEYS:
-            if key == allowed or key.startswith(allowed.split('.')[0] + '.'):
-                is_allowed = True
-                break
-        if not is_allowed:
-            reasons.append(f"invalid config override key: {key}")
+    ALLOWED_OVERRIDE_KEYS = {
+        "models.default", "models.router", "models.planner", "models.executor",
+        "models.reviewer", "models.distiller", "hitl.mode",
+    }
+
+    def walk_paths(node, prefix=""):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                child_prefix = f"{prefix}.{k}" if prefix else k
+                if isinstance(v, dict) and v:
+                    yield from walk_paths(v, child_prefix)
+                else:
+                    yield child_prefix
+        else:
+            if prefix:
+                yield prefix
+
+    for path in walk_paths(config_overrides):
+        if path not in ALLOWED_OVERRIDE_KEYS:
+            reasons.append(f"invalid config override key: {path}")
     
     # Sort and dedupe reasons
     reasons = sorted(list(set(reasons)))
