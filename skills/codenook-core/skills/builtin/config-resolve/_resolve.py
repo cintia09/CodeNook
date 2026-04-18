@@ -32,6 +32,9 @@ KNOWN_TOP_KEYS = {
     # in workspace config.yaml or task overrides:
     "plugins", "defaults", "secrets",
 }
+# Decision #45 — strict whitelist for top-level keys of .codenook/config.yaml.
+# Same set; named for clarity at the strict check site.
+CONFIG_YAML_TOP_KEYS = KNOWN_TOP_KEYS
 TIERS = ("strong", "balanced", "cheap")
 HARDCODED_FALLBACK = "opus-4.7"
 ROUTER_SENTINEL = "__router__"
@@ -59,11 +62,11 @@ def read_json(path: Path) -> dict:
         return json.load(f)
 
 
-def load_catalog(path: Path) -> dict:
+def load_catalog(path: Path) -> dict | None:
+    """Return parsed catalog, or None to signal "catalog file missing entirely"
+    (per M5: tier symbols are then left unresolved, with a warning)."""
     if not path.is_file():
-        # Empty catalog — tier expansion will fall back to hardcoded.
-        return {"available": [],
-                "resolved_tiers": {t: None for t in TIERS}}
+        return None
     try:
         with path.open("r", encoding="utf-8") as f:
             cat = json.load(f)
@@ -93,21 +96,25 @@ def collect_layers(plugin: str, task: str, ws: Path) -> list[dict]:
     # Layer 0 — builtin
     l0: dict = {"models": {"default": "tier_strong", "router": "tier_strong"}}
 
-    # Layer 1 — plugin baseline (router exception: empty)
-    if plugin == ROUTER_SENTINEL:
-        l1: dict = {}
-    else:
-        l1 = read_yaml(ws / ".codenook/plugins" / plugin / "config-defaults.yaml")
+    # Layer 1 — plugin baseline. For the __router__ sentinel we still
+    # READ the file so the router-invariant check below can detect (and
+    # strip) any attempt to override models.router.
+    l1 = read_yaml(ws / ".codenook/plugins" / plugin / "config-defaults.yaml")
 
     # Layer 2/3 — workspace config.yaml
     cfg = read_yaml(ws / ".codenook/config.yaml")
+
+    # Decision #45: strict whitelist on the top-level keys of config.yaml.
+    if isinstance(cfg, dict):
+        for k in cfg.keys():
+            if k not in CONFIG_YAML_TOP_KEYS:
+                print(f"resolve.sh: unknown_top_key: {k}", file=sys.stderr)
+                sys.exit(1)
+
     l2 = (cfg.get("defaults") or {}) if isinstance(cfg, dict) else {}
 
-    if plugin == ROUTER_SENTINEL:
-        l3: dict = {}
-    else:
-        plugins_section = (cfg.get("plugins") or {}) if isinstance(cfg, dict) else {}
-        l3 = ((plugins_section.get(plugin) or {}).get("overrides") or {})
+    plugins_section = (cfg.get("plugins") or {}) if isinstance(cfg, dict) else {}
+    l3 = ((plugins_section.get(plugin) or {}).get("overrides") or {})
 
     # Layer 4 — task overrides
     l4: dict = {}
@@ -141,10 +148,16 @@ def find_from_layer(path: tuple[str, ...], layers: list[dict]) -> int:
     return 0
 
 
-def resolve_tier(symbol: str, catalog: dict) -> tuple[str, str, str | None]:
-    """Return (literal_id, resolved_via, normalized_symbol_or_None)."""
+def resolve_tier(symbol: str, catalog: dict | None) -> tuple[str, str, str | None]:
+    """Return (literal_id, resolved_via, normalized_symbol_or_None).
+
+    `catalog is None` means the catalog file was missing entirely —
+    leave tier_* symbols unresolved (caller will mark deferred).
+    """
     if not symbol.startswith("tier_"):
         return symbol, "literal", None
+    if catalog is None:
+        return symbol, "deferred:catalog_missing", symbol
     tier_name = symbol[len("tier_"):]
     rt = catalog.get("resolved_tiers", {})
 
@@ -175,8 +188,23 @@ def main() -> None:
     catalog_path = Path(os.environ["CN_CATALOG"])
 
     catalog = load_catalog(catalog_path)
+    if catalog is None:
+        warn(f"catalog file missing: {catalog_path}; tier_* symbols will be left unresolved")
+
     layers = collect_layers(plugin, task, ws)
     warn_unknown_keys(layers)
+
+    # Router invariant (#44): if plugin == __router__, an explicit
+    # models.router from L1/L3/L4 must be reverted to the L0/L2 view.
+    router_attempts = False
+    if plugin == ROUTER_SENTINEL:
+        for idx in (1, 3, 4):
+            try:
+                if "router" in layers[idx].get("models", {}):
+                    router_attempts = True
+                    del layers[idx]["models"]["router"]
+            except (AttributeError, TypeError):
+                pass
 
     # Deep-merge L0..L4
     merged: dict = {}
@@ -184,6 +212,7 @@ def main() -> None:
         merged = deep_merge(merged, layer)
 
     provenance: dict = {}
+    catalog_for_resolve = catalog if catalog is not None else None
 
     # Tier expansion + provenance for models.*
     models = merged.get("models", {}) or {}
@@ -191,14 +220,17 @@ def main() -> None:
         path = ("models", role)
         from_layer = find_from_layer(path, layers)
         if isinstance(raw_value, str):
-            literal, via, symbol = resolve_tier(raw_value, catalog)
+            literal, via, symbol = resolve_tier(raw_value, catalog_for_resolve)
             models[role] = literal
-            provenance[f"models.{role}"] = {
+            entry = {
                 "value": literal,
                 "from_layer": from_layer,
                 "symbol": symbol,
                 "resolved_via": via,
             }
+            if plugin == ROUTER_SENTINEL and role == "router" and router_attempts:
+                entry["router_invariant_enforced"] = True
+            provenance[f"models.{role}"] = entry
     merged["models"] = models
 
     # Minimal provenance for any other top-level scalar/list leaves so

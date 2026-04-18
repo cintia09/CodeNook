@@ -69,5 +69,22 @@ After deep-merge, walk every `models.*` value:
 
 - Catalog file unreadable / not valid JSON → stderr `catalog corrupt: <path>`,
   exit 1.
-- Unknown top-level key in any user layer (L2/L3/L4) → stderr
-  `warning: unknown config key: <k>`, do **not** fail.
+- Catalog file **missing entirely** → stderr `catalog file missing: …`, exit 0;
+  every `tier_*` symbol is left as-is and provenance carries
+  `resolved_via = "deferred:catalog_missing"`. Run `init.sh --refresh-models`
+  to populate it.
+- Unknown top-level key in `.codenook/config.yaml` → stderr
+  `unknown_top_key: <k>`, exit 1 (decision #45 / 10-key whitelist:
+  `models, hitl, knowledge, concurrency, skills, memory, router,
+  plugins, defaults, secrets`).
+- Unknown top-level key surfaced inside `.plugins.<p>.overrides` →
+  stderr warning only (matches M1 behaviour; the strict whitelist is
+  scoped to config.yaml's own top level).
+
+## Router invariant (#44)
+
+For `--plugin __router__`, layers 1/3/4 are still read but any explicit
+`models.router` override they declare is stripped before merging. The
+final `_provenance["models.router"]` then carries
+`router_invariant_enforced: true` (only when a stripped attempt was
+actually detected).
