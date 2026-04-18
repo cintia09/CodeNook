@@ -1,0 +1,37 @@
+# plugins/development/hitl-gates.yaml
+# HITL gate catalogue for the development plugin.
+#
+# Each gate id is referenced from phases.yaml `gate:` field. After the
+# role for that phase returns, orchestrator-tick.write_hitl_entry()
+# materialises an entry in .codenook/hitl-queue/<task>-<gate>.json and
+# pauses the task with status=waiting until a reviewer writes a decision
+# via skills/builtin/hitl-adapter/terminal.sh.
+#
+# Contract per gate:
+#   trigger             — phase id whose `gate:` references this gate
+#   required_reviewers  — list of roles allowed to decide (currently only
+#                         "human" is honoured by hitl-adapter; future
+#                         M7+ may add automated reviewers)
+#   description         — human-readable purpose, surfaced in the queue UI
+
+gates:
+  design_signoff:
+    trigger: design
+    required_reviewers: [human]
+    description: >
+      Approve the design before any planning or coding begins. Gate exists
+      because design decisions are the most expensive to revert downstream.
+
+  pre_test_review:
+    trigger: implement
+    required_reviewers: [human]
+    description: >
+      Spot-check the implementation diff before automated tests run.
+      Cheaper than letting a faulty implementation eat the full test budget.
+
+  acceptance:
+    trigger: accept
+    required_reviewers: [human]
+    description: >
+      Final user acceptance — confirm the change actually solved the
+      reported problem before the validate + ship phases run.

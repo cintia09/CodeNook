@@ -1,0 +1,56 @@
+# plugins/development/transitions.yaml
+# Verdict-driven phase transitions.
+#
+# Format consumed by orchestrator-tick.lookup_transition():
+#   transitions:
+#     <phase_id>:
+#       <verdict>: <next_phase_id | "complete">
+#
+# Verdict enum (see roles/*.md output contract):
+#   ok              → advance per table below
+#   needs_revision  → self-loop (iteration++); cap by state.max_iterations
+#   blocked         → caller pauses task; waiting for HITL/decomposition
+#
+# `complete` is the sentinel that finishes the task (status=done +
+# distiller dispatch).
+
+transitions:
+  clarify:
+    ok: design
+    needs_revision: clarify
+    blocked: clarify
+
+  design:
+    ok: plan
+    needs_revision: design
+    blocked: design
+
+  plan:
+    ok: implement
+    needs_revision: plan
+    blocked: plan
+
+  implement:
+    ok: test
+    needs_revision: implement
+    blocked: implement
+
+  test:
+    ok: accept
+    needs_revision: implement
+    blocked: test
+
+  accept:
+    ok: validate
+    needs_revision: implement
+    blocked: accept
+
+  validate:
+    ok: ship
+    needs_revision: implement
+    blocked: validate
+
+  ship:
+    ok: complete
+    needs_revision: ship
+    blocked: ship

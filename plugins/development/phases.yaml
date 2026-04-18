@@ -1,0 +1,64 @@
+# plugins/development/phases.yaml
+# 8-phase software-development pipeline.
+#
+# Each phase entry consumed by skills/builtin/orchestrator-tick:
+#   id                   — phase id (matches transitions.yaml keys)
+#   role                 — role name; orchestrator dispatches a sub-agent
+#                          using roles/<role>.md as the bootstrap profile
+#   produces             — relative path under tasks/<tid>/ that the role
+#                          MUST emit with frontmatter `verdict: <enum>`
+#   gate                 — optional HITL gate id (must exist in
+#                          hitl-gates.yaml); when present the orchestrator
+#                          opens a hitl-queue entry after the role returns
+#   supports_iteration   — informational; iteration cap applied by tick
+#   supports_fanout      — when true, planner.decomposed=true triggers
+#                          subtask seed (see orchestrator-tick.seed_subtasks)
+#   dual_mode_compatible — when state.dual_mode==parallel, tick dispatches
+#                          parallel_n agents instead of one
+#   post_validate        — relative path to a shell script run after the
+#                          role's output is consumed (skipped + warning if
+#                          missing)
+
+phases:
+  - id: clarify
+    role: clarifier
+    produces: outputs/phase-1-clarifier.md
+
+  - id: design
+    role: designer
+    produces: outputs/phase-2-designer.md
+    dual_mode_compatible: true
+    gate: design_signoff
+
+  - id: plan
+    role: planner
+    produces: outputs/phase-3-planner.md
+    allows_fanout: true
+
+  - id: implement
+    role: implementer
+    produces: outputs/phase-4-implementer.md
+    supports_iteration: true
+    supports_fanout: true
+    dual_mode_compatible: true
+    post_validate: validators/post-implement.sh
+    gate: pre_test_review
+
+  - id: test
+    role: tester
+    produces: outputs/phase-5-tester.md
+    supports_iteration: true
+    post_validate: validators/post-test.sh
+
+  - id: accept
+    role: acceptor
+    produces: outputs/phase-6-acceptor.md
+    gate: acceptance
+
+  - id: validate
+    role: validator
+    produces: outputs/phase-7-validator.md
+
+  - id: ship
+    role: reviewer
+    produces: outputs/phase-8-reviewer.md
