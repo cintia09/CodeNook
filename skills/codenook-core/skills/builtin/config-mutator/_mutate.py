@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+"""config-mutator/_mutate.py — dispatched config writer.
+
+Inputs (env, set by mutate.sh):
+  CN_PLUGIN, CN_PATH, CN_VALUE, CN_REASON, CN_ACTOR,
+  CN_WORKSPACE, CN_SCOPE (workspace|task), CN_TASK,
+  CN_CORE_DIR (for invoking config-resolve to read effective value).
+"""
+from __future__ import annotations
+
+import datetime as dt
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "_lib"))
+from atomic import atomic_write_json  # noqa: E402
+
+try:
+    import yaml
+except ImportError:
+    print("mutate.sh: PyYAML not installed", file=sys.stderr)
+    sys.exit(2)
+
+
+WHITELIST = {
+    "models", "hitl", "knowledge", "concurrency", "skills", "memory",
+    "router", "plugins", "defaults", "secrets",
+}
+ACTORS = {"distiller", "user", "hitl"}
+ROUTER_SENTINEL = "__router__"
+
+
+def die(msg: str, code: int = 1) -> None:
+    print(f"mutate.sh: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def now_iso() -> str:
+    return dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def deep_set(root: dict, parts: list[str], value) -> None:
+    cur = root
+    for p in parts[:-1]:
+        nxt = cur.get(p)
+        if not isinstance(nxt, dict):
+            nxt = {}
+            cur[p] = nxt
+        cur = nxt
+    cur[parts[-1]] = value
+
+
+def deep_get(root, parts: list[str]):
+    cur = root
+    for p in parts:
+        if not isinstance(cur, dict) or p not in cur:
+            return None
+        cur = cur[p]
+    return cur
+
+
+def atomic_write_yaml(path: Path, data: dict) -> None:
+    import tempfile
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".cfg-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            yaml.safe_dump(data, f, sort_keys=True, default_flow_style=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def read_effective(plugin: str, ws: Path, core: Path, task: str) -> dict:
+    resolve_sh = core / "skills/builtin/config-resolve/resolve.sh"
+    catalog = ws / ".codenook/state.json"
+    cmd = [str(resolve_sh), "--plugin", plugin, "--workspace", str(ws),
+           "--catalog", str(catalog)]
+    if task:
+        cmd.extend(["--task", task])
+    try:
+        out = subprocess.check_output(cmd, env={**os.environ})
+    except subprocess.CalledProcessError:
+        return {}
+    try:
+        return json.loads(out)
+    except json.JSONDecodeError:
+        return {}
+
+
+def main() -> None:
+    plugin = os.environ["CN_PLUGIN"]
+    path_key = os.environ["CN_PATH"]
+    value = os.environ["CN_VALUE"]
+    reason = os.environ["CN_REASON"]
+    actor = os.environ["CN_ACTOR"]
+    ws = Path(os.environ["CN_WORKSPACE"]).resolve()
+    scope = os.environ["CN_SCOPE"]
+    task = os.environ.get("CN_TASK", "")
+    core = Path(os.environ["CN_CORE_DIR"]).resolve()
+
+    if actor not in ACTORS:
+        die(f"actor must be one of {sorted(ACTORS)}, got {actor!r}", 2)
+    if path_key.startswith("_") or ".." in path_key:
+        die(f"invalid path: {path_key!r}", 2)
+
+    parts = path_key.split(".")
+    if not parts or not parts[0] or parts[0] not in WHITELIST:
+        die(f"unknown_top_key: {parts[0] if parts else ''}", 1)
+
+    if plugin == ROUTER_SENTINEL and path_key.startswith("models.router"):
+        die("router model is invariant (decision #44)", 1)
+
+    # Compare against current effective.
+    eff = read_effective(plugin, ws, core, task if scope == "task" else "")
+    current = deep_get(eff, parts)
+    if current == value:
+        print(json.dumps({"changed": False, "path": path_key, "value": value}))
+        return
+
+    # Apply write
+    if scope == "workspace":
+        cfg_path = ws / ".codenook/config.yaml"
+        cfg: dict = {}
+        if cfg_path.is_file():
+            with cfg_path.open("r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            if not isinstance(cfg, dict):
+                cfg = {}
+        plugins = cfg.setdefault("plugins", {})
+        pl = plugins.setdefault(plugin, {})
+        overrides = pl.setdefault("overrides", {})
+        deep_set(overrides, parts, value)
+        atomic_write_yaml(cfg_path, cfg)
+    elif scope == "task":
+        state_path = ws / ".codenook/tasks" / task / "state.json"
+        if not state_path.is_file():
+            die(f"task state missing: {state_path}")
+        with state_path.open("r", encoding="utf-8") as f:
+            state = json.load(f)
+        overrides = state.setdefault("config_overrides", {})
+        deep_set(overrides, parts, value)
+        atomic_write_json(str(state_path), state)
+    else:
+        die(f"unknown scope: {scope!r}", 2)
+
+    # Audit log
+    log_dir = ws / ".codenook/history"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    entry = {
+        "ts": now_iso(),
+        "plugin": plugin,
+        "scope": scope,
+        "task": task if scope == "task" else None,
+        "path": path_key,
+        "old": current,
+        "new": value,
+        "actor": actor,
+        "reason": reason,
+    }
+    with (log_dir / "config-changes.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    print(json.dumps({"changed": True, "path": path_key, "old": current, "new": value}))
+
+
+if __name__ == "__main__":
+    main()
