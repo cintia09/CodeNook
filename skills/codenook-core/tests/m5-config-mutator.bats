@@ -138,3 +138,39 @@ EOF
   run_with_stderr "\"$MUTATE_SH\" --plugin development --path models.reviewer --value-json 'not-json' --reason 'x' --actor user --workspace \"$ws\" --scope workspace"
   [ "$status" -eq 2 ]
 }
+
+@test "m5-mutator: write persists at target scope even when value matches deeper-layer default" {
+  # Plugin baseline (L1) sets reviewer=tier_balanced (resolves to sonnet-4.6).
+  # User explicitly pins workspace L3 reviewer=sonnet-4.6. Even though the
+  # merged effective already resolves to sonnet-4.6, the override MUST land
+  # in config.yaml and audit log MUST be appended.
+  ws="$(mk_ws)"
+  cat >"$ws/.codenook/plugins/development/config-defaults.yaml" <<'EOF'
+models:
+  reviewer: tier_balanced
+EOF
+  run_with_stderr "\"$MUTATE_SH\" --plugin development --path models.reviewer --value sonnet-4.6 --reason 'pin literal' --actor user --workspace \"$ws\" --scope workspace"
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.changed == true' >/dev/null
+  grep -q "sonnet-4.6" "$ws/.codenook/config.yaml"
+  [ -f "$ws/.codenook/history/config-changes.jsonl" ]
+}
+
+@test "m5-mutator: noop true only when target-scope already has the exact value" {
+  ws="$(mk_ws)"
+  # First write — target layer is empty, so this lands.
+  run_with_stderr "\"$MUTATE_SH\" --plugin development --path models.reviewer --value tier_balanced --reason 'first' --actor user --workspace \"$ws\" --scope workspace"
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.changed == true' >/dev/null
+  before_lines=$(wc -l <"$ws/.codenook/history/config-changes.jsonl" | tr -d ' ')
+  # Second write of the *same* value at the same target layer → noop.
+  run_with_stderr "\"$MUTATE_SH\" --plugin development --path models.reviewer --value tier_balanced --reason 'again' --actor user --workspace \"$ws\" --scope workspace"
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.changed == false' >/dev/null
+  after_lines=$(wc -l <"$ws/.codenook/history/config-changes.jsonl" | tr -d ' ')
+  [ "$before_lines" = "$after_lines" ]
+  # Third write: different value → changed:true again.
+  run_with_stderr "\"$MUTATE_SH\" --plugin development --path models.reviewer --value tier_cheap --reason 'switch' --actor user --workspace \"$ws\" --scope workspace"
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.changed == true' >/dev/null
+}

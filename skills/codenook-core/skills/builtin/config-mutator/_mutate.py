@@ -11,7 +11,6 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -80,21 +79,31 @@ def atomic_write_yaml(path: Path, data: dict) -> None:
         raise
 
 
-def read_effective(plugin: str, ws: Path, core: Path, task: str) -> dict:
-    resolve_sh = core / "skills/builtin/config-resolve/resolve.sh"
-    catalog = ws / ".codenook/state.json"
-    cmd = [str(resolve_sh), "--plugin", plugin, "--workspace", str(ws),
-           "--catalog", str(catalog)]
-    if task:
-        cmd.extend(["--task", task])
-    try:
-        out = subprocess.check_output(cmd, env={**os.environ})
-    except subprocess.CalledProcessError:
-        return {}
-    try:
-        return json.loads(out)
-    except json.JSONDecodeError:
-        return {}
+def read_target_layer_value(scope: str, plugin: str, parts: list[str],
+                            ws: Path, task: str):
+    """Return the current value at the *target* layer (workspace L3 or
+    task L4), or None when absent. Used for noop comparison so a write
+    matching a deeper-layer (L0/L1/L2) effective value is still
+    persisted at the requested scope."""
+    if scope == "workspace":
+        cfg_path = ws / ".codenook/config.yaml"
+        if not cfg_path.is_file():
+            return None
+        with cfg_path.open("r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        if not isinstance(cfg, dict):
+            return None
+        overrides = (((cfg.get("plugins") or {}).get(plugin) or {})
+                     .get("overrides") or {})
+        return deep_get(overrides, parts)
+    if scope == "task":
+        state_path = ws / ".codenook/tasks" / task / "state.json"
+        if not state_path.is_file():
+            return None
+        with state_path.open("r", encoding="utf-8") as f:
+            state = json.load(f)
+        return deep_get(state.get("config_overrides") or {}, parts)
+    return None
 
 
 def main() -> None:
@@ -133,9 +142,12 @@ def main() -> None:
     if plugin == ROUTER_SENTINEL and path_key.startswith("models.router"):
         die("router model is invariant (decision #44)", 1)
 
-    # Compare against current effective.
-    eff = read_effective(plugin, ws, core, task if scope == "task" else "")
-    current = deep_get(eff, parts)
+    # Compare against the *target-layer* value so a write that happens
+    # to coincide with a deeper-layer (L0/L1/L2) default still gets
+    # persisted at the requested scope. Using the merged effective
+    # value here would mask such writes (Bug #3).
+    current = read_target_layer_value(
+        scope, plugin, parts, ws, task if scope == "task" else "")
     if current == value:
         print(json.dumps({"changed": False, "path": path_key, "value": value}))
         return
