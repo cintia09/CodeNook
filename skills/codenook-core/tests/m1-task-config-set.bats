@@ -74,11 +74,11 @@ EOF
 @test "value literal model id accepted (warn on unknown)" {
   ws="$(mk_ws)"
   mk_task "$ws" "T-005"
-  run_with_stderr "\"$SET_SH\" --task T-005 --key models.executor --value gpt-4o --workspace \"$ws\""
+  run_with_stderr "\"$SET_SH\" --task T-005 --key models.executor --value unknown-model-xyz --workspace \"$ws\""
   [ "$status" -eq 0 ]
   # Should warn on stderr but still exit 0
   assert_contains "$STDERR" "warn"
-  assert_jq "$ws/.codenook/tasks/T-005/state.json" '.config_overrides."models.executor" == "gpt-4o"'
+  assert_jq "$ws/.codenook/tasks/T-005/state.json" '.config_overrides."models.executor" == "unknown-model-xyz"'
 }
 
 @test "writes under state.json .config_overrides.models.<role>" {
