@@ -2,13 +2,14 @@
 # orchestrator-tick/tick.sh — advance task one phase
 set -euo pipefail
 
-TASK=""; WORKSPACE="${CODENOOK_WORKSPACE:-}"; DRY_RUN="0"
+TASK=""; WORKSPACE="${CODENOOK_WORKSPACE:-}"; DRY_RUN="0"; JSON="0"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --task)      TASK="$2"; shift 2 ;;
     --workspace) WORKSPACE="$2"; shift 2 ;;
     --dry-run)   DRY_RUN="1"; shift ;;
+    --json)      JSON="1"; shift ;;
     -h|--help)
       sed -n '1,40p' "$(dirname "$0")/SKILL.md"; exit 0 ;;
     *) echo "tick.sh: unknown arg: $1" >&2; exit 2 ;;
@@ -54,5 +55,6 @@ CN_TASK="$TASK" \
 CN_STATE_FILE="$STATE_FILE" \
 CN_WORKSPACE="$WORKSPACE" \
 CN_DRY_RUN="$DRY_RUN" \
+CN_JSON="$JSON" \
 CN_DISPATCH_CMD="${CODENOOK_DISPATCH_CMD:-}" \
 exec python3 "$(dirname "$0")/_tick.py"

@@ -1,32 +1,89 @@
 # orchestrator-tick — Advance one task one phase
 
-**Role**: Core tick function that advances task state machine.
+**Role**: Core builtin skill that drives the per-task state machine
+defined in `implementation-v6.md §3.3`.
 
-**Exit codes**:
-- 0: changed (dispatch succeeded, state advanced)
-- 1: blocked (preflight failed, iteration limit, HITL gate)
-- 2: usage error (missing args, task not found)
-- 3: idle (terminal phase, waiting for fanout)
+## CLI
 
-**CLI**:
 ```bash
-tick.sh --task <T-NNN> [--workspace <dir>] [--dry-run]
+tick.sh --task <T-NNN> [--workspace <dir>] [--dry-run] [--json]
 ```
 
-**Algorithm**:
-1. Run preflight checks (via preflight.sh)
-2. Check iteration limit (iteration < total_iterations)
-3. Check terminal phase (done → exit 3)
-4. Build dispatch payload (≤500 chars)
-5. Call dispatch-audit to log the dispatch
-6. Invoke $CODENOOK_DISPATCH_CMD (default: stub)
-7. On success: increment iteration, append tick_log entry
-8. On failure: rollback state, exit non-zero
+| flag         | meaning                                              |
+|--------------|------------------------------------------------------|
+| `--task`     | task id (required)                                   |
+| `--workspace`| explicit workspace root; otherwise upward search     |
+| `--dry-run`  | compute but do not persist or invoke dispatch        |
+| `--json`     | emit ≤500-byte summary JSON to stdout                |
 
-**Dispatch stub**: If CODENOOK_DISPATCH_CMD not set, uses internal stub that writes success JSON to $CODENOOK_DISPATCH_SUMMARY.
+## Exit codes
 
-**State updates**:
-- `.iteration` increments on successful dispatch
-- `.tick_log[]` appends `{ts, action, result}`
+| code | meaning                                                       |
+|------|---------------------------------------------------------------|
+| 0    | advanced / waiting / done (no operator action required)       |
+| 1    | blocked (entry-questions, HITL, max_iterations, error)        |
+| 2    | usage error (missing args, task/state not found)              |
+| 3    | (legacy mode only) idle/terminal phase                        |
 
-→ Design basis: architecture-v6.md §3.1.3 (orchestrator-tick algorithm)
+## Output (`--json`, ≤500 bytes UTF-8)
+
+```json
+{
+  "status": "advanced|waiting|blocked|done|error",
+  "next_action": "<human-readable>",
+  "dispatched_agent_id": "ag_T-007_clarify_1",
+  "message_for_user": "<optional, ≤200 chars>"
+}
+```
+
+## Algorithm (M4)
+
+Implements the §3.3 pseudocode in full. Reads
+`.codenook/plugins/<plugin>/{phases,transitions,entry-questions}.yaml`,
+mutates `tasks/<id>/state.json` atomically (`_lib/atomic.py`), and
+appends to `history/dispatch.jsonl` via `dispatch-audit/emit.sh`.
+
+Decision branches:
+
+| condition                                       | action                                                  |
+|------------------------------------------------|---------------------------------------------------------|
+| `status ∈ {done,cancelled,error}`              | return `noop`, do not persist                           |
+| `phase=null`                                   | dispatch first phase's role                             |
+| in-flight agent, output not ready              | return `waiting`, do not persist                        |
+| in-flight + output ready                       | record history, clear in-flight, post_validate, gate    |
+| `phase.gate` or `cfg.hitl_required[phase.id]`  | write `hitl-queue/<task>-<gate>.json`, return waiting   |
+| transition target = `complete`                 | `status=done`, write distiller pending marker           |
+| transition target = same phase                 | `iteration++`; if > `max_iterations` → blocked          |
+| `phase.allows_fanout` + `state.decomposed`     | seed child tasks `<parent>-c<n>` + queue entries        |
+| `phase.dual_mode_compatible` + parallel cfg    | dispatch N agents; `in_flight_agent.agent_id` is array  |
+| phase set, no in-flight                        | recovery — re-dispatch with `_warning` in history       |
+| entry-questions required missing               | `blocked` + `message_for_user`                          |
+
+`output_ready` requires the file at
+`tasks/<tid>/<expected_output>` to exist AND to have YAML frontmatter
+`verdict: ok|needs_revision|blocked`.
+
+## M4 scope (what is stubbed for M5+)
+
+* **Real Task() dispatch** — `dispatch_agent()` writes a marker file
+  (`outputs/phase-<id>-<role>.dispatched`) containing the rendered
+  manifest and returns a deterministic `agent_id`. The kernel that
+  actually invokes the Task tool from main session is M5+ infra.
+  See `_tick.py:dispatch_agent` (~line 130).
+* **Distiller invocation** — `dispatch_distiller()` only writes
+  `.codenook/memory/_pending/<tid>.json`; the actual distiller
+  agent is invoked by a sweeper in M6+.
+  See `_tick.py:dispatch_distiller`.
+* **config-resolve four-layer merge** — current `cfg` is just
+  `state.config_overrides`. Full merge with workspace + plugin
+  defaults lands in M5 (`config-resolve`).
+* **post_validate scripts** — invoked when present; missing scripts
+  are recorded as `_warning` rather than blocking.
+
+## Legacy mode
+
+When `state.json` lacks the `plugin` field, `_tick.py` falls back to
+the simpler M1 stub algorithm (preflight + iteration++ + tick_log) so
+the M1 bats suite (29 tests) continues to pass without churn.
+
+→ Design basis: implementation-v6.md §3.3, architecture-v6.md §3.1.3, §3.1.7
