@@ -11,7 +11,7 @@
 #                          hitl-gates.yaml); when present the orchestrator
 #                          opens a hitl-queue entry after the role returns
 #   supports_iteration   — informational; iteration cap applied by tick
-#   supports_fanout      — when true, planner.decomposed=true triggers
+#   allows_fanout        — when true, planner.decomposed=true triggers
 #                          subtask seed (see orchestrator-tick.seed_subtasks)
 #   dual_mode_compatible — when state.dual_mode==parallel, tick dispatches
 #                          parallel_n agents instead of one
@@ -39,7 +39,7 @@ phases:
     role: implementer
     produces: outputs/phase-4-implementer.md
     supports_iteration: true
-    supports_fanout: true
+    allows_fanout: true
     dual_mode_compatible: true
     post_validate: validators/post-implement.sh
     gate: pre_test_review
