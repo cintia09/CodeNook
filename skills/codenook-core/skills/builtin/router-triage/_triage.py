@@ -23,6 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "_lib"))
 from manifest_load import load_all  # noqa: E402
+from builtin_catalog import BUILTIN_INTENTS  # noqa: E402
 
 # Reject pathological plugin patterns before compiling them — a
 # malicious manifest could otherwise stall the router with an
@@ -42,11 +43,7 @@ def regex_is_safe(pat: str) -> bool:
     return True
 
 # ---------------------------------------------------------------- builtin table
-BUILTIN_INTENTS: list[tuple[str, re.Pattern[str]]] = [
-    ("list-plugins", re.compile(r"\b(list|show)\b.*\bplugins?\b", re.IGNORECASE)),
-    ("show-config",  re.compile(r"\b(show|print)\b.*\b(config|settings)\b", re.IGNORECASE)),
-    ("help",         re.compile(r"\bhelp\b", re.IGNORECASE)),
-]
+# (Imported from _lib/builtin_catalog.py — see Fix #6.)
 
 
 def match_builtin(text: str) -> tuple[str, str] | None:

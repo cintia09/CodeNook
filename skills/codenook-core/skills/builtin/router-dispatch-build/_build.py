@@ -20,14 +20,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "_lib"))
 from manifest_load import load_manifest, ManifestError, plugins_dir  # noqa: E402
+from builtin_catalog import BUILTIN_SKILLS  # noqa: E402
 
 PAYLOAD_LIMIT  = 500
 INPUT_HARD_CAP = 200
 ELLIPSIS       = "..."
-
-# Hardcoded builtin-skill names recognised by the M3 router. Future
-# milestones can replace this with a directory scan of skills/builtin/.
-BUILTIN_SKILLS = {"list-plugins", "show-config", "help"}
 
 
 def truncate_input(s: str) -> str:
