@@ -1,0 +1,5 @@
+{
+  "config_overrides": {
+    "models": { "reviewer": "tier_balanced" }
+  }
+}

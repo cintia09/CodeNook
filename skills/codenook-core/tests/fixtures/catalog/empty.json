@@ -1,0 +1,16 @@
+{
+  "refreshed_at": "2099-01-01T00:00:00Z",
+  "ttl_days": 30,
+  "runtime": "test-fixture",
+  "available": [],
+  "resolved_tiers": {
+    "strong":   null,
+    "balanced": null,
+    "cheap":    null
+  },
+  "tier_priority": {
+    "strong":   [],
+    "balanced": [],
+    "cheap":    []
+  }
+}

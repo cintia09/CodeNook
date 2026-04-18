@@ -1,0 +1,19 @@
+{
+  "refreshed_at": "2099-01-01T00:00:00Z",
+  "ttl_days": 30,
+  "runtime": "test-fixture",
+  "available": [
+    {"id": "haiku-4.5",     "tier": "cheap", "cost": "low", "provider": "anthropic"},
+    {"id": "gpt-5.4-mini",  "tier": "cheap", "cost": "low", "provider": "openai"}
+  ],
+  "resolved_tiers": {
+    "strong":   null,
+    "balanced": null,
+    "cheap":    "haiku-4.5"
+  },
+  "tier_priority": {
+    "strong":   ["opus-4.7", "opus-4.6", "sonnet-4.6", "gpt-5.4"],
+    "balanced": ["sonnet-4.6", "sonnet-4.5", "gpt-5.4", "gpt-5.4-mini"],
+    "cheap":    ["haiku-4.5", "gpt-5.4-mini", "gpt-4.1", "sonnet-4.5"]
+  }
+}

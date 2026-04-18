@@ -1,0 +1,21 @@
+{
+  "refreshed_at": "2099-01-01T00:00:00Z",
+  "ttl_days": 30,
+  "runtime": "test-fixture",
+  "available": [
+    {"id": "opus-4.7",   "tier": "strong",   "cost": "high", "provider": "anthropic"},
+    {"id": "sonnet-4.6", "tier": "balanced", "cost": "mid",  "provider": "anthropic"},
+    {"id": "haiku-4.5",  "tier": "cheap",    "cost": "low",  "provider": "anthropic"},
+    {"id": "gpt-5.4",    "tier": "balanced", "cost": "mid",  "provider": "openai"}
+  ],
+  "resolved_tiers": {
+    "strong":   "opus-4.7",
+    "balanced": "sonnet-4.6",
+    "cheap":    "haiku-4.5"
+  },
+  "tier_priority": {
+    "strong":   ["opus-4.7", "opus-4.6", "sonnet-4.6", "gpt-5.4"],
+    "balanced": ["sonnet-4.6", "sonnet-4.5", "gpt-5.4", "gpt-5.4-mini"],
+    "cheap":    ["haiku-4.5", "gpt-5.4-mini", "gpt-4.1", "sonnet-4.5"]
+  }
+}

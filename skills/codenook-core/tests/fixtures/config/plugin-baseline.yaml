@@ -1,0 +1,8 @@
+models:
+  planner: tier_strong
+  reviewer: tier_balanced
+  default: tier_strong
+hitl:
+  gates: [design, accept]
+knowledge:
+  consumes: [workspace, plugin_local]

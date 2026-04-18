@@ -1,0 +1,5 @@
+defaults:
+  models:
+    reviewer: tier_cheap
+  hitl:
+    gates: [accept]
