@@ -71,6 +71,17 @@ write_exec() {
   assert_contains "$STDERR" "shebang"
 }
 
+@test "executable with env -S python3 shebang → exit 1" {
+  # `#!/usr/bin/env -S python3` is NOT in the allowlist (which only covers
+  # the bare `#!/usr/bin/env python3` form). Pin the rejection so the
+  # allowlist can't be loosened by accident.
+  d="$(mk_src)"
+  write_exec "$d/script.py" "#!/usr/bin/env -S python3"
+  run_with_stderr "\"$GATE_SH\" --src \"$d\""
+  [ "$status" -eq 1 ]
+  assert_contains "$STDERR" "env -S"
+}
+
 @test "executable that looks like a raw binary → exit 1" {
   d="$(mk_src)"
   printf '\x7fELF\x02\x01\x00binary data' >"$d/bin"
