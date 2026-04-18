@@ -3,9 +3,10 @@
 
 gates:
   pre_publish:
-    trigger: publish
+    trigger: revise
     required_reviewers: [human]
     description: >
-      Final human approval before the article is published. Editorial
+      Final human approval after the reviser produces the publish-ready
+      article and BEFORE the publisher writes it to disk. Editorial
       judgement (tone, claims, brand voice) is not safely automatable,
-      so the publish phase always pauses here.
+      so the writing pipeline always pauses here.

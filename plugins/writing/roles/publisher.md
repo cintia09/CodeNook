@@ -15,9 +15,9 @@ output_contract:
 ## Self-bootstrap
 
 You were dispatched by `.codenook/skills/builtin/orchestrator-tick`
-AFTER the `pre_publish` HITL gate has been approved (see
-`.codenook/plugins/writing/hitl-gates.yaml`). Read the manifest at
-`.codenook/tasks/<task>/prompts/phase-5-publisher.md` first.
+AFTER the reviser's output was approved at the `pre_publish` HITL gate
+(see `.codenook/plugins/writing/hitl-gates.yaml`). Read the manifest
+at `.codenook/tasks/<task>/prompts/phase-5-publisher.md` first.
 
 ## Steps
 

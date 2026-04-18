@@ -38,7 +38,8 @@ summary: <=200 chars
 ---
 ```
 
-`verdict: ok` advances to `publish` (which opens the `pre_publish` HITL gate).
+`verdict: ok` advances to `publish` (the `pre_publish` HITL gate
+opens here for human approval BEFORE the publisher writes to disk).
 
 ## Knowledge / skills
 
