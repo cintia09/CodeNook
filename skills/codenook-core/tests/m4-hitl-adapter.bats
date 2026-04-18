@@ -111,3 +111,25 @@ json.dump(d, open(p,'w'), indent=2)
   run_with_stderr "\"$HITL_SH\" frobnicate --workspace \"$ws\""
   [ "$status" -eq 2 ]
 }
+
+# ── Fix #2: --id path traversal (S1) ────────────────────────────────────
+@test "decide: --id with slash → exit 2 invalid --id" {
+  ws="$(mk_ws_with_entry)"
+  run_with_stderr "\"$HITL_SH\" decide --id '../etc/passwd' --decision approve --reviewer a --workspace \"$ws\""
+  [ "$status" -eq 2 ]
+  assert_contains "$STDERR" "invalid --id"
+}
+
+@test "show: --id with traversal sequence → exit 2 invalid --id" {
+  ws="$(mk_ws_with_entry)"
+  run_with_stderr "\"$HITL_SH\" show --id '..foo' --workspace \"$ws\""
+  [ "$status" -eq 2 ]
+  assert_contains "$STDERR" "invalid --id"
+}
+
+@test "show: --id with leading dot → exit 2 invalid --id" {
+  ws="$(mk_ws_with_entry)"
+  run_with_stderr "\"$HITL_SH\" show --id '.hidden' --workspace \"$ws\""
+  [ "$status" -eq 2 ]
+  assert_contains "$STDERR" "invalid --id"
+}

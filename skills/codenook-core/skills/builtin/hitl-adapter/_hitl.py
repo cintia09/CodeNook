@@ -12,6 +12,7 @@ from __future__ import annotations
 import datetime
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -19,6 +20,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "_lib"))
 from atomic import atomic_write_json  # noqa: E402
 
 VALID_DECISIONS = ("approve", "reject", "needs_changes")
+
+_EID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def _check_eid(eid: str) -> None:
+    """Reject ids containing path-separator or traversal sequences (S1)."""
+    if (not eid
+            or not _EID_RE.match(eid)
+            or eid.startswith(".")
+            or ".." in eid):
+        print("terminal.sh: invalid --id", file=sys.stderr)
+        sys.exit(2)
 
 
 def now_iso() -> str:
@@ -66,6 +79,7 @@ def cmd_list(ws: Path, json_out: bool) -> int:
 def cmd_show(ws: Path, eid: str) -> int:
     if not eid:
         print("terminal.sh: --id is required", file=sys.stderr); return 2
+    _check_eid(eid)
     entry = load_entry(ws, eid)
     if entry is None:
         print(f"terminal.sh: hitl entry not found: {eid}", file=sys.stderr); return 2
@@ -83,6 +97,7 @@ def cmd_decide(ws: Path, eid: str, decision: str, reviewer: str,
                comment: str) -> int:
     if not eid:
         print("terminal.sh: --id is required", file=sys.stderr); return 2
+    _check_eid(eid)
     if decision not in VALID_DECISIONS:
         print(f"terminal.sh: invalid --decision {decision!r} "
               f"(want one of: {', '.join(VALID_DECISIONS)})", file=sys.stderr)
