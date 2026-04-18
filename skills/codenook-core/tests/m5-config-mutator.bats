@@ -1,0 +1,102 @@
+#!/usr/bin/env bats
+# M5.6 — config-mutator: dispatched config writer with audit log
+
+load helpers/load
+load helpers/assertions
+
+MUTATE_SH="$CORE_ROOT/skills/builtin/config-mutator/mutate.sh"
+
+mk_ws() {
+  local d; d="$(make_scratch)"
+  mkdir -p "$d/.codenook/history" "$d/.codenook/plugins/development"
+  echo "$d"
+}
+
+mk_task() {
+  local ws="$1" tid="$2"
+  mkdir -p "$ws/.codenook/tasks/$tid"
+  cat >"$ws/.codenook/tasks/$tid/state.json" <<EOF
+{"task_id":"$tid","phase":"start","iteration":0,"config_overrides":{}}
+EOF
+}
+
+@test "m5-mutator: skill exists and is executable" {
+  assert_file_exists "$MUTATE_SH"
+  assert_file_executable "$MUTATE_SH"
+}
+
+@test "m5-mutator: workspace scope writes config.yaml + audit log" {
+  ws="$(mk_ws)"
+  run_with_stderr "\"$MUTATE_SH\" --plugin development --path models.reviewer --value tier_balanced --reason 'why' --actor distiller --workspace \"$ws\" --scope workspace"
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.changed == true' >/dev/null
+  # config.yaml updated
+  grep -q "tier_balanced" "$ws/.codenook/config.yaml"
+  # audit log appended
+  [ -f "$ws/.codenook/history/config-changes.jsonl" ]
+  last=$(tail -1 "$ws/.codenook/history/config-changes.jsonl")
+  echo "$last" | jq -e '.actor == "distiller"' >/dev/null
+  echo "$last" | jq -e '.scope == "workspace"' >/dev/null
+  echo "$last" | jq -e '.path  == "models.reviewer"' >/dev/null
+  echo "$last" | jq -e '.new   == "tier_balanced"' >/dev/null
+}
+
+@test "m5-mutator: subsequent config-resolve sees the new value" {
+  ws="$(mk_ws)"
+  run_with_stderr "\"$MUTATE_SH\" --plugin development --path models.reviewer --value tier_balanced --reason 'why' --actor distiller --workspace \"$ws\" --scope workspace"
+  [ "$status" -eq 0 ]
+  run_with_stderr "\"$RESOLVE_SH\" --plugin development --workspace \"$ws\" --catalog \"$FIXTURES_ROOT/catalog/full.json\""
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.models.reviewer == "sonnet-4.6"' >/dev/null
+  echo "$output" | jq -e '._provenance["models.reviewer"].from_layer == 3' >/dev/null
+}
+
+@test "m5-mutator: task scope writes state.json.config_overrides + provenance from_layer 4" {
+  ws="$(mk_ws)"
+  mk_task "$ws" "T-001"
+  run_with_stderr "\"$MUTATE_SH\" --plugin development --path models.reviewer --value tier_cheap --reason 'task local' --actor user --workspace \"$ws\" --scope task --task T-001"
+  [ "$status" -eq 0 ]
+  assert_jq "$ws/.codenook/tasks/T-001/state.json" '.config_overrides.models.reviewer == "tier_cheap"'
+  last=$(tail -1 "$ws/.codenook/history/config-changes.jsonl")
+  echo "$last" | jq -e '.scope == "task" and .task == "T-001"' >/dev/null
+}
+
+@test "m5-mutator: noop returns changed=false and writes no audit entry" {
+  ws="$(mk_ws)"
+  run_with_stderr "\"$MUTATE_SH\" --plugin development --path models.reviewer --value tier_balanced --reason 'first' --actor distiller --workspace \"$ws\" --scope workspace"
+  [ "$status" -eq 0 ]
+  before_lines=$(wc -l <"$ws/.codenook/history/config-changes.jsonl" | tr -d ' ')
+  run_with_stderr "\"$MUTATE_SH\" --plugin development --path models.reviewer --value tier_balanced --reason 'second same' --actor distiller --workspace \"$ws\" --scope workspace"
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.changed == false' >/dev/null
+  after_lines=$(wc -l <"$ws/.codenook/history/config-changes.jsonl" | tr -d ' ')
+  [ "$before_lines" = "$after_lines" ]
+}
+
+@test "m5-mutator: router invariant blocks plugin=__router__ + path=models.router" {
+  ws="$(mk_ws)"
+  run_with_stderr "\"$MUTATE_SH\" --plugin __router__ --path models.router --value tier_cheap --reason 'try' --actor user --workspace \"$ws\" --scope workspace"
+  [ "$status" -ne 0 ]
+  assert_contains "$STDERR" "router"
+  assert_contains "$STDERR" "invariant"
+}
+
+@test "m5-mutator: unknown top-level path segment blocked" {
+  ws="$(mk_ws)"
+  run_with_stderr "\"$MUTATE_SH\" --plugin development --path bogus.x --value y --reason 'no' --actor user --workspace \"$ws\" --scope workspace"
+  [ "$status" -ne 0 ]
+  assert_contains "$STDERR" "bogus"
+}
+
+@test "m5-mutator: actor enum validated" {
+  ws="$(mk_ws)"
+  run_with_stderr "\"$MUTATE_SH\" --plugin development --path models.reviewer --value tier_cheap --reason 'x' --actor hacker --workspace \"$ws\" --scope workspace"
+  [ "$status" -ne 0 ]
+  assert_contains "$STDERR" "actor"
+}
+
+@test "m5-mutator: path starting with _ rejected" {
+  ws="$(mk_ws)"
+  run_with_stderr "\"$MUTATE_SH\" --plugin development --path _provenance.x --value y --reason 'x' --actor user --workspace \"$ws\" --scope workspace"
+  [ "$status" -ne 0 ]
+}
