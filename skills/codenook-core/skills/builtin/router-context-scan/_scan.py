@@ -68,9 +68,13 @@ def scan_workspace_size(ws: Path) -> list[str]:
     over_bytes = False
     for root, dirs, files in os.walk(ws):
         # Skip the audit/history tree to keep the walk cheap-ish; it
-        # can grow large but isn't user payload.
+        # can grow large but isn't user payload. Also prune .codenook —
+        # it can balloon (history/, plugins/, hitl-queue/) and we
+        # already account for plugins/tasks/hitl above.
         if ".git" in dirs:
             dirs.remove(".git")
+        if ".codenook" in dirs:
+            dirs.remove(".codenook")
         for fn in files:
             files_n += 1
             if files_n > FILE_WARN_THRESHOLD:
@@ -82,9 +86,9 @@ def scan_workspace_size(ws: Path) -> list[str]:
                     pass
                 if bytes_n > BYTES_WARN_THRESHOLD:
                     over_bytes = True
-            if over_files and over_bytes:
+            if over_files or over_bytes:
                 break
-        if over_files and over_bytes:
+        if over_files or over_bytes:
             break
     if over_files:
         warnings.append(f">10K files in workspace ({files_n}+ files)")

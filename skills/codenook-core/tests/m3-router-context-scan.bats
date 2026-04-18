@@ -116,3 +116,24 @@ for i in range(10001):
   size=$(printf '%s' "$output" | wc -c | tr -d ' ')
   [ "$size" -le 2048 ] || { echo "scan output is $size bytes (>2048)" >&2; exit 1; }
 }
+
+@test "fix#4: 50K files inside .codenook are pruned; scan finishes <2s without size warning" {
+  ws="$(stage_ws "$M3_FX/workspaces/empty")"
+  # 50K files placed *inside* .codenook — must not be walked.
+  python3 -c "
+import os
+d='$ws/.codenook/bulk'
+os.makedirs(d, exist_ok=True)
+for i in range(50000):
+    open(d+f'/f{i}','w').close()
+"
+  start=$(python3 -c "import time;print(time.time())")
+  run_with_stderr "\"$SCAN_SH\" --workspace \"$ws\" --json"
+  end=$(python3 -c "import time;print(time.time())")
+  elapsed=$(python3 -c "print(${end}-${start})")
+  [ "$status" -eq 0 ]
+  python3 -c "import sys; sys.exit(0 if ${elapsed} < 2.0 else 1)" \
+    || { echo "scan took ${elapsed}s (>2s) — .codenook not pruned" >&2; exit 1; }
+  # Pruned tree must not trigger the >10K-files warning.
+  echo "$output" | jq -e '.workspace_warnings == []' >/dev/null
+}
