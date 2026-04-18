@@ -50,7 +50,7 @@ import sys, yaml
 doc = yaml.safe_load(open(sys.argv[1]))
 imp = next(p for p in doc["phases"] if p["id"] == "implement")
 assert imp.get("supports_iteration") is True
-assert imp.get("supports_fanout") is True
+assert imp.get("allows_fanout") is True
 assert imp.get("dual_mode_compatible") is True
 print("ok")
 PY
