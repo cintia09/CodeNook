@@ -1,0 +1,18 @@
+# Secret regex patterns for sec-audit (one per line, python regex).
+# Lines starting with # are comments.
+# Derived from implementation-v6.md §M2.3 secret-scan set.
+
+# OpenAI / Anthropic style
+sk-[A-Za-z0-9]{32,}
+sk-ant-[A-Za-z0-9-]{60,}
+
+# AWS access key
+AKIA[0-9A-Z]{16}
+
+# GitHub tokens
+ghp_[A-Za-z0-9]{36}
+gho_[A-Za-z0-9]{36}
+github_pat_[A-Za-z0-9_]{82}
+
+# Private keys
+-----BEGIN (RSA|OPENSSH|DSA|EC|PGP) PRIVATE KEY-----
