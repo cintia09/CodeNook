@@ -95,9 +95,6 @@ def main():
         if not changed:
             sys.exit(0)
     else:
-        if value not in TIER_SYMBOLS and not is_known_model(value):
-            print(f"set.sh: warning: unknown model value '{value}'", file=sys.stderr)
-
         if old_value == value:
             sys.exit(0)
 
@@ -129,10 +126,6 @@ def main():
 
     sys.exit(0)
 
-def is_known_model(value):
-    """Check if value looks like a known model ID (very permissive)"""
-    common_prefixes = ["gpt-", "claude-", "gemini-", "o1-", "o3-"]
-    return any(value.startswith(p) for p in common_prefixes)
 
 if __name__ == "__main__":
     main()

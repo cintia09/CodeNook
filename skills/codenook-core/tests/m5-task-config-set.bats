@@ -56,3 +56,11 @@ EOF
   [ "$status" -eq 0 ]
   assert_jq "$ws/.codenook/tasks/T-001/state.json" '.config_overrides.models.reviewer == "tier_cheap"'
 }
+
+@test "m5-task-config-set: canonical model name set without spurious warning" {
+  ws="$(mk_ws_with_task)"
+  run_with_stderr "\"$SET_SH\" --task T-001 --key models.default --value opus-4.7 --workspace \"$ws\""
+  [ "$status" -eq 0 ]
+  assert_not_contains "$STDERR" "unknown model"
+  assert_jq "$ws/.codenook/tasks/T-001/state.json" '.config_overrides.models.default == "opus-4.7"'
+}
