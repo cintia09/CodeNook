@@ -141,6 +141,39 @@ PY
 fi
 [[ $incomplete -eq 0 && $task_count -gt 0 ]] && ok "all active tasks have dual_mode or no iterations yet"
 
+# ---- 7b. Serial dual_mode requires max_iterations ≥ 2 (Friction §3.3 / core §15) --
+echo ""
+echo "[7b] Serial dual_mode iteration budget:"
+serial_bad=0
+if [[ -d "$WS/tasks" ]]; then
+  while IFS= read -r sj; do
+    [[ -z "$sj" ]] && continue
+    tid=$(basename "$(dirname "$sj")")
+    out=$(python3 - "$sj" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+status = d.get("status","")
+if status in ("done","cancelled"): print("SKIP"); sys.exit()
+if d.get("dual_mode") == "serial":
+    mi = d.get("max_iterations")
+    if mi is None or mi < 2:
+        print(f"BAD\t{mi}")
+    else:
+        print("OK")
+else:
+    print("SKIP")
+PY
+)
+    case "$out" in
+      BAD*)
+        miv=${out#BAD	}
+        err "$tid: serial dual_mode requires max_iterations >= 2 (got $miv) — otherwise loop degenerates to one-shot-or-HITL"
+        serial_bad=$((serial_bad+1)) ;;
+    esac
+  done < <(find "$WS/tasks" -maxdepth 2 -name state.json 2>/dev/null)
+fi
+[[ $serial_bad -eq 0 && $task_count -gt 0 ]] && ok "serial-mode tasks have max_iterations >= 2"
+
 # ---- 8. workspace state.json ------------------------------------------
 echo ""
 echo "[8] Workspace state.json:"

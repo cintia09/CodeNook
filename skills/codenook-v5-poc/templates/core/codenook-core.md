@@ -121,6 +121,13 @@ When `dual_mode == "off"`, the `iterations` array contains a single entry with `
 | test                | tester       | tasks/T-xxx/prompts/phase-4-tester.md                      | prompts-templates/tester.md             |
 | accept              | acceptor     | tasks/T-xxx/prompts/phase-5-acceptor.md                    | prompts-templates/acceptor.md           |
 | validate            | validator    | tasks/T-xxx/prompts/phase-6-validator.md                   | prompts-templates/validator.md          |
+| integration-test    | tester       | tasks/T-xxx/prompts/integration-test.md                    | prompts-templates/tester.md             |
+| integration-accept  | acceptor     | tasks/T-xxx/prompts/integration-accept.md                  | prompts-templates/acceptor.md           |
+
+The `integration-test` / `integration-accept` rows apply ONLY to parents
+that fanned out to subtasks (§17.4); the `phase-4-tester.md` /
+`phase-5-acceptor.md` slots are reserved for non-fanned-out tasks, so the
+two manifest names must NOT be reused interchangeably.
 
 Routing by `dual_mode` (linear pipeline, with optional plan fan-out):
 - `off`      → clarifier → designer → planner → implementer → tester → acceptor → validator
@@ -272,6 +279,20 @@ Rules:
 - All variable values are either literal strings or `@path` references
 - Paths are relative to the manifest file location
 - Never inline the template content itself
+
+### Sanctioned scratch / refresh-manifest locations
+
+- `.codenook/_workspace/prompts/` — distiller refresh / snapshot manifests
+  (see §18 Triggers A and B). The `_workspace/` scope means the manifest
+  belongs to the workspace, not to a single task.
+- `.codenook/_workspace/scratch/` — orchestrator-internal scratch (e.g.
+  the security-auditor session manifest, ad-hoc YAML the orchestrator
+  needs to hand to a sub-agent that does not belong inside any task tree).
+
+Both are created by `init.sh` (fresh install AND upgrade). They are the
+ONLY workspace-relative locations outside `.codenook/tasks/` and
+`.codenook/history/` that `dispatch-audit.sh` check [5] treats as in-scope;
+any other path under workspace root will be flagged as containment-warning.
 
 ### Optional `Invoke_skill:` Field (Skill Trigger Channel)
 
@@ -661,6 +682,13 @@ dual_agent:
   escalate_on_fundamental: true
 ```
 
+**Serial mode requires `max_iterations >= 2`.** With `max_iterations == 1`
+the loop degenerates to "one shot or HITL": there is no budget for the
+implementer to react to the first review. `preflight.sh` check [7b]
+blocks task creation / advancement when `dual_mode == "serial"` and
+`max_iterations < 2`. To intentionally use a one-shot path, set
+`dual_mode: "off"` instead.
+
 ---
 
 ## 16. Dual-Agent Parallel + Synthesizer Protocol
@@ -871,17 +899,46 @@ Each subtask runs the **full 6-phase pipeline** (clarify → design → implemen
 - Its acceptor issues a verdict relative to the subtask scope, not the
   parent goal.
 
+#### `start_phase` (Bug §2.3 / Friction §3.6 fix)
+
+The planner's `plan.md` Subtask List table includes a `start_phase` column
+(values: `clarify` | `design` | `implement`; default `clarify`). The
+default — and the protocol-faithful choice — is `clarify`: every subtask
+walks the full pipeline. `subtask-runner.sh seed` reads this column
+verbatim and writes it into each subtask's `state.json` as both `phase`
+(initial pointer) and `start_phase` (immutable record for audit). The
+runner does NOT apply any content heuristic; only the planner's explicit
+column value matters.
+
+#### No skipping subtask phases (Bug §5)
+
+When a task has subtasks, each subtask MUST run every phase from its
+declared `start_phase` through `validate`. Skipping any phase
+(clarify/design/plan/implement/test/accept/validate) is a protocol
+violation, regardless of subtask scope or apparent simplicity. If a phase
+appears unnecessary, the planner should set `start_phase` *consistently*
+in plan.md (rare; the safe default is `clarify`). `dispatch-audit.sh`
+check [8] enforces this post-hoc by comparing the per-subtask dispatch
+log against the expected phase set.
+
 ### 17.4 Parent-Level Integration
 
 After all subtasks reach `accept_verdict == accept`, the parent:
 
 1. Runs the **parent tester** against the parent's clarify acceptance
    criteria. Input variables include subtask outputs (not just summaries —
-   integration often needs cross-cutting verification).
+   integration often needs cross-cutting verification). The manifest path
+   for this dispatch is `tasks/<T-xxx>/prompts/integration-test.md` (NOT
+   `phase-4-tester.md`, which is reserved for non-fanned-out tasks).
 2. Runs the **parent acceptor** against parent task.md (the user's original
-   goal).
+   goal). Manifest path: `tasks/<T-xxx>/prompts/integration-accept.md`
+   (NOT `phase-5-acceptor.md`).
 3. If either fails: HITL; do NOT auto-retry (integration failures indicate
    the decomposition plan itself was flawed).
+
+The integration-* naming distinguishes the parent's post-fan-out
+test/accept passes from the per-subtask test/accept passes (which use the
+canonical `phase-N-*` form inside each subtask's prompts/ directory).
 
 ### 17.5 Hard Rules
 
@@ -962,9 +1019,19 @@ session-distiller does.
 
 Two dispatch triggers:
 
-### Trigger A — per-phase refresh (lightweight)
+### Trigger A — per-phase refresh (MANDATORY, hard rule)
 
-After every sub-agent return in §5 (`post_phase_refresh()` step):
+The orchestrator MUST dispatch the session-distiller after every sub-agent
+return — including each subtask phase — before dispatching the next
+non-distiller sub-agent. This is no longer a soft expectation: two
+consecutive non-distiller dispatch entries in `dispatch-log.jsonl`
+constitute a violation flagged by `dispatch-audit.sh` check [7].
+
+Each dispatch-log entry carries a `distiller_refreshed_at` field (ISO
+timestamp, populated by the subsequent distiller-refresh dispatch) so
+audits can reconstruct the refresh cadence after the fact.
+
+In `post_phase_refresh()` of §5:
 
 ```
 write_manifest(_workspace/session-distill-refresh.md,
@@ -988,10 +1055,11 @@ The manifest path uses the reserved `_workspace/` scope prefix
 the workspace, not a single task. If the workspace-scope directory
 doesn't exist, create it lazily.
 
-Refresh is **best-effort**: if it returns `too_large` or `blocked`,
-the orchestrator logs to `.codenook/history/distillation-log.md`
-(append one line) and moves on. Missed refreshes don't block phase
-advancement.
+Refresh is **mandatory**: if it returns `too_large` or `blocked`, the
+orchestrator logs to `.codenook/history/distillation-log.md` (append one
+line) and MUST queue HITL before the next phase advancement (the audit
+will flag the gap otherwise). Skipping the refresh dispatch is a
+protocol violation, not a budget optimisation.
 
 ### Trigger B — snapshot (heavyweight, session end)
 
@@ -1185,6 +1253,13 @@ humans and external tooling:
 - `sweep`                        — run step 1 of tick() standalone (useful
   when orchestrator is idle and a long-running background agent just
   produced its output file)
+- `tick`                         — run the §19.2 cycle steps that don't
+  require orchestrator decisions: sweep + lock TTL expiry + ready-count.
+  Prints `tick: pending=N dispatching=M completed=K ready=R`. Steps 2
+  (process completions → state.json) and 4 (dispatch sub-agents) remain
+  orchestrator-only per protocol; this command intentionally does NOT
+  invoke the platform Task tool. Useful between turns and for external
+  cron polling.
 - `ready <task_id>`              — print subtasks ready to run (parses
   dependency-graph.md against task state.json)
 - `deps <task_id>`               — dump parsed edges (TSV)
@@ -1250,7 +1325,22 @@ Schema (all fields required):
 For every Mode B dispatch the orchestrator performs the following two
 steps **in this exact order**:
 
-1. **WRITE** one line to `dispatch-log.jsonl` (append).
+1. **WRITE** one line to `dispatch-log.jsonl` (append). The orchestrator
+   MUST write it via the sanctioned wrapper:
+
+   ```bash
+   bash .codenook/dispatch-audit.sh emit \
+     <task_id> <phase> <role> <manifest> <output_expected> [model]
+   ```
+
+   The wrapper validates required fields, generates a deterministic
+   `invocation_id` (`d-<unix-ts>-<role>-<task-id-slug>`), constructs the
+   JSON line per the §20.1 schema (including the
+   `distiller_refreshed_at: null` field used by audit check [7]), appends
+   to the log, and echoes the `invocation_id` to stdout. Direct `echo …
+   >> dispatch-log.jsonl` writes are forbidden — they bypass field
+   validation and are the source of silent log corruption.
+
 2. Invoke the platform's generic task runner (`general-purpose`) with the
    §7 dispatch prompt.
 
@@ -1285,6 +1375,15 @@ Checks performed:
   without writing the manifest first.
 - **Unique invocation IDs**: duplicates indicate replay or copy-paste
   bugs in the orchestrator.
+- **Workspace containment** (check [5]): see §21.3.
+- **Distiller refresh discipline** (check [7], Friction §3.4): two
+  consecutive non-distiller dispatches in chronological log order are a
+  violation. The session-distiller MUST appear between every pair of
+  worker dispatches per §18.
+- **Subtask phase coverage** (check [8], Bug §5): for every subtask
+  whose status is not `pending`, the dispatch log must include every
+  phase from its declared `start_phase` through `validate`. Missing
+  phases are violations regardless of subtask scope.
 
 The audit is post-hoc and read-only. It does not block work; it surfaces
 discipline violations after the fact so the human can see them.
@@ -1405,10 +1504,11 @@ log), never in file **names**.
 Task creation may ask required questions (dual_mode, depends_on,
 priority, budget). If the user skipped a question at creation time,
 `state.json` ends up with a null field. The orchestration main loop
-then checks `PHASE_ENTRY_QUESTIONS` for the **current** phase — it does
-**not** retroactively verify that *creation-time* questions were
-answered. Result: the task silently advances with `dual_mode: null`
-and produces incoherent dual-agent behavior.
+then checks the `phase_entry_questions` stanza in `config.yaml`
+(see §22.7) for the **current** phase — it does **not** retroactively
+verify that *creation-time* questions were answered. Result: the task
+silently advances with `dual_mode: null` and produces incoherent
+dual-agent behavior.
 
 ### 22.2 The Invariant
 
@@ -1473,6 +1573,46 @@ If preflight finds a task created under an older version (likely
 OPT-7 violation and re-ask *before* running any more sub-agents for
 that task. The user may answer `off` to opt out of dual-agent
 review entirely.
+
+### 22.7 Phase Entry Questions Stanza (Friction §3.1)
+
+`config.yaml` carries a `phase_entry_questions:` stanza — a mechanically
+queryable map from phase name to the list of state-fields that MUST be
+non-null in `state.json` BEFORE the orchestrator may transition the task
+INTO that phase:
+
+```yaml
+phase_entry_questions:
+  clarify:    [dual_mode]                # captured at creation; required before any phase work
+  design:     []
+  plan:       []
+  implement:  [dual_mode, max_iterations]
+  review:     []
+  validate:   []
+  ship:       []
+```
+
+This is a stricter, phase-keyed superset of §22.3's creation-time table.
+
+#### Preflight hook in the orchestration loop
+
+At every phase transition, BEFORE writing the next phase's manifest:
+
+```python
+required = config.phase_entry_questions.get(next_phase, [])
+missing = [f for f in required if state.get(f) in (None, "")]
+if missing:
+    queue_hitl(state, reason=f"phase_entry_questions:{next_phase} unanswered: {missing}")
+    return  # block transition until HITL responds
+```
+
+`dual_mode` under the `clarify` key encodes the original gap: a task
+must have its dual-agent posture answered before the very first phase
+runs, not after the implement phase trips over a null field.
+
+Adding a new required field is mechanical: append it to the relevant
+phase list in `config.yaml`. The orchestration hook above adapts
+automatically.
 
 ---
 

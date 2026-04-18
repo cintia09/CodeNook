@@ -5,20 +5,92 @@
 # itself in the main session). See core.md §20.
 #
 # Usage:
-#   bash dispatch-audit.sh              # whole workspace
-#   bash dispatch-audit.sh T-003        # one task
+#   bash dispatch-audit.sh                                              # whole workspace
+#   bash dispatch-audit.sh audit [T-003]                                # explicit audit (default subcommand)
+#   bash dispatch-audit.sh emit <task_id> <phase> <role> <manifest> \
+#                              <output_expected> [model]                # sanctioned writer for dispatch-log.jsonl
 #
 # Exit codes:
-#   0 = no violations
+#   0 = no violations / emit succeeded
 #   1 = violations found
-#   2 = bad usage / missing files
+#   2 = bad usage / missing files / emit validation failed
 
 set -u
 
 WS=".codenook"
 LOG="$WS/history/dispatch-log.jsonl"
 TASKS_DIR="$WS/tasks"
-FILTER="${1:-}"
+
+# ---------------------------------------------------------------------------
+# Subcommand: emit — the only sanctioned writer for dispatch-log.jsonl
+# (core §20.2, §21.3). Validates required fields, generates a deterministic
+# invocation_id, appends one JSON line, echoes the id.
+# ---------------------------------------------------------------------------
+cmd_emit() {
+  local task_id="${1:-}" phase="${2:-}" role="${3:-}" manifest="${4:-}" \
+        output_expected="${5:-}" model="${6:-}"
+  for f in task_id phase role manifest output_expected; do
+    if [[ -z "${!f}" ]]; then
+      echo "error: emit: missing required field '$f'" >&2
+      echo "usage: dispatch-audit.sh emit <task_id> <phase> <role> <manifest> <output_expected> [model]" >&2
+      exit 2
+    fi
+  done
+  [[ "$task_id" =~ ^T-[A-Za-z0-9]+(\.[0-9]+)?$ ]] || {
+    echo "error: emit: invalid task_id '$task_id'" >&2; exit 2; }
+  [[ "$phase" =~ ^[A-Za-z0-9_-]+$ ]] || {
+    echo "error: emit: invalid phase '$phase'" >&2; exit 2; }
+  [[ "$role" =~ ^[A-Za-z0-9_-]+$ ]] || {
+    echo "error: emit: invalid role '$role'" >&2; exit 2; }
+  for p in "$manifest" "$output_expected"; do
+    [[ "$p" == /* ]]    && { echo "error: emit: absolute path not allowed: $p" >&2; exit 2; }
+    [[ "$p" == *..* ]]  && { echo "error: emit: traversal segment in path: $p" >&2; exit 2; }
+  done
+
+  mkdir -p "$WS/history"
+  [[ -f "$LOG" ]] || : > "$LOG"
+
+  local ts ts_unix slug invid
+  ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  ts_unix=$(date -u +%s)
+  slug=$(echo "$task_id" | tr '.' '-')
+  invid="d-${ts_unix}-${role}-${slug}"
+
+  python3 - "$LOG" "$ts" "$task_id" "$phase" "$role" "$manifest" \
+                   "$output_expected" "$invid" "$model" <<'PY'
+import json, sys
+log, ts, tid, ph, ro, man, out, invid, model = sys.argv[1:10]
+rec = {
+    "ts": ts,
+    "task_id": tid,
+    "phase": ph,
+    "role": ro,
+    "manifest": man,
+    "output_expected": out,
+    "invocation_id": invid,
+    "distiller_refreshed_at": None,  # populated by the distiller-refresh dispatch (§18, §3.4 fix)
+}
+if model:
+    rec["model"] = model
+with open(log, "a") as f:
+    f.write(json.dumps(rec) + "\n")
+PY
+  echo "$invid"
+  exit 0
+}
+
+# Subcommand dispatch. Backwards compatible: a bare `T-xxx` first arg still
+# runs the audit on that task (legacy form).
+SUB="${1:-}"
+case "$SUB" in
+  emit)  shift; cmd_emit "$@" ;;
+  audit) shift; FILTER="${1:-}" ;;
+  ""|T-*) FILTER="${1:-}" ;;
+  -h|--help)
+    sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+    exit 0 ;;
+  *) echo "error: unknown subcommand: $SUB" >&2; exit 2 ;;
+esac
 
 if [[ ! -d "$WS" ]]; then
   echo "error: not in a CodeNook workspace (no .codenook/)" >&2
@@ -185,6 +257,9 @@ while IFS=$'\t' read -r ts task phase role manifest out invid; do
     elif [[ "$p" == *..* ]]; then
       note_v "traversal segment '..' in log path: $p (invid=$invid)"
       escapes=$((escapes+1))
+    elif [[ "$p" == _workspace/scratch/* || "$p" == _workspace/prompts/* \
+         || "$p" == .codenook/_workspace/scratch/* || "$p" == .codenook/_workspace/prompts/* ]]; then
+      : # sanctioned orchestrator scratch / refresh-manifest area (core §6, §18)
     elif [[ "$p" != .codenook/* && "$p" != "$WS"/* ]]; then
       note_w "path outside $WS/: $p (invid=$invid)"
     fi
@@ -240,6 +315,82 @@ if [[ -d "$WS/tasks" ]]; then
   done < <(find "$WS/tasks" -maxdepth 2 -name state.json 2>/dev/null)
 fi
 [[ $dual_issues -eq 0 ]] && { note_o; echo "  ✅ dual-mode tasks have iteration scoping"; }
+
+# -----------------------------------------------------------------------
+# Check 7: distiller refresh discipline (Friction §3.4 / core §18, §5).
+# After every non-distiller dispatch the orchestrator MUST dispatch the
+# session-distiller before the next non-distiller dispatch. Two consecutive
+# non-distiller entries (in chronological log order) are a violation.
+# -----------------------------------------------------------------------
+echo ""
+echo "[7] Distiller refresh discipline:"
+distill_issues=0
+prev_role=""
+prev_invid=""
+while IFS=$'\t' read -r ts task phase role manifest out invid; do
+  [[ -z "$role" ]] && continue
+  if [[ -n "$FILTER" && "$task" != "$FILTER" && "$role" != session-distiller ]]; then
+    continue
+  fi
+  if [[ "$role" != "session-distiller" && -n "$prev_role" && "$prev_role" != "session-distiller" ]]; then
+    note_v "missing distiller refresh between $prev_invid and $invid (consecutive non-distiller dispatches)"
+    distill_issues=$((distill_issues+1))
+  fi
+  prev_role="$role"; prev_invid="$invid"
+done < "$LOG_TSV"
+[[ $distill_issues -eq 0 ]] && { note_o; echo "  ✅ session-distiller refresh fired between every dispatch"; }
+
+# -----------------------------------------------------------------------
+# Check 8: subtask phase coverage (Bug §5). Every subtask must walk the
+# full 6-phase pipeline starting from its declared start_phase (default
+# clarify). Skipping any phase is a protocol violation.
+# -----------------------------------------------------------------------
+echo ""
+echo "[8] Subtask phase coverage:"
+subtask_issues=0
+PIPELINE=(clarify design plan implement test accept validate)
+if [[ -d "$WS/tasks" ]]; then
+  while IFS= read -r sj; do
+    [[ -z "$sj" ]] && continue
+    sid=$(basename "$(dirname "$sj")")
+    parent=$(echo "$sid" | awk -F'.' '{print $1}')
+    if [[ -n "$FILTER" && "$parent" != "$FILTER" && "$sid" != "$FILTER" ]]; then continue; fi
+    # Only inspect subtasks that have actually been worked (status != pending).
+    sstatus=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('status',''))" "$sj" 2>/dev/null || echo "")
+    [[ "$sstatus" == "pending" || -z "$sstatus" ]] && continue
+    start_phase=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('start_phase','clarify'))" "$sj" 2>/dev/null || echo "clarify")
+    # Build expected phase set from start_phase onward.
+    expected=()
+    seen_start=0
+    for ph in "${PIPELINE[@]}"; do
+      [[ "$ph" == "$start_phase" ]] && seen_start=1
+      [[ $seen_start -eq 1 ]] && expected+=("$ph")
+    done
+    # Collect dispatched phases for this subtask from the log.
+    walked=$(awk -F'\t' -v t="$sid" '$2==t {print $3}' "$LOG_TSV" \
+              | sed -E 's/^phase-[0-9]+-//; s/^iter-[0-9]+-//; s/-?summary$//' \
+              | sort -u)
+    # Map dispatched roles back to phase names where the phase column is iter-N-implementer etc.
+    walked_roles=$(awk -F'\t' -v t="$sid" '$2==t {print $4}' "$LOG_TSV" | sort -u)
+    missing=()
+    for ph in "${expected[@]}"; do
+      hit=0
+      while IFS= read -r w; do
+        [[ -z "$w" ]] && continue
+        case "$ph" in
+          implement) [[ "$w" == implement* || "$w" == "implementer" ]] && hit=1 ;;
+          *)         [[ "$w" == "$ph" || "$w" == "${ph}er" || "$w" == "${ph}or" ]] && hit=1 ;;
+        esac
+      done <<<"$walked"$'\n'"$walked_roles"
+      [[ $hit -eq 0 ]] && missing+=("$ph")
+    done
+    if [[ ${#missing[@]} -gt 0 ]]; then
+      note_v "$sid: subtask skipped phases (start_phase=$start_phase): ${missing[*]}"
+      subtask_issues=$((subtask_issues+1))
+    fi
+  done < <(find "$WS/tasks" -mindepth 4 -maxdepth 4 -name state.json -path '*/subtasks/*' 2>/dev/null)
+fi
+[[ $subtask_issues -eq 0 ]] && { note_o; echo "  ✅ all worked subtasks walked their declared phase set"; }
 
 # -----------------------------------------------------------------------
 # Summary

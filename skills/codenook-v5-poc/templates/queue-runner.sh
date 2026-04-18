@@ -11,6 +11,11 @@
 #   list <queue>             Print items in queue (pending|dispatching|completed)
 #   sweep                    Move dispatching items whose expected output file
 #                            exists into completed.json (FIFO-safe, idempotent)
+#   tick                     Run §19.2 cycle steps that don't require orchestrator
+#                            decisions: sweep + lock TTL expiry + ready-count, then
+#                            print "tick: pending=N dispatching=M completed=K ready=R".
+#                            Steps 2 (process completions) and 4 (dispatch agents)
+#                            remain orchestrator-only per protocol.
 #   ready <task_id>          Compute ready subtasks by parsing the task's
 #                            dependency-graph.md against its state.json
 #   deps <task_id>           Dump parsed (child, parent) edges
@@ -314,6 +319,45 @@ cmd_unlock() {
   [[ -f "$lockfile" ]] && rm -f "$lockfile" && echo "unlocked: $path" || echo "(no lock for $path)"
 }
 
+# ---- tick: §19.2 cycle steps observable to humans/external callers ----
+# Performs steps that do NOT require orchestrator decision-making:
+#   1. SWEEP    — lock TTL expiry → (re-use existing sweep on dispatching.json)
+#   3. READY    — list newly-ready dependency-resolved subtasks per active task
+# Steps 2 (process completions → state.json) and 4 (dispatch sub-agents) are
+# orchestrator-only per protocol; this command intentionally does NOT invoke
+# the platform Task tool. See core §19.2, §19.5.
+cmd_tick() {
+  ensure_queue_files
+  # Step 1: sweep dispatching → completed (idempotent).
+  cmd_sweep >/dev/null 2>&1 || true
+  # Step 1b: prune expired locks (TTL = stale_dispatch_minutes; default 30 min).
+  local ttl_min="${CODENOOK_LOCK_TTL_MIN:-30}"
+  if [[ -d "$LOCKS" ]]; then
+    find "$LOCKS" -type f -name '*.lock' -mmin "+$ttl_min" -print 2>/dev/null | while read -r lf; do
+      echo "tick: expiring stale lock: $(basename "$lf") (>${ttl_min}m old)" >&2
+      rm -f "$lf"
+    done
+  fi
+  # Step 3: list ready subtasks across all active tasks.
+  local ready_total=0
+  if [[ -d "$TASKS" ]]; then
+    while IFS= read -r d; do
+      [[ -z "$d" ]] && continue
+      local tid; tid=$(basename "$d")
+      [[ "$tid" =~ $_re_task_id ]] || continue
+      local g="$TASKS/$tid/decomposition/dependency-graph.md"
+      [[ -f "$g" ]] || continue
+      local r; r=$(cmd_ready "$tid" 2>/dev/null | wc -l | tr -d ' ')
+      ready_total=$((ready_total + r))
+    done < <(find "$TASKS" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
+  fi
+  local pending dispatching completed
+  pending=$(json_count "$QDIR/pending.json")
+  dispatching=$(json_count "$QDIR/dispatching.json")
+  completed=$(json_count "$QDIR/completed.json")
+  echo "tick: pending=${pending} dispatching=${dispatching} completed=${completed} ready=${ready_total}"
+}
+
 cmd_help() {
   sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'
 }
@@ -324,6 +368,7 @@ main() {
     status)  cmd_status  "$@" ;;
     list)    cmd_list    "$@" ;;
     sweep)   cmd_sweep   "$@" ;;
+    tick)    cmd_tick    "$@" ;;
     ready)   cmd_ready   "$@" ;;
     deps)    cmd_deps    "$@" ;;
     cycles)  cmd_cycles  "$@" ;;

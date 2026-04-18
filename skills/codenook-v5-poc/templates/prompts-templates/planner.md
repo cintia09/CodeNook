@@ -29,7 +29,15 @@ Required:
 - One paragraph justifying the split.
 
 ### 2. Subtask List
-- Table with columns: `id` (T-parent.N), `title`, `scope` (1-2 sentences), `primary_outputs` (files the subtask will produce/modify), `estimated_size` (S / M / L), `parent_design_section` (which section of design this subtask realises).
+- Table with columns (in this exact order):
+  `id` (T-parent.N) | `title` | `scope` (1-2 sentences) | `primary_outputs` (files the subtask will produce/modify) | `estimated_size` (S / M / L) | `parent_design_section` (which section of design this subtask realises) | `start_phase` (`clarify` | `design` | `implement`; default `clarify`).
+- The `start_phase` column is REQUIRED. Use the default value `clarify`
+  (full subtask pipeline, protocol-faithful per core §17.3) unless the
+  subtask scope is *fully* derived from the parent's clarify+design and
+  needs no further specification — in which case `implement` is allowed.
+  `design` is rare; use it when scope is clear but requires its own
+  micro-design pass. `subtask-runner.sh seed` reads this column verbatim
+  and writes it into each subtask's `state.json` (`start_phase` field).
 - At least 2 subtasks; at most 8.
 - Each subtask scope must be independently testable.
 

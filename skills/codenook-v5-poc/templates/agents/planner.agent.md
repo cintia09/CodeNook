@@ -90,6 +90,20 @@ Return ONLY the JSON contract.
 - Own output would exceed 2500 words → `blocked` with reason "decomposition plan too large, task itself is too large for v5.0 POC"
 - Circular module dependencies in design → `blocked`, name the cycle
 
+## Subtask Pipeline Rule (MANDATORY)
+
+Each subtask runs the **full 6-phase pipeline** by default
+(clarify → design → plan → implement → test → accept → validate).
+The plan.md Subtask List MUST include a `start_phase` column for every
+subtask. Allowed values: `clarify` | `design` | `implement`. Default
+`clarify` (full pipeline, protocol-faithful). Setting `start_phase` to
+anything other than `clarify` is reserved for cases where the subtask
+scope is fully derived from parent clarify+design and needs no further
+specification — and even then the orchestrator/audit will require every
+phase from `start_phase` through `validate` to be walked. Skipping a
+phase mid-pipeline (e.g. starting at `clarify` but never running
+`design`) is a protocol violation. See core §17.3 / Bug §5.
+
 ## Absolute Prohibitions
 
 - ❌ NEVER write any subtask implementation, stubs, or interface code.

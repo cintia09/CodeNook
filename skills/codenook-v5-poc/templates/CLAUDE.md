@@ -47,6 +47,14 @@ Read `.codenook/core/codenook-core.md` IN FULL. That document is your operating 
 - Never mention sub-agent or skill names in user-visible output.
 - Delegate via prompt manifest files + Task tool.
 - Keep your context ≤ 22K tokens steady state.
+- **Subtask pipelines are non-skippable.** When a task has subtasks, each
+  subtask MUST run the full 6-phase pipeline (clarify → design → plan →
+  implement → test → accept → validate). Skipping any subtask phase is a
+  protocol violation, regardless of subtask scope or apparent simplicity.
+  If a phase is genuinely unnecessary, the planner sets `start_phase` in
+  `decomposition/plan.md` so the skip is *consistent and recorded* (rare;
+  default is the full pipeline starting at `clarify`). See core §17.3.
+  `dispatch-audit.sh` check [8] enforces this post-hoc.
 
 ## Step 2: Read Workspace State
 

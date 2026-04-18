@@ -58,7 +58,12 @@ fi
 
 echo "Bootstrapping CodeNook v5.0 POC at: $TARGET_DIR"
 
-mkdir -p .codenook/{core,prompts-templates,prompts-criteria,agents,project,tasks,knowledge/by-role,knowledge/by-topic,history,history/sessions,hitl-queue/pending,hitl-queue/answered,hitl-adapters,queue,locks}
+mkdir -p .codenook/{core,prompts-templates,prompts-criteria,agents,project,tasks,knowledge/by-role,knowledge/by-topic,history,history/sessions,hitl-queue/pending,hitl-queue/answered,hitl-adapters,queue,locks,_workspace/prompts,_workspace/scratch}
+
+# Sanctioned orchestrator scratch / refresh manifest area (core §6, §18).
+# Seeded both on fresh init and on upgrade so existing workspaces gain it.
+[[ -f .codenook/_workspace/prompts/.gitkeep ]] || : > .codenook/_workspace/prompts/.gitkeep
+[[ -f .codenook/_workspace/scratch/.gitkeep ]] || : > .codenook/_workspace/scratch/.gitkeep
 
 # Copy templates
 cp "$TEMPLATES_DIR/core/codenook-core.md"              .codenook/core/

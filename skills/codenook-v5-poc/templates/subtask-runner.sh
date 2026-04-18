@@ -251,20 +251,27 @@ for child, parent in edges:
         deps[child].append(parent)
 
 # --- Parse plan.md Subtask List table ---
+# Columns expected (per planner template, in order):
+#   id | title | scope | primary_outputs | size | parent_section | [start_phase]
+# `start_phase` is OPTIONAL. When absent → default `clarify` (full pipeline,
+# protocol-faithful per core §17.3). Allowed values: clarify|design|implement.
 in_section = False
 header_seen = False
+header_cells = []
 rows = []
 for line in pathlib.Path(pf).read_text().splitlines():
     s = line.strip()
     if s.startswith("## ") or s.startswith("### "):
         in_section = "subtask list" in s.lower()
         header_seen = False
+        header_cells = []
         continue
     if not in_section or not s.startswith("|"):
         continue
     cells = [c.strip() for c in s.strip("|").split("|")]
     if not header_seen:
         header_seen = True
+        header_cells = [c.lower() for c in cells]
         continue
     if all(set(c) <= set("-: ") for c in cells):
         continue
@@ -273,12 +280,21 @@ for line in pathlib.Path(pf).read_text().splitlines():
     sid = cells[0]
     if not re.match(r"^T-[A-Za-z0-9]+\.[0-9]+$", sid):
         continue
-    rows.append((sid, cells[1], cells[2], cells[3]))
+    start_phase = "clarify"
+    if "start_phase" in header_cells:
+        idx = header_cells.index("start_phase")
+        if idx < len(cells) and cells[idx]:
+            cand = cells[idx].strip().lower()
+            if cand in ("clarify", "design", "implement"):
+                start_phase = cand
+            else:
+                print(f"  warn: {sid} invalid start_phase '{cand}', defaulting to 'clarify'", file=sys.stderr)
+    rows.append((sid, cells[1], cells[2], cells[3], start_phase))
 
 # --- Seed dirs ---
 seeded = 0
 plan_ids = set()
-for sid, title, scope, outs in rows:
+for sid, title, scope, outs, start_phase in rows:
     plan_ids.add(sid)
     sub = os.path.join(base, "subtasks", sid)
     if os.path.isdir(sub):
@@ -302,13 +318,19 @@ for sid, title, scope, outs in rows:
         "task_id": sid,
         "parent_id": t,
         "status": "pending",
-        "phase": "clarify",
+        # start_phase comes from the planner's plan.md table (column
+        # `start_phase`); default `clarify` for protocol-faithful full
+        # pipeline. The runner does NOT apply any content heuristic.
+        "phase": start_phase,
+        "start_phase": start_phase,
         "depends_on": sub_deps,
         "dual_mode": "inherit",
     }
     with open(os.path.join(sub, "state.json"), "w") as f:
         json.dump(state, f, indent=2); f.write("\n")
     seeded += 1
+    # Log chosen phase to stderr per subtask (visible in the runner output).
+    print(f"  seeded {sid} (start_phase={start_phase}, deps: {','.join(sub_deps) or 'none'})", file=sys.stderr)
     print(f"  seeded {sid} (deps: {','.join(sub_deps) or 'none'})")
 
 # Orphans
