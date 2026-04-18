@@ -1,0 +1,7 @@
+{
+  "input": "Add --tag filter to the xueba CLI list command",
+  "target_dir": "/tmp/xueba-cli",
+  "dual_mode": "serial",
+  "max_iterations": 3,
+  "expected_verdicts": ["ok", "ok", "ok", "ok", "ok", "ok", "ok", "ok"]
+}
