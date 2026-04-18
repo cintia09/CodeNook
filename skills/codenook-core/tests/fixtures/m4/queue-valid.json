@@ -1,0 +1,8 @@
+{
+  "task_id": "T-007",
+  "plugin": "development",
+  "priority": 5,
+  "ready_at": "2026-04-18T10:00:00Z",
+  "blocked_by": [],
+  "next_action": "dispatch_role:implementer"
+}

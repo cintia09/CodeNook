@@ -1,0 +1,12 @@
+{
+  "id": "T-007-design_signoff",
+  "task_id": "T-007",
+  "plugin": "development",
+  "gate": "design_signoff",
+  "created_at": "2026-04-18T11:00:00Z",
+  "context_path": ".codenook/tasks/T-007/outputs/phase-2-designer-summary.md",
+  "decision": null,
+  "decided_at": null,
+  "reviewer": null,
+  "comment": null
+}

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "task_id": "T-007",
+  "title": "Add --tag filter to xueba CLI",
+  "summary": "Implement --tag filter for the xueba list command",
+  "plugin": "development",
+  "plugin_version": "1.2.0",
+  "target_dir": "/abs/external/path",
+  "phase": "implement",
+  "phase_started_at": "2026-04-18T10:00:00Z",
+  "iteration": 2,
+  "max_iterations": 3,
+  "dual_mode": "serial",
+  "status": "in_progress",
+  "subtasks": [],
+  "depends_on": [],
+  "config_overrides": {},
+  "in_flight_agent": {
+    "agent_id": "ag_T-007_3_1",
+    "role": "implementer",
+    "dispatched_at": "2026-04-18T10:05:00Z",
+    "expected_output": "outputs/phase-3-implementer.md"
+  },
+  "history": [
+    {"ts": "2026-04-18T09:00:00Z", "phase": "clarify", "verdict": "ok"},
+    {"ts": "2026-04-18T09:30:00Z", "phase": "design", "verdict": "ok"}
+  ]
+}
