@@ -33,8 +33,9 @@ tests/                      bats-core test suites (run: `bats tests/`)
 
 - M1.1 — init.sh skeleton, shell.md, config-resolve, model-probe
 - M1.2 — config-validate, secrets-resolve, sec-audit, dispatch-audit
-- M1.3 — preflight, task-config-set, queue-runner, orchestrator-tick, session-resume + 5 agent profiles (this drop)
-- M1.4+ — pending (see implementation doc §M1)
+- M1.3 — preflight, task-config-set, queue-runner, orchestrator-tick, session-resume + 5 agent profiles
+- M1.4 — post-review fix pass (this drop): nested-dict overrides, exact-match preflight whitelist, dual_mode threshold direction, dispatch-audit secret redaction, broadened sec-audit patterns, atomic state.json writes, expanded KNOWN_TOP_KEYS, secrets-resolve SECURITY note
+- M1.5+ — pending (see implementation doc §M1)
 
 ## Running tests
 
