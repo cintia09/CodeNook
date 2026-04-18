@@ -63,11 +63,25 @@ def stage_source(src: Path, staging_root: Path) -> Path:
                           or src.suffix in (".tgz", ".gz")):
         dest.mkdir()
         with tarfile.open(src, "r:gz") as tf:
-            # safe extract: refuse absolute / .. members
+            # safe extract: refuse absolute / .. members and dangerous
+            # member kinds; also validate linkname for hard/symlinks.
             for m in tf.getmembers():
                 if m.name.startswith("/") or ".." in Path(m.name).parts:
                     raise RuntimeError(f"unsafe tar member: {m.name}")
-            tf.extractall(dest)
+                if m.isdev() or m.ischr() or m.isblk() or m.isfifo():
+                    raise RuntimeError(
+                        f"unsafe tar member kind ({m.type!r}): {m.name}"
+                    )
+                if m.islnk() or m.issym():
+                    ln = m.linkname or ""
+                    if os.path.isabs(ln) or ".." in Path(ln).parts:
+                        raise RuntimeError(
+                            f"unsafe tar linkname for {m.name!r}: {ln!r}"
+                        )
+            if sys.version_info >= (3, 12):
+                tf.extractall(dest, filter="data")
+            else:
+                tf.extractall(dest)
         # If the tarball contains a single top-level directory, descend
         # into it so plugin.yaml is at the staged root.
         entries = [p for p in dest.iterdir()]
