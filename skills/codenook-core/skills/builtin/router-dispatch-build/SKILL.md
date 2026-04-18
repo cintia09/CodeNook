@@ -8,7 +8,10 @@ when it decides to hand off to a plugin worker or a builtin skill.
 Two responsibilities:
 
 1. **Construct** a JSON payload conforming to architecture §3.1.7:
-   `{role, target, task?, user_input, context: {plugins, active_phase?}}`
+   `{role, target, task?, user_input, context: {plugins}}`
+   (`context.active_phase` is RESERVED for M4 and is currently always
+   omitted — the resolver/orchestrator that owns phase state is not
+   wired into the router until M4.)
 2. **Enforce** the 500-byte hard limit (decision #T-3) — truncating
    `user_input` to 200 chars + `"..."` if needed; failing if the
    envelope still doesn't fit after truncation. The limit is measured
@@ -51,6 +54,6 @@ build.sh --target <plugin-id|skill-name>
   "target":     "writing-stub",
   "task":       "T-007"            // omitted if no --task
   "user_input": "...",             // ≤200 chars, ellipsis if truncated
-  "context":    {"plugins": ["..."], "active_phase": "draft"}
+  "context":    {"plugins": ["..."]}    // active_phase: M4-deferred
 }
 ```

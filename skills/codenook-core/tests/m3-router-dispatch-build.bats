@@ -7,7 +7,8 @@
 #
 # Reads the target's plugin.yaml (or builtin SKILL.md) and emits a JSON
 # payload conforming to architecture §3.1.7:
-#   { role, target, task?, user_input, context: {plugins, active_phase?} }
+#   { role, target, task?, user_input, context: {plugins} }
+# (context.active_phase is RESERVED for M4 and currently always omitted.)
 #
 # Hard limit: 500 chars (architecture §3.1.7 / decision #T-3).
 # user_input truncated to 200 chars + "..." if longer.
