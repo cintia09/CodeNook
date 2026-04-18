@@ -28,7 +28,13 @@ class ExprError(ValueError):
     pass
 
 
-_FORBIDDEN_RE = re.compile(r"(__|\bimport\b|\beval\b|\bexec\b|\bcompile\b|`|;)")
+_STRING_RE = re.compile(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'')
+_FORBIDDEN_OUTSIDE_STRING_RE = re.compile(r"[`;]")
+_IDENT_SCAN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_DENY_IDENTS = {
+    "eval", "exec", "compile", "import", "__import__",
+    "getattr", "setattr",
+}
 _TOKEN_RE = re.compile(
     r"\s*("
     r"[A-Za-z_][A-Za-z_0-9.]*"      # identifier (may be dotted)
@@ -43,9 +49,22 @@ _TOKEN_RE = re.compile(
 _KEYWORDS = {"and", "or", "not", "in", "true", "false", "True", "False"}
 
 
-def _tokenize(src: str) -> list[str]:
-    if _FORBIDDEN_RE.search(src):
+def _scan_forbidden(src: str) -> None:
+    """Reject dangerous tokens. String-literal contents are stripped first
+    so legitimate content like 'topic == "user;sep"' or '"MY__VAR"' is
+    accepted, while identifier-level dunders / deny-list names and
+    out-of-string punctuation (`;`, backtick) are still rejected."""
+    outside = _STRING_RE.sub("", src)
+    if _FORBIDDEN_OUTSIDE_STRING_RE.search(outside):
         raise ExprError("forbidden token in expression")
+    for m in _IDENT_SCAN_RE.finditer(outside):
+        ident = m.group(0)
+        if "__" in ident or ident in _DENY_IDENTS:
+            raise ExprError("forbidden token in expression")
+
+
+def _tokenize(src: str) -> list[str]:
+    _scan_forbidden(src)
     if src.count("(") != src.count(")"):
         raise ExprError("unbalanced parentheses")
     if src.count("[") != src.count("]"):

@@ -93,3 +93,51 @@ write_content() {
   [ -f "$ws/.codenook/memory/development/by-topic/some-other-topic.md" ]
   [ ! -f "$ws/.codenook/knowledge/by-topic/some-other-topic.md" ]
 }
+
+@test "m5-distiller: string literal containing ';' is accepted (token-not-source scan)" {
+  # Direct expr_eval check — the distiller's topic regex blocks ';' in
+  # the topic id itself, so we exercise the safe-eval entry point.
+  out=$(python3 -c "
+import sys, pathlib
+sys.path.insert(0, '$CORE_ROOT/skills/builtin/_lib')
+from expr_eval import safe_eval
+print(safe_eval('topic == \"user;sep\"', {'topic': 'user;sep'}))
+")
+  [ "$out" = "True" ]
+}
+
+@test "m5-distiller: string literal containing '__' is accepted" {
+  ws="$(mk_ws_with_plugin "    promote_to_workspace_when:
+      - 'topic == \"MY__VAR\"'")"
+  c="${BATS_TEST_TMPDIR}/c.md"; write_content "$c" "x"
+  run_with_stderr "\"$DISTILL_SH\" --plugin development --topic MY__VAR --content \"$c\" --workspace \"$ws\""
+  [ "$status" -eq 0 ]
+  [ -f "$ws/.codenook/knowledge/by-topic/MY__VAR.md" ]
+}
+
+@test "m5-distiller: identifier dunder __class__ is rejected" {
+  ws="$(mk_ws_with_plugin "    promote_to_workspace_when:
+      - '__class__ == \"x\"'")"
+  c="${BATS_TEST_TMPDIR}/c.md"; write_content "$c" "x"
+  run_with_stderr "\"$DISTILL_SH\" --plugin development --topic foo --content \"$c\" --workspace \"$ws\""
+  [ "$status" -ne 0 ]
+  assert_contains "$STDERR" "expression"
+}
+
+@test "m5-distiller: identifier in deny-list (eval) is rejected" {
+  ws="$(mk_ws_with_plugin "    promote_to_workspace_when:
+      - 'eval == 1'")"
+  c="${BATS_TEST_TMPDIR}/c.md"; write_content "$c" "x"
+  run_with_stderr "\"$DISTILL_SH\" --plugin development --topic foo --content \"$c\" --workspace \"$ws\""
+  [ "$status" -ne 0 ]
+  assert_contains "$STDERR" "expression"
+}
+
+@test "m5-distiller: ';' outside any string literal is rejected" {
+  ws="$(mk_ws_with_plugin "    promote_to_workspace_when:
+      - 'topic == \"a\"; rm -rf /'")"
+  c="${BATS_TEST_TMPDIR}/c.md"; write_content "$c" "x"
+  run_with_stderr "\"$DISTILL_SH\" --plugin development --topic foo --content \"$c\" --workspace \"$ws\""
+  [ "$status" -ne 0 ]
+  assert_contains "$STDERR" "expression"
+}
