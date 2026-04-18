@@ -54,8 +54,9 @@ load helpers/assertions
 
 @test "init.sh subcommand stubs exit 2 with TODO marker" {
   # M1 declares stubs only; non-version/help subcommands must signal not-implemented.
+  # M5 wired --refresh-models — removed from the stub list.
   for sub in --install-plugin --scaffold-plugin --pack-plugin \
-             --uninstall-plugin --upgrade-core --refresh-models; do
+             --uninstall-plugin --upgrade-core; do
     run "$INIT_SH" "$sub"
     [ "$status" -eq 2 ] || { echo "expected exit 2 for $sub, got $status" >&2; return 1; }
     assert_contains "$output" "TODO"

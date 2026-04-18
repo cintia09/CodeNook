@@ -156,6 +156,7 @@ def check_ttl(path: str, ttl_days: int) -> int:
 
 def main() -> None:
     output = os.environ.get("CN_OUTPUT", "")
+    output_state_json = os.environ.get("CN_OUTPUT_STATE_JSON", "")
     tier_priority_file = os.environ.get("CN_TIER_PRIORITY", "")
     check_ttl_file = os.environ.get("CN_CHECK_TTL", "")
     ttl_days_raw = os.environ.get("CN_TTL_DAYS", "30")
@@ -180,6 +181,32 @@ def main() -> None:
         "resolved_tiers": resolved,
         "tier_priority": priority,
     }
+
+    if output_state_json:
+        # M5: merge model_catalog into the workspace state.json atomically.
+        # Preserves any prior keys (orchestrator, sessions, …) and tags
+        # _source so consumers know whether tiers came from a real probe
+        # or the builtin fallback.
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "_lib"))
+        from atomic import atomic_write_json  # noqa: E402
+
+        catalog_with_source = dict(catalog)
+        catalog_with_source["_source"] = "fallback" if runtime == "builtin-fallback" else "probe"
+
+        target = Path(output_state_json)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        existing: dict = {}
+        if target.is_file():
+            try:
+                with target.open("r", encoding="utf-8") as f:
+                    existing = json.load(f) or {}
+                if not isinstance(existing, dict):
+                    existing = {}
+            except (json.JSONDecodeError, OSError):
+                existing = {}
+        existing["model_catalog"] = catalog_with_source
+        atomic_write_json(str(target), existing)
+        return
 
     text = json.dumps(catalog, indent=2, sort_keys=True) + "\n"
     if output:

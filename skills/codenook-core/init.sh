@@ -56,7 +56,20 @@ main() {
     --upgrade-core)
       stub "--upgrade-core" ;;
     --refresh-models)
-      stub "--refresh-models" ;;
+      # M5: invoke model-probe and merge model_catalog into the
+      # workspace state.json. CWD must contain a .codenook/ dir.
+      ws="$(pwd)"
+      if [ ! -d "$ws/.codenook" ]; then
+        echo "init.sh: no .codenook/ in $ws (run from a workspace root)" >&2
+        exit 2
+      fi
+      probe_sh="$SELF_DIR/skills/builtin/model-probe/probe.sh"
+      if [ ! -x "$probe_sh" ]; then
+        echo "init.sh: model-probe not found: $probe_sh" >&2
+        exit 2
+      fi
+      exec "$probe_sh" --output-state-json "$ws/.codenook/state.json"
+      ;;
     *)
       echo "unknown subcommand: $1" >&2
       usage >&2
