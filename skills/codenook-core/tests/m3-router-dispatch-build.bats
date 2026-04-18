@@ -129,3 +129,17 @@ EOF
   size=$(printf '%s' "$output" | tr -d '\n' | wc -c | tr -d ' ')
   [ "$size" -le 500 ] || { echo "payload is $size chars (>500)" >&2; exit 1; }
 }
+
+@test "fix#2: --target containing path-traversal '../escape' → exit 1, invalid target" {
+  ws="$(stage_ws "$M3_FX/workspaces/full")"
+  run_with_stderr "\"$BUILD_SH\" --target '../escape' --user-input 'hi' --workspace \"$ws\" --json"
+  [ "$status" -eq 1 ]
+  assert_contains "$STDERR" "invalid target name"
+}
+
+@test "fix#2: --target with slash → exit 1, invalid target" {
+  ws="$(stage_ws "$M3_FX/workspaces/full")"
+  run_with_stderr "\"$BUILD_SH\" --target 'foo/bar' --user-input 'hi' --workspace \"$ws\" --json"
+  [ "$status" -eq 1 ]
+  assert_contains "$STDERR" "invalid target name"
+}

@@ -47,6 +47,15 @@ def main() -> int:
     ws         = Path(os.environ["CN_WORKSPACE"]).resolve()
     emit_sh    = os.environ["CN_EMIT_SH"]
 
+    # Reject path-traversal in --target before any filesystem access.
+    if (not target
+            or "/" in target
+            or "\\" in target
+            or ".." in target
+            or target != Path(target).name):
+        print(f"build.sh: invalid target name: {target!r}", file=sys.stderr)
+        return 1
+
     plugin_manifest_path = plugins_dir(ws) / target / "plugin.yaml"
     is_plugin = plugin_manifest_path.is_file()
 
