@@ -9,7 +9,8 @@ audit-log line. Implements implementation-v6.md §M5.6.
 ## CLI
 
 ```
-mutate.sh --plugin <p> --path <dotted.path> --value <new>
+mutate.sh --plugin <p> --path <dotted.path>
+          (--value <new> | --value-json <json>)
           --reason <text> --actor <distiller|user|hitl>
           --workspace <ws>
           [--scope workspace|task --task <tid>]
@@ -17,6 +18,13 @@ mutate.sh --plugin <p> --path <dotted.path> --value <new>
 
 `--scope` defaults to `workspace`. When `--scope task` is given,
 `--task` is required.
+
+`--value` parses its argument as JSON for type fidelity (so `5`
+round-trips as integer 5, `true` as boolean, `"5"` as the string
+`"5"`); it falls back to a raw string when the argument is not
+valid JSON (e.g. `some-string`, `tier_balanced`). Use `--value-json`
+when you need an unambiguous JSON value and want a hard error on
+parse failure.
 
 ## Algorithm
 

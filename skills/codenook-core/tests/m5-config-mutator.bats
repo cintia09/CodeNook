@@ -100,3 +100,41 @@ EOF
   run_with_stderr "\"$MUTATE_SH\" --plugin development --path _provenance.x --value y --reason 'x' --actor user --workspace \"$ws\" --scope workspace"
   [ "$status" -ne 0 ]
 }
+
+@test "m5-mutator: --value 5 round-trips as integer" {
+  ws="$(mk_ws)"
+  run_with_stderr "\"$MUTATE_SH\" --plugin development --path concurrency.workers --value 5 --reason 'int' --actor user --workspace \"$ws\" --scope workspace"
+  [ "$status" -eq 0 ]
+  type=$(python3 -c "import yaml; d=yaml.safe_load(open('$ws/.codenook/config.yaml')); v=d['plugins']['development']['overrides']['concurrency']['workers']; print(type(v).__name__,'=',repr(v))")
+  [ "$type" = "int = 5" ]
+}
+
+@test "m5-mutator: --value true round-trips as boolean" {
+  ws="$(mk_ws)"
+  run_with_stderr "\"$MUTATE_SH\" --plugin development --path hitl.enabled --value true --reason 'bool' --actor user --workspace \"$ws\" --scope workspace"
+  [ "$status" -eq 0 ]
+  type=$(python3 -c "import yaml; d=yaml.safe_load(open('$ws/.codenook/config.yaml')); v=d['plugins']['development']['overrides']['hitl']['enabled']; print(type(v).__name__,'=',repr(v))")
+  [ "$type" = "bool = True" ]
+}
+
+@test "m5-mutator: --value '\"5\"' (quoted JSON string) round-trips as string" {
+  ws="$(mk_ws)"
+  run_with_stderr "\"$MUTATE_SH\" --plugin development --path concurrency.workers --value '\"5\"' --reason 'str' --actor user --workspace \"$ws\" --scope workspace"
+  [ "$status" -eq 0 ]
+  type=$(python3 -c "import yaml; d=yaml.safe_load(open('$ws/.codenook/config.yaml')); v=d['plugins']['development']['overrides']['concurrency']['workers']; print(type(v).__name__,'=',repr(v))")
+  [ "$type" = "str = '5'" ]
+}
+
+@test "m5-mutator: --value some-string round-trips as string" {
+  ws="$(mk_ws)"
+  run_with_stderr "\"$MUTATE_SH\" --plugin development --path models.reviewer --value some-string --reason 'fallback' --actor user --workspace \"$ws\" --scope workspace"
+  [ "$status" -eq 0 ]
+  val=$(python3 -c "import yaml; print(yaml.safe_load(open('$ws/.codenook/config.yaml'))['plugins']['development']['overrides']['models']['reviewer'])")
+  [ "$val" = "some-string" ]
+}
+
+@test "m5-mutator: --value-json with invalid JSON exits 2" {
+  ws="$(mk_ws)"
+  run_with_stderr "\"$MUTATE_SH\" --plugin development --path models.reviewer --value-json 'not-json' --reason 'x' --actor user --workspace \"$ws\" --scope workspace"
+  [ "$status" -eq 2 ]
+}

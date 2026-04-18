@@ -100,7 +100,20 @@ def read_effective(plugin: str, ws: Path, core: Path, task: str) -> dict:
 def main() -> None:
     plugin = os.environ["CN_PLUGIN"]
     path_key = os.environ["CN_PATH"]
-    value = os.environ["CN_VALUE"]
+    raw_value = os.environ["CN_VALUE"]
+    value_json = os.environ.get("CN_VALUE_JSON", "0") == "1"
+    if value_json:
+        try:
+            value = json.loads(raw_value)
+        except json.JSONDecodeError as e:
+            die(f"--value-json: invalid JSON: {e}", 2)
+    else:
+        # --value: parse as JSON for type fidelity (5 → int, true → bool,
+        # "5" → str "5"); fall back to the raw string on parse failure.
+        try:
+            value = json.loads(raw_value)
+        except (json.JSONDecodeError, ValueError):
+            value = raw_value
     reason = os.environ["CN_REASON"]
     actor = os.environ["CN_ACTOR"]
     ws = Path(os.environ["CN_WORKSPACE"]).resolve()
