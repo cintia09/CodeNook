@@ -70,11 +70,17 @@ mk_ws() {
   [ "$status" -eq 1 ]
 }
 
-@test "reserved id 'generic' → exit 1, reason mentions reserved" {
-  d="$(mk_src_with_id "generic")"
+@test "reserved id 'core' -> exit 1, reason mentions reserved" {
+  d="$(mk_src_with_id "core")"
   run_with_stderr "\"$GATE_SH\" --src \"$d\""
   [ "$status" -eq 1 ]
   assert_contains "$STDERR" "reserved"
+}
+
+@test "id 'generic' is now claimable (M7 unblock) -> exit 0" {
+  d="$(mk_src_with_id "generic")"
+  run_with_stderr "\"$GATE_SH\" --src \"$d\""
+  [ "$status" -eq 0 ]
 }
 
 @test "reserved id 'codenook' → exit 1" {

@@ -12,7 +12,7 @@ import yaml
 
 GATE = "plugin-id-validate"
 ID_RE = re.compile(r"^[a-z][a-z0-9-]{2,30}$")
-RESERVED = {"core", "builtin", "generic", "codenook"}
+RESERVED = {"core", "builtin", "codenook"}
 
 
 def main() -> int:
