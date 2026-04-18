@@ -21,12 +21,36 @@ fields:
       default:
         type: string
         min_length: 1
+      router:
+        type: string
+        min_length: 1
+      planner:
+        type: string
+        min_length: 1
+      executor:
+        type: string
+        min_length: 1
+      reviewer:
+        type: string
+        min_length: 1
+      distiller:
+        type: string
+        min_length: 1
   hitl:
     type: object
     fields:
       mode:
         type: string
         enum: [auto, confirm, ask]
+      gates:
+        type: array
+  knowledge:
+    type: object
+    fields:
+      consumes:
+        type: array
+      produces:
+        type: array
   concurrency:
     type: object
     fields:

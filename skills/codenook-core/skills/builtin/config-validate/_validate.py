@@ -47,6 +47,35 @@ def load_config(path: Path) -> dict:
     return data
 
 
+def _levenshtein(a: str, b: str) -> int:
+    """Iterative DP; small strings only — no caching needed."""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cost = 0 if ca == cb else 1
+            cur.append(min(cur[-1] + 1, prev[j] + 1, prev[j - 1] + cost))
+        prev = cur
+    return prev[-1]
+
+
+def _suggest(key: str, candidates) -> str | None:
+    best = None
+    best_d = 4  # require <= 3 edits
+    for c in candidates:
+        d = _levenshtein(key, c)
+        if d < best_d:
+            best_d = d
+            best = c
+    return best
+
+
 def validate_field(value, spec: dict, path: str, errors: list) -> None:
     ftype = spec.get("type")
     if ftype == "string":
@@ -66,6 +95,9 @@ def validate_field(value, spec: dict, path: str, errors: list) -> None:
         mn = spec.get("min")
         if mn is not None and value < mn:
             errors.append({"path": path, "msg": f"must be >= {mn}, got {value}"})
+    elif ftype == "array":
+        if not isinstance(value, list):
+            errors.append({"path": path, "msg": f"expected array, got {type(value).__name__}"})
     elif ftype == "object":
         if not isinstance(value, dict):
             errors.append({"path": path, "msg": f"expected object, got {type(value).__name__}"})
@@ -73,7 +105,9 @@ def validate_field(value, spec: dict, path: str, errors: list) -> None:
         walk_object(value, spec.get("fields") or {}, path, errors)
 
 
-def walk_object(obj: dict, fields: dict, prefix: str, errors: list) -> None:
+def walk_object(obj: dict, fields: dict, prefix: str, errors: list,
+                 strict_unknown: bool = True) -> None:
+    # Required + per-field validation
     for name, spec in fields.items():
         fp = f"{prefix}.{name}" if prefix else name
         if name not in obj:
@@ -81,6 +115,22 @@ def walk_object(obj: dict, fields: dict, prefix: str, errors: list) -> None:
                 errors.append({"path": fp, "msg": "missing required field"})
             continue
         validate_field(obj[name], spec, fp, errors)
+
+    # Unknown-key detection within a typed object: any key the schema
+    # does not declare is reported with a Levenshtein "did you mean".
+    # Top-level walk is intentionally tolerant (routing-layer decides
+    # which top-keys exist); this kicks in for nested objects only.
+    if fields and strict_unknown:
+        known = set(fields.keys())
+        for name in obj.keys():
+            if name in known or name.startswith("_"):
+                continue
+            fp = f"{prefix}.{name}" if prefix else name
+            sugg = _suggest(name, known)
+            msg = "unknown key"
+            if sugg is not None:
+                msg += f" (did you mean: {sugg}?)"
+            errors.append({"path": fp, "msg": msg})
 
 
 def main() -> int:
@@ -94,7 +144,7 @@ def main() -> int:
     errors: list = []
     warnings: list = []
 
-    walk_object(cfg, schema.get("fields") or {}, "", errors)
+    walk_object(cfg, schema.get("fields") or {}, "", errors, strict_unknown=False)
 
     for key in schema.get("deprecated") or []:
         if key in cfg:
@@ -112,7 +162,11 @@ def main() -> int:
 
     if errors:
         for e in errors:
-            print(f"error: {e['path']}: {e['msg']}", file=sys.stderr)
+            # M5 spec format (impl-v6 §M5.2):
+            #   ERROR config-validate: <dotted.path>
+            #     <msg>
+            print(f"ERROR config-validate: {e['path']}", file=sys.stderr)
+            print(f"  {e['msg']}", file=sys.stderr)
         return 1
 
     return 0
