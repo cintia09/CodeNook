@@ -140,16 +140,37 @@ def run_sec_audit(builtin_dir: Path, staged: Path) -> dict:
         capture_output=True, text=True,
     )
     reasons: list[str] = []
-    if proc.returncode == 1:
-        # sec-audit JSON envelope is {findings:[{type,...}]} on stderr/stdout.
-        for line in proc.stderr.splitlines():
-            s = line.strip()
-            if s:
-                reasons.append(s)
-        if not reasons:
-            reasons.append("sec-audit reported findings (no detail captured)")
-    elif proc.returncode != 0:
-        reasons.append(f"sec-audit failed to run (exit {proc.returncode})")
+    # sec-audit emits {"ok": bool, "findings": [...]} on stdout when --json.
+    parsed: dict | None = None
+    try:
+        parsed = json.loads(proc.stdout)
+    except (ValueError, TypeError):
+        parsed = None
+    if parsed is not None and isinstance(parsed.get("findings"), list):
+        for f in parsed["findings"]:
+            if not isinstance(f, dict):
+                continue
+            t = f.get("type", "?")
+            p = f.get("path", "?")
+            if t == "secret":
+                reasons.append(f"secret match at {p}:{f.get('line', '?')}")
+            elif t == "permission":
+                reasons.append(
+                    f"{p} mode {f.get('mode')} (expected {f.get('expected')})"
+                )
+            elif t == "world-writable":
+                reasons.append(f"world-writable {p} mode {f.get('mode')}")
+            else:
+                reasons.append(f"{t}: {p}")
+    elif proc.returncode == 1:
+        # Fallback: JSON unparseable but sec-audit reported findings.
+        reasons.append("sec-audit reported findings (no detail captured)")
+    if proc.returncode >= 2:
+        # Diagnostics-only: stderr captures runtime errors.
+        diag = proc.stderr.strip() or "(no stderr)"
+        reasons.append(
+            f"sec-audit failed to run (exit {proc.returncode}): {diag}"
+        )
     return {"ok": not reasons, "gate": "sec-audit", "reasons": reasons}
 
 
