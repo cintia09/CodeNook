@@ -349,8 +349,15 @@ def main() -> int:
             if not upgrade:
                 for r in failed:
                     if r.get("gate") == "plugin-id-validate":
-                        if any("already installed" in s
-                               for s in r.get("reasons", [])):
+                        # Prefer the structured code; keep substring fallback
+                        # for one release for older plugin-id-validate builds.
+                        # TODO(0.3.0): drop the substring fallback.
+                        already = (
+                            r.get("code") == "already_installed"
+                            or any("already installed" in s
+                                   for s in r.get("reasons", []))
+                        )
+                        if already:
                             return emit(json_out, False, plugin_id, version,
                                         results, dry_run, 3)
             return emit(json_out, False, plugin_id, version, results, dry_run, 1)

@@ -51,14 +51,18 @@ def main() -> int:
             reasons.append(
                 f"id {pid!r} already installed at {installed}; use --upgrade"
             )
+            return _emit(json_out, reasons, code="already_installed")
 
     return _emit(json_out, reasons)
 
 
-def _emit(json_out: bool, reasons: list[str]) -> int:
+def _emit(json_out: bool, reasons: list[str], code: str | None = None) -> int:
     ok = not reasons
     if json_out:
-        print(json.dumps({"ok": ok, "gate": GATE, "reasons": reasons}))
+        envelope: dict = {"ok": ok, "gate": GATE, "reasons": reasons}
+        if code is not None:
+            envelope["code"] = code
+        print(json.dumps(envelope))
     else:
         for r in reasons:
             print(f"[G03] {r}", file=sys.stderr)

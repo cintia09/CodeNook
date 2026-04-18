@@ -108,3 +108,20 @@ mk_ws() {
   [ "$status" -eq 1 ]
   echo "$output" | jq -e '.gate == "plugin-id-validate" and .ok == false' >/dev/null
 }
+
+@test "--json envelope: already-installed sets code=already_installed" {
+  d="$(mk_src_with_id "foo")"
+  ws="$(mk_ws)"
+  mkdir -p "$ws/.codenook/plugins/foo"
+  printf 'id: foo\nversion: 0.1.0\n' >"$ws/.codenook/plugins/foo/plugin.yaml"
+  run "$GATE_SH" --src "$d" --workspace "$ws" --json
+  [ "$status" -eq 1 ]
+  echo "$output" | jq -e '.code == "already_installed" and .ok == false' >/dev/null
+}
+
+@test "--json envelope: ordinary G03 failure has no 'already_installed' code" {
+  d="$(mk_src_with_id "BAD")"
+  run "$GATE_SH" --src "$d" --json
+  [ "$status" -eq 1 ]
+  echo "$output" | jq -e '(.code // "") != "already_installed"' >/dev/null
+}
