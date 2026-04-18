@@ -184,6 +184,55 @@ fi
 # Bootloader (`CLAUDE.md` — read by both Claude Code and Copilot CLI)
 cp "$TEMPLATES_DIR/CLAUDE.md"                          ./CLAUDE.md
 
+# Claude Code SessionStart hook — runs security-audit.sh deterministically
+# every time a session starts/resumes/clears/compacts. This is the reliable
+# enforcement layer; CLAUDE.md Step 0 is the fallback when hooks are disabled
+# or when the platform is Copilot CLI (which uses a different extension model).
+mkdir -p .claude
+HOOK_CMD='bash .codenook/security-audit.sh'
+if [[ ! -f .claude/settings.json ]]; then
+cat > .claude/settings.json <<'EOF'
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          { "type": "command", "command": "bash .codenook/security-audit.sh" }
+        ]
+      }
+    ]
+  }
+}
+EOF
+  echo "  installed .claude/settings.json (SessionStart → security-audit.sh)"
+elif ! grep -q 'security-audit.sh' .claude/settings.json 2>/dev/null; then
+  # Existing settings.json without our hook — try to merge with python; if jq/python missing, warn.
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - <<'PY'
+import json, sys
+p = ".claude/settings.json"
+try:
+    cfg = json.load(open(p))
+except Exception as e:
+    print(f"  [warn] could not parse {p} ({e}); leaving untouched. Add SessionStart hook manually.")
+    sys.exit(0)
+hooks = cfg.setdefault("hooks", {})
+ss = hooks.setdefault("SessionStart", [])
+ss.append({
+    "matcher": "startup|resume|clear|compact",
+    "hooks": [{"type": "command", "command": "bash .codenook/security-audit.sh"}],
+})
+json.dump(cfg, open(p, "w"), indent=2)
+print("  merged SessionStart hook into existing .claude/settings.json")
+PY
+  else
+    echo "  [warn] .claude/settings.json exists; please add SessionStart hook for: $HOOK_CMD"
+  fi
+else
+  echo "  .claude/settings.json already wires security-audit.sh"
+fi
+
 # History bootstrap (only on fresh install; preserve user history)
 if [[ ! -f .codenook/history/latest.md ]]; then
 cat > .codenook/history/latest.md <<'EOF'

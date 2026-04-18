@@ -218,12 +218,13 @@ bash "$HI" answer "hitl-001" opt-a "looks good" >/dev/null 2>&1 || rc=$?
 echo ""
 echo "[9] Workspace containment (final sweep):"
 # Exclude expected init artifacts: CLAUDE.md bootloader at workspace root,
+# .claude/settings.json (SessionStart hook for security-audit.sh),
 # and the /tmp/*.log files we wrote explicitly.
-leaked_list=$(find "$TMP" -not -path "*/.codenook*" -not -path "$TMP" -not -path "$VICTIM" -not -path "$VICTIM/*" -type f 2>/dev/null \
+leaked_list=$(find "$TMP" -not -path "*/.codenook*" -not -path "*/.claude*" -not -path "$TMP" -not -path "$VICTIM" -not -path "$VICTIM/*" -type f 2>/dev/null \
   | grep -v '/CLAUDE\.md$' || true)
 leaked=$(echo -n "$leaked_list" | grep -c . || true)
 if [[ "$leaked" == "0" ]]; then
-  pass "no stray files outside .codenook/ (CLAUDE.md bootloader excluded)"
+  pass "no stray files outside .codenook/ (CLAUDE.md + .claude/settings.json excluded)"
 else
   fail "$leaked stray files leaked: $leaked_list"
 fi
