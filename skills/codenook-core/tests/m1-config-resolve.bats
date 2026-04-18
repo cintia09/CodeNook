@@ -25,14 +25,11 @@ mk_ws() {
 run_resolve() {
   # $1=workspace, $2=plugin, $3=catalog (path), $4=optional task
   local ws="$1" plugin="$2" cat="$3" task="${4:-}"
-  STDERR_FILE="${BATS_TEST_TMPDIR:-/tmp}/cn-stderr.$$"
   if [ -n "$task" ]; then
-    run bash -c "\"$RESOLVE_SH\" --plugin \"$plugin\" --task \"$task\" --workspace \"$ws\" --catalog \"$cat\" 2>\"$STDERR_FILE\""
+    run_with_stderr "\"$RESOLVE_SH\" --plugin \"$plugin\" --task \"$task\" --workspace \"$ws\" --catalog \"$cat\""
   else
-    run bash -c "\"$RESOLVE_SH\" --plugin \"$plugin\" --workspace \"$ws\" --catalog \"$cat\" 2>\"$STDERR_FILE\""
+    run_with_stderr "\"$RESOLVE_SH\" --plugin \"$plugin\" --workspace \"$ws\" --catalog \"$cat\""
   fi
-  STDERR="$(cat "$STDERR_FILE" 2>/dev/null || echo)"
-  export STDERR
 }
 
 @test "resolve.sh exists and is executable" {

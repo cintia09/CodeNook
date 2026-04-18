@@ -9,11 +9,8 @@ setup() {
 }
 
 run_probe_stdout() {
-  # Run probe; capture stdout to $output, stderr to $STDERR.
-  STDERR_FILE="${BATS_TEST_TMPDIR:-/tmp}/probe-stderr.$$"
-  run bash -c "$* 2>\"$STDERR_FILE\""
-  STDERR="$(cat "$STDERR_FILE" 2>/dev/null || echo)"
-  export STDERR
+  # Wrapper around the shared run_with_stderr helper.
+  run_with_stderr "$@"
 }
 
 @test "probe.sh exists and is executable" {

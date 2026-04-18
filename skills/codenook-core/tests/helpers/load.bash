@@ -18,3 +18,14 @@ make_scratch() {
   mkdir -p "$d"
   echo "$d"
 }
+
+# run_with_stderr <full shell command string>
+# Runs the command via bash -c so callers can quote args freely; routes
+# stderr to a scratch file so $output stays JSON-clean. Exposes $STDERR
+# (and $status / $output) to the calling test.
+run_with_stderr() {
+  STDERR_FILE="${BATS_TEST_TMPDIR:-/tmp}/cn-stderr.$$"
+  run bash -c "$* 2>\"$STDERR_FILE\""
+  STDERR="$(cat "$STDERR_FILE" 2>/dev/null || echo)"
+  export STDERR
+}
