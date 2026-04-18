@@ -1,0 +1,15 @@
+# plugin-schema.yaml — schema for plugin.yaml (M2 minimal subset).
+#
+# Interpreted by _schema_check.py.  Each entry under `required:` lists
+# a top-level key that must be present in plugin.yaml, with its
+# expected JSON-ish type. Allowed `type` values: string, mapping, list.
+#
+# Semantic constraints (regex, semver, collisions, etc.) live in
+# downstream gates G03..G12 — keep this file declarative.
+
+required:
+  - {key: id,                   type: string}
+  - {key: version,              type: string}
+  - {key: type,                 type: string, enum: [domain, tool, subsystem]}
+  - {key: entry_points,         type: mapping, non_empty: true}
+  - {key: declared_subsystems,  type: list}
