@@ -1,0 +1,6 @@
+{
+  "input": "Summarise the attached PDF on transformer architectures",
+  "dual_mode": "serial",
+  "max_iterations": 2,
+  "expected_verdicts": ["ok", "ok", "ok", "ok"]
+}
