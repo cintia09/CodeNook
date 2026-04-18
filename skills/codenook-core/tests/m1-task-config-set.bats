@@ -71,13 +71,14 @@ EOF
   done
 }
 
-@test "value literal model id accepted (warn on unknown)" {
+@test "value literal model id accepted (no spurious warning)" {
   ws="$(mk_ws)"
   mk_task "$ws" "T-005"
   run_with_stderr "\"$SET_SH\" --task T-005 --key models.executor --value unknown-model-xyz --workspace \"$ws\""
   [ "$status" -eq 0 ]
-  # Should warn on stderr but still exit 0
-  assert_contains "$STDERR" "warn"
+  # Per M5 review fix #7: the heuristic 'unknown model' warning was
+  # dropped (false-positives on canonical names like 'opus-4.7').
+  assert_not_contains "$STDERR" "unknown model"
   assert_jq "$ws/.codenook/tasks/T-005/state.json" '.config_overrides.models.executor == "unknown-model-xyz"'
 }
 
