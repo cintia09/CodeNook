@@ -55,7 +55,7 @@ EOF
   [ "$status" -eq 0 ]
 }
 
-@test "task missing dual_mode (null) with total_iterations<=1 → exit 1 + reason" {
+@test "task missing dual_mode (null) with total_iterations>1 → exit 1 + reason" {
   ws="$(mk_ws)"
   local tdir="$ws/.codenook/tasks/T-002"
   mkdir -p "$tdir"
@@ -64,7 +64,7 @@ EOF
   "task_id": "T-002",
   "phase": "start",
   "iteration": 0,
-  "total_iterations": 1,
+  "total_iterations": 5,
   "dual_mode": null,
   "config_overrides": {}
 }
@@ -125,7 +125,7 @@ EOF
 @test "--json emits {ok, reasons, task, phase}" {
   ws="$(mk_ws)"
   mk_task "$ws" "T-006"
-  run "\"$PREFLIGHT_SH\" --task T-006 --workspace \"$ws\" --json"
+  run bash -c "\"$PREFLIGHT_SH\" --task T-006 --workspace \"$ws\" --json"
   [ "$status" -eq 0 ]
   echo "$output" | jq -e '.ok == true' >/dev/null
   echo "$output" | jq -e '.task == "T-006"' >/dev/null
@@ -152,11 +152,11 @@ EOF
   "task_id": "T-008",
   "phase": "unknown_xyz",
   "iteration": 0,
-  "total_iterations": 1,
+  "total_iterations": 5,
   "dual_mode": null
 }
 EOF
-  run "\"$PREFLIGHT_SH\" --task T-008 --workspace \"$ws\" --json"
+  run bash -c "\"$PREFLIGHT_SH\" --task T-008 --workspace \"$ws\" --json"
   [ "$status" -eq 1 ]
   # Extract reasons array length, should have 2 distinct reasons
   count=$(echo "$output" | jq '.reasons | length')
