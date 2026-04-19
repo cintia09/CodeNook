@@ -299,8 +299,10 @@ entries:
   orchestrator-tick 立即返回，不等抽取完成。
 - **幂等**（FR-TRG-3 / NFR-IDEMP / AC-TRG-2）：
   - 路径 A：以 `(task_id, phase, reason)` 三元组哈希为去重键，写入
-    `history/extraction-log.jsonl`；同键 24h 内重复触发直接 short-circuit
-    返回 `skipped: duplicate`。
+    `history/.trigger-keys` 及 `extraction-log.jsonl`；同键重复触发直接
+    short-circuit 返回 `skipped: deduped`。**v0.11 SPEC-PATCH A1-4**：键
+    持久化、不自动过期；操作员清空 `.trigger-keys` 即可重抽（v0.10
+    文档误写"24h 内"）。
   - 路径 B：以 `(reason=context-pressure, hour-bucket)` 为去重键，避免
     主会话连续抖动时重复抽取。
 

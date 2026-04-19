@@ -47,3 +47,4 @@ __pycache__/
 
 # markdown-to-html auto-backup files
 *.bak-*
+.scratch/
