@@ -2,6 +2,112 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.0] - 2026-04-19 · Spec Consolidation & Cleanup
+
+### 🧹 v6.0 Maintenance — M11 Spec Patches + Dead-Code Cleanup
+
+Surgical release with **no new functional surface**. Three workstreams:
+
+1. Reconcile the 8 spec/code inconsistencies + 10 spec omissions
+   catalogued in `docs/v6/requirements-v0.10.md` §A.1 / §A.2.
+2. Address two of the three M10 known-limitations
+   (MINOR-04 / MINOR-06) with diagnostic-only hardening; defer the
+   third (MEDIUM-04 snapshot TOCTOU) to v0.12 alongside the
+   multi-process orchestration epic.
+3. Drop two pieces of confirmed-dead code (`_SECRET_PATTERNS` alias,
+   `now_safe_iso` stub).
+
+Decision rationale lives in `docs/v6/m11-decisions.md`.
+
+#### Highlights
+
+- **18 backlog items closed** (16 SPEC-PATCH, 2 CODE-FIX with bats
+  lock-in). One item — A1-6 (session-resume M1-compat keys) — is
+  deferred to v0.12 because removal requires rewriting
+  `m1-session-resume.bats` end-to-end (10 asserts) and is best
+  packaged as a `session-resume schema v2` epic.
+- **Two new diagnostic audit kinds**, both fail-soft and best-effort:
+  `chain_render_residual_slot` (MINOR-04) and `chain_parent_stale`
+  (MINOR-06). Neither changes any user-visible behaviour or exit code;
+  both surface previously-silent edge cases for ops visibility.
+- **bats sweep: 851 / 851 PASS** (was 847; +4 lock-ins under
+  `tests/v011-known-limitations.bats`).
+- **Dead-code removed**: 10 LOC across 2 files, all 0-caller
+  verified by repo-wide grep.
+- **Real-workspace regression** at
+  `/Users/mingdw/Documents/workspace/development` (~1000 active tasks)
+  passes the M11.5 quality gates: session-resume JSON is well-formed
+  and ≤500 B per task; `plugin_readonly --target . --json` reports
+  `writes_to_plugins: []`; `claude_md_linter` exits 0.
+
+#### Spec patches (per docs/v6/m11-decisions.md)
+
+| ID | Where patched | Topic |
+|----|---------------|-------|
+| A1-1 | requirements-v0.10.md FR-TASK-3 | dual_mode optional, defaults to `serial` |
+| A1-2 | requirements-v0.10.md FR-CHAIN-2 + L-9 | `walk_ancestors` lib default `None`, router site default 100 |
+| A1-3 | requirements-v0.10.md G05 row | `plugin.yaml.sig` lenient first-non-blank-token compare |
+| A1-4 | requirements-v0.10.md FR-TASK-4 + FR-EXTRACT-4 + NFR-REL-4 + memory-and-extraction-v6.md §5.2 | Trigger-key persistence (no 24h auto-expiry) |
+| A1-5 | requirements-v0.10.md FR-EXTRACT-5 | secret_scan = 9 patterns (single source of truth) |
+| A1-7 | requirements-v0.10.md FR-ROUTER-2 | `--confirm` exit 4 enumerates 5 failure paths |
+| A1-8 | requirements-v0.10.md G01 + G11 rows | Symlink policy split (defence in depth) |
+| A2-1 | requirements-v0.10.md FR-SKILL-2 | plugin_readonly standalone CLI mode + default exclusions |
+| A2-2 | requirements-v0.10.md FR-CHAIN-5 | ~70 EN+ZH stopwords + done/cancelled excluded |
+| A2-3 | requirements-v0.10.md FR-ROUTER-3 | task_lock 300 s threshold + unparsable payload conservative |
+| A2-4 | requirements-v0.10.md FR-MEM-4 | `promoted=true` entries never evicted |
+| A2-6 | requirements-v0.10.md FR-EXTRACT-5 | dispatch-audit redaction reuses `_lib/secret_scan` list |
+| A2-7 | requirements-v0.10.md FR-ROUTER-2 | `--user-turn-file -` reads stdin |
+| A2-8 | requirements-v0.10.md FR-DIST-1 | Sandbox blocks `__` and `import` tokens |
+| A2-9 | requirements-v0.10.md FR-EXTRACT-4 | `nohup` detach mechanism |
+| A2-10 | requirements-v0.10.md FR-PLUGIN-MANIFEST + §5.6 | `DEFAULT_PRIORITY = 100` |
+
+#### Fixes
+
+- **MINOR-04** — `render_prompt()` now scans the rendered prompt for
+  residual `{{SLOT}}` tokens after the single-pass substitution loop;
+  any leftover slot names are emitted in a fail-soft
+  `chain_render_residual_slot` diagnostic audit. Substitution itself
+  remains single-pass (no shell-style recursion); the diagnostic only
+  surfaces accidental double-templating.
+- **MINOR-06** — `cmd_confirm()` now looks up the candidate
+  `parent_id`'s status before invoking `task_chain.set_parent`; if the
+  parent transitioned to `done` or `cancelled` between prepare and
+  confirm, a `chain_parent_stale` diagnostic is emitted and the attach
+  proceeds (permissive, matches the router's existing "stale
+  suggestion" semantics elsewhere).
+
+#### Removed
+
+- `skills/codenook-core/skills/builtin/_lib/secret_scan.py` —
+  legacy module-level `_SECRET_PATTERNS` underscore alias (0 callers
+  in production code, _lib, tests, or fixtures). Use the public
+  `SECRET_PATTERNS` name.
+- `skills/codenook-core/skills/builtin/session-resume/_resume.py` —
+  unused `now_safe_iso(default="")` stub helper that returned its
+  argument unchanged and was never invoked.
+
+#### Backlog deferred to v0.12
+
+- **A1-6** — session-resume M1-compat keys removal (schema v2 epic).
+- **MEDIUM-04** — true `fcntl.flock` on snapshot rebuild (paired
+  with multi-process orchestration design).
+- **AT-REL-1** — manual SIGTERM reviewer procedure.
+- **AT-LLM-2.1** — real-mode LLM guard bats.
+- **AT-COMPAT-1** — Linux CI matrix.
+- **AT-COMPAT-3** — `jq`-missing diagnostic bats.
+
+#### Quality gates
+
+- `bats skills/codenook-core/tests/*.bats` → **851 / 851 PASS**
+- `claude_md_linter` → exit 0
+- `plugin_readonly --target . --json` → exit 0,
+  `writes_to_plugins: []`
+- `git grep "M1-compat\\|backward.*compat\\|legacy alias"` → only
+  the deliberate, documented session-resume case (DEFER-v0.12)
+- secret-scan over staged diff → clean
+
+---
+
 ## [0.10.0-m10.0] - 2026-04-19
 
 ### 🔗 v6.0 Milestone M10 — Task Chains
