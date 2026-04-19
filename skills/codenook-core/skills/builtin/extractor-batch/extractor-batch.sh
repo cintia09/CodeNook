@@ -80,6 +80,23 @@ printf '%s\n' "$KEY" >> "$TRIGGER_KEYS"
 
 LOOKUP_ROOT="${CN_EXTRACTOR_LOOKUP_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 
+# M9.5 fix: init the memory skeleton ONCE before fan-out so every extractor
+# sees a complete layout (dirs + config.yaml). Without this, the first
+# extractor (knowledge-extractor) creates the dirs while the later
+# config-extractor finds memory/ exists but config.yaml missing →
+# MemoryLayoutError. Best-effort; failures don't block dispatch.
+LIB_DIR="$(cd "$(dirname "$0")/../_lib" && pwd)"
+PYTHONPATH="$LIB_DIR" WORKSPACE="$WORKSPACE" python3 - <<'PY' || true
+import os, pathlib
+import memory_layer as ml
+ws = pathlib.Path(os.environ["WORKSPACE"])
+if not ml.has_memory(ws):
+    try:
+        ml.init_memory_skeleton(ws)
+    except Exception as e:
+        print(f"[extractor-batch] init_memory_skeleton best-effort failed: {e}", flush=True)
+PY
+
 ENQUEUED=()
 SKIPPED_JSON='[]'
 

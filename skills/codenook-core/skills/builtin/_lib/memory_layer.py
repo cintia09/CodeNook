@@ -85,7 +85,8 @@ def memory_root(workspace_root: Path | str) -> Path:
 
 
 def has_memory(workspace_root: Path | str) -> bool:
-    return memory_root(workspace_root).is_dir()
+    root = memory_root(workspace_root)
+    return root.is_dir() and (root / "config.yaml").exists()
 
 
 def _knowledge_dir(ws: Path | str) -> Path:

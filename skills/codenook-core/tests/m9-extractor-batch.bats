@@ -60,3 +60,22 @@ seed_empty_lookup() {
   grep -q "extractor-batch.sh --reason context-pressure" "$ROOT_CLAUDE_MD" \
     || { echo "literal extractor-batch.sh --reason context-pressure missing"; return 1; }
 }
+
+@test "[m9.5] TC-M9.5-08 batch inits memory skeleton before fan-out (config.yaml present)" {
+  ws=$(m9_seed_workspace)
+  # Simulate the partial mid-batch state the defect describes: the memory
+  # directory exists but config.yaml is missing.  Pre-fix, config-extractor
+  # would crash with MemoryLayoutError.
+  mkdir -p "$ws/.codenook/memory/knowledge" \
+           "$ws/.codenook/memory/skills" \
+           "$ws/.codenook/memory/history"
+  [ ! -f "$ws/.codenook/memory/config.yaml" ] || { echo "precondition failed"; return 1; }
+
+  lookup=$(seed_empty_lookup "$ws")
+  run env CN_EXTRACTOR_LOOKUP_ROOT="$lookup" bash "$BATCH_SH" \
+        --task-id T-M95 --reason after_phase --workspace "$ws" --phase impl
+  [ "$status" -eq 0 ] || { echo "out=$output"; return 1; }
+
+  [ -f "$ws/.codenook/memory/config.yaml" ] \
+    || { echo "config.yaml not created by extractor-batch"; ls -la "$ws/.codenook/memory"; return 1; }
+}
