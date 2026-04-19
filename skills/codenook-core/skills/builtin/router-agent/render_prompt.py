@@ -1,0 +1,400 @@
+#!/usr/bin/env python3
+"""router-agent context-prep + handoff helper.
+
+Invoked by spawn.sh. Acquires the per-task fcntl lock for the entire
+duration, then either:
+
+  * (default)   prepares context, renders the system prompt to
+                ``tasks/<tid>/.router-prompt.md``, and emits an
+                ``action: prompt`` envelope on stdout.
+  * (--confirm) validates the existing draft-config, materialises
+                ``state.json``, runs one ``orchestrator-tick``, and
+                emits an ``action: handoff`` envelope.
+
+All domain knowledge lives in ``prompt.md`` (the subagent's system
+prompt). This script is deterministic file I/O only.
+
+Path conventions (per docs/v6/architecture-v6.md and tick.sh):
+
+    <workspace>/.codenook/tasks/<T-NNN>/      # router state + state.json
+    <workspace>/.codenook/plugins/<id>/       # plugin manifests
+    <workspace>/.codenook/user-overlay/       # workspace overlay (M8.9)
+
+The plugin / role / knowledge indexes scan ``<root>/plugins/`` so we
+pass ``<workspace>/.codenook`` as their workspace_root. The overlay
+helper expects the project root and adds ``.codenook/user-overlay/``
+itself, so it gets ``<workspace>`` directly.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import yaml
+
+_HERE = Path(__file__).resolve().parent
+_LIB = _HERE.parent / "_lib"
+sys.path.insert(0, str(_LIB))
+
+import draft_config as dc          # noqa: E402
+import knowledge_index as ki       # noqa: E402  (kept for prompt-side reference)
+import plugin_manifest_index as pmi  # noqa: E402
+import role_index as ri            # noqa: E402
+import router_context as rc        # noqa: E402
+import task_lock as tl             # noqa: E402
+import workspace_overlay as wo     # noqa: E402
+from atomic import atomic_write_json  # noqa: E402
+
+PROMPT_PATH = _HERE / "prompt.md"
+
+
+# ---------------------------------------------------------------- helpers
+
+
+def _emit(envelope: dict) -> None:
+    sys.stdout.write(json.dumps(envelope, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+def _rel(path: Path, root: Path) -> str:
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        return str(path)
+
+
+def _render_plugins(plugins_summary: list[dict],
+                    roles_by_plugin: dict[str, list[dict]]) -> str:
+    if not plugins_summary:
+        return "_(no plugins installed)_"
+    out: list[str] = []
+    for p in plugins_summary:
+        name = p["name"]
+        roles = roles_by_plugin.get(name, [])
+        if roles:
+            role_lines = "\n".join(
+                f"    - **{r.get('role', '?')}** "
+                f"(phase={r.get('phase', '?')}): "
+                f"{r.get('one_line_job', '') or '(no one-line job)'}"
+                for r in roles
+            )
+        else:
+            role_lines = "    _(no roles declared)_"
+        keywords = ", ".join(p.get("keywords") or []) or "_(none)_"
+        applies_to = ", ".join(p.get("applies_to") or []) or "_(none)_"
+        out.append(
+            f"### `{name}` (priority {p.get('priority')})\n"
+            f"{p.get('description') or '_(no description)_'}\n"
+            f"- keywords: {keywords}\n"
+            f"- applies_to: {applies_to}\n"
+            f"- roles:\n{role_lines}"
+        )
+    return "\n\n".join(out)
+
+
+def _render_roles_index(roles_by_plugin: dict[str, list[dict]]) -> str:
+    rows: list[str] = []
+    for plugin, roles in sorted(roles_by_plugin.items()):
+        for r in roles:
+            rows.append(
+                f"- `{plugin}` / `{r.get('role', '?')}` "
+                f"(phase={r.get('phase', '?')}): "
+                f"{r.get('one_line_job', '') or '(no one-line job)'}"
+            )
+    return "\n".join(rows) or "_(no roles discovered)_"
+
+
+def _render_overlay(overlay: dict) -> str:
+    if not overlay.get("present"):
+        return "_(no workspace user-overlay present)_"
+    desc = (overlay.get("description") or "").strip() or "(empty)"
+    skills = overlay.get("skills") or []
+    knowl = overlay.get("knowledge") or []
+    skill_names = ", ".join(s.get("name", "?") for s in skills) or "(none)"
+    knowl_titles = ", ".join(
+        (k.get("title") or k.get("path", "?")) for k in knowl
+    ) or "(none)"
+    return (
+        f"present: yes\n\n"
+        f"**description.md**:\n```\n{desc}\n```\n\n"
+        f"- overlay-skills: {skill_names}\n"
+        f"- overlay-knowledge: {knowl_titles}"
+    )
+
+
+def _render_turns(turns: list[dict]) -> str:
+    if not turns:
+        return "_(no turns recorded yet)_"
+    blocks: list[str] = []
+    for t in turns:
+        blocks.append(
+            f"### {t.get('role', '?')} ({t.get('timestamp', '')})\n\n"
+            f"{t.get('content', '')}"
+        )
+    return "\n\n".join(blocks)
+
+
+def render_prompt(*, task_id: str, workspace: Path,
+                  codenook_root: Path, ctx: dict,
+                  user_turn: str) -> str:
+    template = PROMPT_PATH.read_text(encoding="utf-8")
+    plugins = pmi.discover_plugins(codenook_root)
+    plugins_summary = pmi.summary_for_router(plugins)
+    roles_by_plugin = ri.aggregate_roles(codenook_root)
+    overlay = wo.overlay_bundle(workspace)
+
+    fm_yaml = yaml.safe_dump(
+        ctx["frontmatter"], sort_keys=False, allow_unicode=True
+    ).rstrip()
+
+    user_block = user_turn.strip() if user_turn else \
+        "(no new user turn this spawn)"
+
+    subs = {
+        "{{TASK_ID}}": task_id,
+        "{{WORKSPACE}}": str(workspace),
+        "{{PLUGINS_SUMMARY}}": _render_plugins(
+            plugins_summary, roles_by_plugin
+        ),
+        "{{ROLES}}": _render_roles_index(roles_by_plugin),
+        "{{OVERLAY}}": _render_overlay(overlay),
+        "{{CONTEXT_FRONTMATTER}}": fm_yaml,
+        "{{CONTEXT}}": _render_turns(ctx["turns"]),
+        "{{USER_TURN}}": user_block,
+    }
+    out = template
+    for k, v in subs.items():
+        out = out.replace(k, v)
+    return out
+
+
+# ---------------------------------------------------------------- modes
+
+
+def _read_user_turn(args: argparse.Namespace) -> str:
+    if args.user_turn and args.user_turn_file:
+        raise SystemExit(
+            "router-agent: --user-turn and --user-turn-file are mutually "
+            "exclusive"
+        )
+    if args.user_turn_file:
+        return Path(args.user_turn_file).read_text(encoding="utf-8")
+    return args.user_turn or ""
+
+
+def cmd_prepare(args: argparse.Namespace) -> int:
+    workspace = Path(args.workspace).resolve()
+    codenook = workspace / ".codenook"
+    task_dir = codenook / "tasks" / args.task_id
+    task_dir.mkdir(parents=True, exist_ok=True)
+
+    ctx_path = task_dir / "router-context.md"
+    draft_path = task_dir / "draft-config.yaml"
+    reply_path = task_dir / "router-reply.md"
+    prompt_path = task_dir / ".router-prompt.md"
+
+    user_turn = _read_user_turn(args)
+
+    if not ctx_path.exists():
+        seed = user_turn or "(no initial input — awaiting user)"
+        fm, turns = rc.initial_context(args.task_id, seed)
+        rc.write_context(task_dir, fm, turns)
+        if not draft_path.exists():
+            draft_path.write_text("", encoding="utf-8")
+    else:
+        if user_turn.strip():
+            rc.append_turn(task_dir, "user", user_turn)
+
+    ctx = rc.read_context(task_dir)
+    rendered = render_prompt(
+        task_id=args.task_id,
+        workspace=workspace,
+        codenook_root=codenook,
+        ctx=ctx,
+        user_turn=user_turn,
+    )
+    prompt_path.write_text(rendered, encoding="utf-8")
+
+    _emit({
+        "action": "prompt",
+        "task_id": args.task_id,
+        "prompt_path": _rel(prompt_path, workspace),
+        "context_path": _rel(ctx_path, workspace),
+        "reply_path": _rel(reply_path, workspace),
+    })
+    return 0
+
+
+def cmd_confirm(args: argparse.Namespace) -> int:
+    workspace = Path(args.workspace).resolve()
+    codenook = workspace / ".codenook"
+    task_dir = codenook / "tasks" / args.task_id
+    draft_path = task_dir / "draft-config.yaml"
+    state_path = task_dir / "state.json"
+
+    if not task_dir.is_dir():
+        _emit({
+            "action": "error",
+            "task_id": args.task_id,
+            "code": "task_missing",
+            "errors": [f"task directory not found: {task_dir}"],
+        })
+        return 4
+
+    user_turn = _read_user_turn(args)
+    if user_turn.strip() and (task_dir / "router-context.md").exists():
+        rc.append_turn(task_dir, "user", user_turn)
+
+    if not draft_path.exists() or draft_path.stat().st_size == 0:
+        _emit({
+            "action": "error",
+            "task_id": args.task_id,
+            "code": "draft_missing",
+            "errors": ["draft-config.yaml is missing or empty"],
+        })
+        return 4
+
+    try:
+        draft = dc.read_draft(draft_path)
+    except Exception as e:
+        _emit({
+            "action": "error",
+            "task_id": args.task_id,
+            "code": "draft_invalid",
+            "errors": [f"{type(e).__name__}: {e}"],
+        })
+        return 4
+
+    plugin = draft.get("plugin")
+    if not plugin and isinstance(draft.get("selected_plugins"), list) \
+            and draft["selected_plugins"]:
+        plugin = draft["selected_plugins"][0]
+    if not plugin:
+        _emit({
+            "action": "error",
+            "task_id": args.task_id,
+            "code": "draft_invalid",
+            "errors": ["plugin (or selected_plugins) is required"],
+        })
+        return 4
+
+    try:
+        state = dc.freeze_to_state_json(
+            draft, plugin=plugin, task_id=args.task_id
+        )
+    except Exception as e:
+        _emit({
+            "action": "error",
+            "task_id": args.task_id,
+            "code": "draft_invalid",
+            "errors": [f"{type(e).__name__}: {e}"],
+        })
+        return 4
+
+    state["status"] = "in_progress"
+    state.setdefault("config_overrides", {})
+
+    atomic_write_json(str(state_path), state)
+
+    if (task_dir / "router-context.md").exists():
+        rc.update_frontmatter(
+            task_dir, state="confirmed", last_router_action="handoff"
+        )
+
+    tick_sh = _HERE.parent / "orchestrator-tick" / "tick.sh"
+    tick_status = "unknown"
+    tick_stderr = ""
+    if tick_sh.is_file():
+        try:
+            proc = subprocess.run(
+                [
+                    "bash", str(tick_sh),
+                    "--task", args.task_id,
+                    "--workspace", str(workspace),
+                    "--json",
+                ],
+                capture_output=True, text=True, timeout=60,
+            )
+            tick_stderr = proc.stderr
+            try:
+                tick_json = json.loads(proc.stdout.strip().splitlines()[-1])
+                tick_status = tick_json.get("status", "unknown")
+            except Exception:
+                tick_status = (
+                    "ok" if proc.returncode == 0 else f"rc={proc.returncode}"
+                )
+        except Exception as e:
+            tick_status = f"error: {type(e).__name__}: {e}"
+    else:
+        tick_status = "tick_missing"
+
+    out: dict = {
+        "action": "handoff",
+        "task_id": args.task_id,
+        "first_tick_status": tick_status,
+    }
+    if tick_stderr:
+        out["tick_stderr"] = tick_stderr.strip().splitlines()[-1][:200]
+    _emit(out)
+    return 0
+
+
+# ---------------------------------------------------------------- main
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="router-agent", add_help=True)
+    p.add_argument("--task-id", required=True)
+    p.add_argument("--workspace", required=True)
+    p.add_argument("--user-turn", default=None)
+    p.add_argument("--user-turn-file", default=None)
+    p.add_argument("--confirm", action="store_true")
+    p.add_argument("--lock-timeout", type=float, default=30.0)
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _build_parser().parse_args(argv)
+
+    if not args.task_id.startswith("T-"):
+        _emit({
+            "action": "error",
+            "task_id": args.task_id,
+            "code": "bad_task_id",
+            "errors": ["task id must match T-NNN"],
+        })
+        return 2
+
+    workspace = Path(args.workspace)
+    if not workspace.is_dir():
+        _emit({
+            "action": "error",
+            "task_id": args.task_id,
+            "code": "bad_workspace",
+            "errors": [f"workspace not found: {workspace}"],
+        })
+        return 2
+
+    task_dir = workspace.resolve() / ".codenook" / "tasks" / args.task_id
+    task_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        with tl.acquire(task_dir, timeout=args.lock_timeout):
+            if args.confirm:
+                return cmd_confirm(args)
+            return cmd_prepare(args)
+    except tl.LockTimeout as e:
+        _emit({
+            "action": "busy",
+            "task_id": args.task_id,
+            "message": str(e),
+        })
+        return 3
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
