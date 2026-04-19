@@ -414,25 +414,49 @@ def walk_ancestors(workspace: Path | str, task_id: str, *,
     and emits a ``chain_root_stale`` diagnostic when one is observed
     (best-effort observability; never raises).
     """
+    chain, _trunc, _reason = _walk_with_status(
+        workspace, task_id, max_depth=max_depth, max_tokens=max_tokens
+    )
+    return chain
+
+
+def _walk_with_status(workspace: Path | str, task_id: str, *,
+                      max_depth: Optional[int] = None,
+                      max_tokens: Optional[int] = None,
+                      ) -> tuple[list[str], Optional[str], str]:
+    """Internal walk that also returns truncation status.
+
+    Returns ``(chain, truncation_kind, reason)`` where ``truncation_kind``
+    is one of ``None`` (clean walk), ``"unreadable"`` (missing/malformed
+    mid-chain state.json), ``"cycle"`` (loop detected mid-chain), or
+    ``"depth"`` (max_depth reached). Used by ``set_parent`` to classify
+    walk truncation (M10.6 MINOR-08 raises on ``unreadable``; M10.1
+    MINOR-02 downgrades audit verdict on the residual cases).
+    """
+    del max_tokens  # accepted for backward-compat; unused
     chain: list[str] = []
     seen: set[str] = set()
     cur: Optional[str] = task_id
     first = True
+    truncation_kind: Optional[str] = None
+    truncation_reason = ""
     snap_entries = (_read_snapshot(workspace).get("entries") or {})
     stale_seen = False
     while cur is not None:
         state = _read_state_json(workspace, cur)
         if state is None:
             if first:
-                return []
+                return [], None, ""
+            truncation_kind = "unreadable"
+            truncation_reason = f"unreadable state.json at {cur}"
             _audit(workspace, outcome="chain_walk_truncated", verdict="warn",
-                   source_task=task_id,
-                   reason=f"unreadable state.json at {cur}")
+                   source_task=task_id, reason=truncation_reason)
             break
         if cur in seen:
+            truncation_kind = "cycle"
+            truncation_reason = f"cycle detected at {cur}"
             _audit(workspace, outcome="chain_walk_truncated", verdict="warn",
-                   source_task=task_id,
-                   reason=f"cycle detected at {cur}")
+                   source_task=task_id, reason=truncation_reason)
             break
         seen.add(cur)
         chain.append(cur)
@@ -446,14 +470,15 @@ def walk_ancestors(workspace: Path | str, task_id: str, *,
                           reason=f"snap={entry.get('state_mtime')} disk={disk_mtime}")
                     stale_seen = True
         if max_depth is not None and len(chain) >= max_depth:
+            truncation_kind = "depth"
+            truncation_reason = f"max_depth={max_depth} reached"
             _audit(workspace, outcome="chain_walk_truncated", verdict="warn",
-                   source_task=task_id,
-                   reason=f"max_depth={max_depth} reached")
+                   source_task=task_id, reason=truncation_reason)
             break
         nxt = state.get("parent_id")
         cur = nxt if isinstance(nxt, str) else None
         first = False
-    return chain
+    return chain, truncation_kind, truncation_reason
 
 
 def chain_root(workspace: Path | str, task_id: str) -> Optional[str]:
@@ -514,7 +539,9 @@ def set_parent(workspace: Path | str, child_id: str, parent_id: str,
                 f"{child_state['parent_id']!r}; pass force=True to override"
             )
         # Cycle check: walking parent's ancestors must NOT include child.
-        parent_chain = walk_ancestors(workspace, parent_id)
+        parent_chain, trunc_kind, trunc_reason = _walk_with_status(
+            workspace, parent_id
+        )
         if child_id in parent_chain:
             raise CycleError(
                 f"cycle: {child_id} appears in ancestors of {parent_id}"
@@ -525,9 +552,28 @@ def set_parent(workspace: Path | str, child_id: str, parent_id: str,
         child_state["chain_root"] = new_root
         _write_state_json(workspace, child_id, child_state)
         _bump_snapshot(workspace)
-        _audit(workspace, outcome="chain_attached", verdict="ok",
-               source_task=child_id,
-               reason=f"parent={parent_id},root={new_root}")
+        # M10.1 R1-MINOR-02: if walking the parent's ancestry truncated
+        # (cycle / depth) the cached chain_root is best-effort and may
+        # be wrong; downgrade verdict to "warn" and tag the side-record
+        # with chain_root_uncertain=true so callers can act on it.
+        if trunc_kind is not None:
+            try:
+                extract_audit.audit(
+                    workspace,
+                    asset_type="chain",
+                    outcome="chain_attached",
+                    verdict="warn",
+                    source_task=child_id,
+                    reason=(f"parent={parent_id},root={new_root},"
+                            f"truncated={trunc_kind}:{trunc_reason}"),
+                    extra={"chain_root_uncertain": True},
+                )
+            except Exception:
+                pass
+        else:
+            _audit(workspace, outcome="chain_attached", verdict="ok",
+                   source_task=child_id,
+                   reason=f"parent={parent_id},root={new_root}")
     except (CycleError, TaskNotFoundError, AlreadyAttachedError, ValueError) as e:
         _audit(workspace, outcome="chain_attach_failed", verdict="error",
                source_task=child_id,

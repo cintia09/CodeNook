@@ -212,3 +212,38 @@ PY
   run env PYTHONPATH="$M10_LIB_DIR" python3 -m task_chain show --no-such-flag --workspace "$ws"
   [ "$status" -eq 64 ] || { echo "bad-flag exit=$status out=$output"; return 1; }
 }
+
+# ------------------------------------------------------------------ TC-M10.7-02 (MINOR-02 lock-in)
+
+@test "[m10.7] TC-M10.7-02 set_parent under truncated parent walk emits warn + chain_root_uncertain" {
+  ws=$(m10_seed_workspace)
+  # Build a chain T-001 ← T-002 ← T-003, then hand-corrupt T-001 to
+  # point back at T-003 — a self-contained cycle in the parent's
+  # ancestry (does NOT include the new child T-NEW).
+  make_chain "$ws" T-001 T-002 T-003
+  PYTHONPATH="$M10_LIB_DIR" WS="$ws" python3 - <<'PY'
+import json, os
+p = os.path.join(os.environ["WS"], ".codenook/tasks/T-001/state.json")
+s = json.load(open(p))
+s["parent_id"] = "T-003"
+json.dump(s, open(p, "w"))
+PY
+  make_task "$ws" T-NEW
+
+  PYTHONPATH="$M10_LIB_DIR" WS="$ws" python3 - <<'PY'
+import os, task_chain as tc
+tc.set_parent(os.environ["WS"], "T-NEW", "T-003")
+PY
+
+  log="$ws/$M10_AUDIT_LOG_REL"
+  # chain_attached recorded with verdict=warn
+  jq -e 'select(.outcome=="chain_attached" and .verdict=="warn" and .source_task=="T-NEW")' \
+    "$log" >/dev/null \
+    || { echo "expected warn chain_attached"; cat "$log"; return 1; }
+  # diagnostic side-record carries chain_root_uncertain=true
+  jq -e 'select(.outcome=="diagnostic" and .source_task=="T-NEW" and .chain_root_uncertain==true)' \
+    "$log" >/dev/null \
+    || { echo "expected chain_root_uncertain=true diagnostic"; cat "$log"; return 1; }
+  # Attachment still applied (best-effort).
+  [ "$(tc_state_field "$ws" T-NEW parent_id)" = "T-003" ]
+}
