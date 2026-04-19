@@ -598,20 +598,69 @@ def match_entries_for_task(
 # ---------------------------------------------------------------- generic
 
 
-def find_similar(
-    workspace_root: Path | str,  # noqa: ARG001
-    kind: Literal["knowledge", "skill", "config"],  # noqa: ARG001
-    title: str,  # noqa: ARG001
-    tags: list[str] | None = None,  # noqa: ARG001
-    *,
-    tag_overlap_threshold: float = 0.5,  # noqa: ARG001
-    title_cosine_threshold: float = 0.7,  # noqa: ARG001
-) -> list[dict[str, Any]]:
-    """Stub: token-set Jaccard backend lands in M9.3.
+def _title_token_set(title: str) -> set[str]:
+    return {t for t in re.split(r"[^A-Za-z0-9]+", (title or "").lower()) if t}
 
-    Returns ``[]`` so callers can pre-wire the patch-or-create flow.
+
+def find_similar(
+    workspace_root: Path | str,
+    kind: Literal["knowledge", "skill", "config"],
+    title: str,
+    tags: list[str] | None = None,
+    *,
+    tag_overlap_threshold: float = 0.5,
+    title_cosine_threshold: float = 0.7,
+) -> list[dict[str, Any]]:
+    """Return existing entries that look similar to a new candidate.
+
+    Heuristic (token-set Jaccard, per M9.0 decision #1):
+      * tag overlap = ``|cand ∩ exist| / max(|cand|, |exist|)``
+      * title overlap = same Jaccard over lowercase alphanumeric tokens
+    A match is reported when **either** ratio meets its threshold.
     """
-    return []
+    cand_tags = set(tags or [])
+    cand_title_tokens = _title_token_set(title)
+    if kind == "knowledge":
+        candidates = scan_knowledge(workspace_root)
+    elif kind == "skill":
+        candidates = scan_skills(workspace_root)
+    else:
+        return []
+
+    out: list[dict[str, Any]] = []
+    for meta in candidates:
+        existing_tags = set(meta.get("tags") or [])
+        existing_title = meta.get("title") or meta.get("name") or ""
+        existing_tokens = _title_token_set(existing_title)
+
+        tag_overlap = 0.0
+        if cand_tags and existing_tags:
+            denom = max(len(cand_tags), len(existing_tags))
+            tag_overlap = len(cand_tags & existing_tags) / denom if denom else 0.0
+
+        title_overlap = 0.0
+        if cand_title_tokens and existing_tokens:
+            denom = max(len(cand_title_tokens), len(existing_tokens))
+            title_overlap = (
+                len(cand_title_tokens & existing_tokens) / denom if denom else 0.0
+            )
+
+        if (
+            tag_overlap >= tag_overlap_threshold
+            or title_overlap >= title_cosine_threshold
+        ):
+            out.append(
+                {
+                    "path": meta.get("path"),
+                    "topic": meta.get("topic"),
+                    "title": existing_title,
+                    "tags": list(existing_tags),
+                    "tag_overlap": tag_overlap,
+                    "title_overlap": title_overlap,
+                    "dedup_hash": meta.get("dedup_hash"),
+                }
+            )
+    return out
 
 
 def has_hash(workspace_root: Path | str, kind: str, dedup_key: str) -> bool:
