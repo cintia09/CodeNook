@@ -21,7 +21,7 @@
 | **No-op** (already specified) | 1 (A2-5) |
 | **Total backlog items addressed** | 21 |
 
-Detailed per-item rationale: `docs/v6/m11-decisions.md`.
+Detailed per-item rationale: `docs/m11-decisions.md`.
 
 ### SPEC-PATCH IDs (16)
 

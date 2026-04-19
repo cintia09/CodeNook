@@ -27,4 +27,4 @@ queue.sh size --queue <name> [--workspace <dir>]
 - `list`: Emits all entries as JSONL (optionally filtered by jq expr)
 - `size`: Returns integer count
 
-→ Design basis: architecture-v6.md §3.2.6 (queue / hitl-queue)
+→ Design basis: architecture.md §3.2.6 (queue / hitl-queue)

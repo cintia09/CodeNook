@@ -5,7 +5,7 @@
 Per-turn entry point the main session calls to dispatch a real subagent
 for **conversational task creation**. The router-agent is the SOLE
 domain-aware component on the task-creation side (see
-`docs/v6/router-agent-v6.md` §2).
+`docs/router-agent.md` §2).
 
 This skill ships:
 
@@ -96,7 +96,7 @@ spawn.sh --task-id T-042 --workspace ~/proj --confirm             # handoff
 
 ## See also
 
-* `docs/v6/router-agent-v6.md` — canonical spec.
+* `docs/router-agent.md` — canonical spec.
 * `skills/builtin/_lib/router_context.py` — context I/O.
 * `skills/builtin/_lib/draft_config.py` — draft validation + freeze.
 * `skills/builtin/_lib/task_lock.py` — fcntl lock.

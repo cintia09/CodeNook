@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>CodeNook v0.11.1 — Surface Cleanup Report</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">CodeNook v0.11.1 — Surface Cleanup Report</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#codenook-v0.11.1-surface-cleanup-report"
+id="toc-codenook-v0.11.1-surface-cleanup-report">CodeNook v0.11.1 —
+Surface Cleanup Report</a>
+<ul>
+<li><a href="#scope" id="toc-scope">1. Scope</a></li>
+<li><a href="#pre-removal-grep-audit" id="toc-pre-removal-grep-audit">2.
+Pre-removal grep audit</a></li>
+<li><a href="#decision-per-residue-line"
+id="toc-decision-per-residue-line">3. Decision per residue line</a></li>
+<li><a href="#files-deleted" id="toc-files-deleted">4. Files
+deleted</a></li>
+<li><a href="#files-updated" id="toc-files-updated">5. Files updated</a>
+<ul>
+<li><a href="#commit-2-surface-850d084"
+id="toc-commit-2-surface-850d084">Commit 2 — surface
+(<code>850d084</code>)</a></li>
+<li><a href="#commit-3-plugins-docs-49faf9a"
+id="toc-commit-3-plugins-docs-49faf9a">Commit 3 — plugins &amp; docs
+(<code>49faf9a</code>)</a></li>
+<li><a href="#commit-4-release-42e635c"
+id="toc-commit-4-release-42e635c">Commit 4 — release
+(<code>42e635c</code>)</a></li>
+</ul></li>
+<li><a href="#post-cleanup-grep-verification"
+id="toc-post-cleanup-grep-verification">6. Post-cleanup grep
+verification</a></li>
+<li><a href="#quality-gates" id="toc-quality-gates">7. Quality
+gates</a></li>
+<li><a href="#workspace-regression" id="toc-workspace-regression">8.
+Workspace regression</a></li>
+<li><a href="#commits" id="toc-commits">9. Commits</a></li>
+<li><a href="#tag-remote-verification"
+id="toc-tag-remote-verification">10. Tag + remote verification</a></li>
+<li><a href="#blockers" id="toc-blockers">11. BLOCKERs</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="codenook-v0.11.1-surface-cleanup-report">CodeNook v0.11.1 —
+Surface Cleanup Report</h1>
+<blockquote>
+<p><strong>Release</strong>: v0.11.1 · Surface Cleanup (v5-poc removal)
+<strong>Date</strong>: 2026-04-19 <strong>Push timestamp (UTC)</strong>:
+2026-04-19T22:36:16Z <strong>Tag (annotated)</strong>:
+<code>v0.11.1</code> →
+<code>311627af7c25db22d5ba4a759c64685414eca82d</code> <strong>Tag
+(commit ^{})</strong>:
+<code>42e635c96c392c2a44db276311766fa41eacd515</code>
+<strong>Base</strong>: v0.11.0 (<code>77fe057</code>) / repo HEAD before
+this work <code>4637bfe</code> <strong>Branch</strong>:
+<code>main</code></p>
+</blockquote>
+<hr />
+<h2 id="scope">1. Scope</h2>
+<p>Surface-only cleanup. <strong>Zero functional changes</strong> to
+codenook-core, plugins, or installer behaviour. Three classes of residue
+addressed:</p>
+<ol type="1">
+<li>The v5 monolithic PoC tree (<code>skills/codenook-v5-poc/</code>) —
+fully deleted.</li>
+<li>Surface markers (banners, version strings, schema examples) still
+advertising the legacy v4.9.5 / v5.0 POC era — bumped to v0.11.0 / v6
+plugin architecture.</li>
+<li>Cross-references in plugin docs and v6 design docs that pointed at
+the now-removed v5-poc paths — rephrased or marked as historical.</li>
+</ol>
+<hr />
+<h2 id="pre-removal-grep-audit">2. Pre-removal grep audit</h2>
+<p>Repo-wide grep before any change (markdown / shell / yaml / python /
+json), excluding <code>skills/codenook-v5-poc/</code> itself:</p>
+<pre><code>PIPELINE.md:1                                 # CodeNook Pipeline — Full Workflow (v4.9.5+)
+PIPELINE.md:211                               *Generated for CodeNook v4.9.5+*
+CHANGELOG.md:482                              ### 🧪 v5.0 POC — Workspace-First Architecture (preview, opt-in)
+plugins/development/prompts/criteria-test.md:1     # Test Criteria (v5.0 POC)
+plugins/development/prompts/criteria-accept.md:1   # Acceptance Criteria (v5.0 POC)
+install.sh:4                                  # CodeNook v4.9.5 (stable) + v5.0 POC Installer
+install.sh:7-8                                # Note: v5.0 POC is shipped under skills/codenook-v5-poc/...
+docs/implementation.md:155              ### M6 — 第一个真实 plugin：development（从 v5 codenook-v5-poc 提取）
+docs/test-plan.md:41                    | 复用 v5-poc reports 中的 e2e 剧本 |
+README.md:25                                  v5.0 POC available banner
+README.md:298, 483                            &quot;version&quot;: &quot;4.9.5&quot;
+README.md:599, 626                            v4.9.5 migration prose
+docs/README.md:3                           &quot;the shipping product is still v5&quot;
+docs/architecture.md:3                  &quot;未实现&quot;
+docs/architecture.md:1390+              v5 → v6 migration map
+docs/architecture.md:1487               §12 provenance v5-poc reports ref
+docs/test-plan.md:699                   H-001 v5-poc reports ref
+plugins/development/CHANGELOG.md:3, 8, 13     &quot;ported from v5&quot; entries
+plugins/development/README.md:7, 55           &quot;Ported from the v5.0 PoC&quot; / &quot;M6 DoD diff against v5&quot;
+skills/codenook-core/README.md:6              &quot;v5 PoC … not a drop-in replacement&quot;
+skills/codenook-init/SKILL.md:6               # Agent System Initialization (v4.9.5)
+skills/codenook-init/templates/codenook.instructions.md:1   # CodeNook Orchestration Engine (v4.9.5)</code></pre>
+<p>Source-code grep (<code>.py</code> / <code>.sh</code> /
+<code>.bats</code>) for <code>codenook-v5-poc</code> /
+<code>v5-poc</code> under <code>skills/codenook-core/</code>,
+<code>skills/codenook-init/</code>, and <code>plugins/</code>: <strong>0
+hits</strong>. v5-poc is doc-only chatter; safe to delete.</p>
+<hr />
+<h2 id="decision-per-residue-line">3. Decision per residue line</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Source</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>skills/codenook-v5-poc/</code> (whole tree)</td>
+<td><strong>DELETE</strong> (commit 1)</td>
+</tr>
+<tr>
+<td>README banner / nav / schema examples / migration prose</td>
+<td><strong>UPDATE → v0.11.0 / v6</strong> (commit 2)</td>
+</tr>
+<tr>
+<td>install.sh banner + VERSION fallback + v5-poc note</td>
+<td><strong>UPDATE → v0.11.0</strong> (commit 2)</td>
+</tr>
+<tr>
+<td>PIPELINE.md header + footer</td>
+<td><strong>UPDATE → v0.11.0+</strong> (commit 2)</td>
+</tr>
+<tr>
+<td>plugins/development {README, CHANGELOG, criteria-{test,accept}}</td>
+<td><strong>UPDATE → v6 framework</strong> (commit 3)</td>
+</tr>
+<tr>
+<td>skills/codenook-core/README.md “v5 remains the working
+reference”</td>
+<td><strong>UPDATE → v5 removed</strong> (commit 3)</td>
+</tr>
+<tr>
+<td>docs/{README, architecture, implementation, test-plan}</td>
+<td><strong>MARK AS HISTORICAL / COMPLETED</strong> (commit 3)</td>
+</tr>
+<tr>
+<td>CHANGELOG.md <code>## [5.0.0-poc.1]</code> entry</td>
+<td><strong>PRESERVE AS HISTORY</strong> (per task spec §G)</td>
+</tr>
+<tr>
+<td>skills/codenook-init/* (v4.9.5 banners)</td>
+<td><strong>PRESERVE</strong> — codenook-init is the legacy v4.9.5
+stable agent system; its internal version label is intentional and
+untouched per task scope</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="files-deleted">4. Files deleted</h2>
+<ul>
+<li><strong>Directory removed</strong>:
+<code>skills/codenook-v5-poc/</code></li>
+<li><strong>File count</strong>: 79</li>
+<li><strong>Total size on disk</strong>: 668 KB</li>
+<li><strong>Total LOC removed</strong>: 11,856 (per
+<code>git diff --cached --stat</code>)</li>
+</ul>
+<hr />
+<h2 id="files-updated">5. Files updated</h2>
+<h3 id="commit-2-surface-850d084">Commit 2 — surface
+(<code>850d084</code>)</h3>
+<ul>
+<li><code>README.md</code> — banner, navigation, schema examples (×2),
+migration section</li>
+<li><code>install.sh</code> — banner (L4), v5-poc note (L7-8),
+<code>VERSION</code> fallback (L10)</li>
+<li><code>PIPELINE.md</code> — header (L1), footer (L211)</li>
+</ul>
+<h3 id="commit-3-plugins-docs-49faf9a">Commit 3 — plugins &amp; docs
+(<code>49faf9a</code>)</h3>
+<ul>
+<li><code>plugins/development/README.md</code> — ported→built; M6 DoD
+note</li>
+<li><code>plugins/development/CHANGELOG.md</code> — 0.1.0 entry
+rewrite</li>
+<li><code>plugins/development/prompts/criteria-test.md</code> — drop
+<code>(v5.0 POC)</code></li>
+<li><code>plugins/development/prompts/criteria-accept.md</code> — drop
+<code>(v5.0 POC)</code></li>
+<li><code>skills/codenook-core/README.md</code> — drop “v5 remains the
+working reference”</li>
+<li><code>docs/README.md</code> — flip status to implemented</li>
+<li><code>docs/architecture.md</code> — L3 status banner; §9 marked
+historical</li>
+<li><code>docs/implementation.md</code> — M6 header + 第四部分 marked
+historical</li>
+<li><code>docs/test-plan.md</code> — L41 row + H-001 case annotated as
+archive</li>
+</ul>
+<h3 id="commit-4-release-42e635c">Commit 4 — release
+(<code>42e635c</code>)</h3>
+<ul>
+<li><code>VERSION</code> — <code>0.11.0</code> →
+<code>0.11.1</code></li>
+<li><code>CHANGELOG.md</code> — <code>## [0.11.1]</code> entry
+prepended</li>
+</ul>
+<hr />
+<h2 id="post-cleanup-grep-verification">6. Post-cleanup grep
+verification</h2>
+<p><code>grep -rn "codenook-v5-poc\|v5-poc" --include="*.md" --include="*.sh" --include="*.yaml" --include="*.yml" --include="*.py" --include="*.json"</code>
+after all commits:</p>
+<pre><code>CHANGELOG.md:484                       # in [5.0.0-poc.1] historical entry — preserved per spec §G
+CHANGELOG.md:510                       # in [5.0.0-poc.1] historical entry — preserved per spec §G
+docs/architecture.md:1387        # in §9 &quot;历史记录 — 已完成&quot; header
+docs/architecture.md:1392        # historical migration map (now flagged as completed)
+docs/architecture.md:1393        # historical migration map (now flagged as completed)
+docs/architecture.md:1402        # historical migration map (now flagged as completed)
+docs/architecture.md:1487        # §12 provenance — historical session capture
+docs/implementation.md:155       # M6 header — annotated as historical extraction
+docs/implementation.md:2321      # 第四部分 migration table — flagged as historical archive
+docs/test-plan.md:699            # H-001 — annotated &quot;archive only — 路径已不存在&quot;</code></pre>
+<p>All remaining hits are inside explicit “historical / completed /
+archive” framings. <strong>No live reference points at the deleted
+tree.</strong> ✅ Clean.</p>
+<hr />
+<h2 id="quality-gates">7. Quality gates</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bats skills/codenook-core/tests/*.bats</code></td>
+<td><strong>851 / 851 PASS</strong> (baseline preserved; matches
+v0.11.0)</td>
+</tr>
+<tr>
+<td>Core focused regression (<code>m1-init-help</code>,
+<code>m1-orchestrator-tick</code>)</td>
+<td>PASS (24 + 23 assertions)</td>
+</tr>
+<tr>
+<td><code>bash -n install.sh</code></td>
+<td>PASS</td>
+</tr>
+<tr>
+<td><code>install.sh --dry-run</code></td>
+<td>PASS, banner reads <code>🤖 CodeNook v0.11.0</code></td>
+</tr>
+<tr>
+<td><code>install.sh --install</code> (HOME-redirected sandbox under
+<code>.scratch-v0111/</code>)</td>
+<td>PASS, banner reads <code>Installed! v0.11.1</code>, <strong>0 v5-poc
+artifacts</strong> in installed tree, 26 files placed</td>
+</tr>
+<tr>
+<td>Source-code import scan for <code>v5-poc</code></td>
+<td><strong>0 hits</strong> under codenook-core / codenook-init /
+plugins</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="workspace-regression">8. Workspace regression</h2>
+<p>Workspace under inspection:
+<code>/Users/mingdw/Documents/workspace/development</code></p>
+<ul>
+<li><code>.codenook/</code> layout: <code>memory/</code> +
+<code>tasks/</code> (1004 task dirs) — pre-existing v6 workspace</li>
+<li>No <code>v5-poc</code> artefacts present in
+<code>.codenook/</code></li>
+<li>The workspace’s existing <code>CLAUDE.md</code> is the legacy v5 PoC
+bootloader (created before this cleanup); it is <strong>user-owned
+content</strong> and is not regenerated by either
+<code>install.sh</code> (codenook-init) or
+<code>skills/codenook-core/init.sh</code>. Out of scope for this surface
+cleanup; users wishing to migrate that bootloader should re-run
+<code>init.sh</code> against the workspace.</li>
+<li>Installer banner verified live (<code>v0.11.1</code>); core
+regression bats asserts continue to PASS.</li>
+</ul>
+<hr />
+<h2 id="commits">9. Commits</h2>
+<table>
+<colgroup>
+<col style="width: 17%" />
+<col style="width: 29%" />
+<col style="width: 52%" />
+</colgroup>
+<thead>
+<tr>
+<th>#</th>
+<th>SHA</th>
+<th>Subject</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>969bac7</code></td>
+<td>refactor(v0.11.1) · remove skills/codenook-v5-poc/</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>850d084</code></td>
+<td>docs(v0.11.1) · README + install.sh + PIPELINE.md → v0.11.0</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>49faf9a</code></td>
+<td>docs(v0.11.1) · plugins/development &amp; docs → v6 framework</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>42e635c</code></td>
+<td>chore(release) · v0.11.1</td>
+</tr>
+</tbody>
+</table>
+<p>All four commits include the <code>Co-authored-by: Copilot</code>
+trailer.</p>
+<hr />
+<h2 id="tag-remote-verification">10. Tag + remote verification</h2>
+<pre><code>$ git ls-remote --tags origin | grep v0.11.1
+311627af7c25db22d5ba4a759c64685414eca82d  refs/tags/v0.11.1
+42e635c96c392c2a44db276311766fa41eacd515  refs/tags/v0.11.1^{}</code></pre>
+<p>Push completed: <code>2026-04-19T22:36:16Z</code>
+(<code>main: 4637bfe..42e635c</code>, <code>new tag v0.11.1</code>).
+✅</p>
+<hr />
+<h2 id="blockers">11. BLOCKERs</h2>
+<p><strong>None.</strong> Baseline 851 bats PASS preserved across all
+four commits; install dry-run and sandboxed install both succeed; remote
+tag verified.</p>
+</body>
+</html>

@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>CodeNook — Design Docs Index</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">CodeNook — Design Docs Index</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#codenook-design-docs-index"
+id="toc-codenook-design-docs-index">CodeNook — Design Docs Index</a>
+<ul>
+<li><a href="#reading-order-for-new-contributors"
+id="toc-reading-order-for-new-contributors">Reading order for new
+contributors</a></li>
+<li><a href="#document-index" id="toc-document-index">Document
+index</a></li>
+<li><a href="#status-snapshot-v0.11.1"
+id="toc-status-snapshot-v0.11.1">Status snapshot (v0.11.1)</a></li>
+<li><a href="#relationship-to-top-level-docs"
+id="toc-relationship-to-top-level-docs">Relationship to top-level
+docs</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="codenook-design-docs-index">CodeNook — Design Docs Index</h1>
+<p>CodeNook’s plugin architecture (internally codenamed “v6” during
+design, now shipping as v0.11) decomposes the system into a kernel at
+<code>skills/codenook-core/</code>, a canonical pipeline plugin at
+<code>plugins/development/</code>, and a per-workspace runtime at
+<code>.codenook/</code>.</p>
+<p>This directory is the <strong>design + verification archive</strong>
+for that architecture:</p>
+<ul>
+<li>9 design documents (architecture, implementation, router-agent,
+memory &amp; extraction, task chains, test plan, M9 / M10 test cases,
+M11 decisions),</li>
+<li>1 requirements document (~70 FR / NFR),</li>
+<li>1 acceptance test catalog (117 ATs),</li>
+<li>1 acceptance execution report (100 PASS / 13 PARTIAL / 4 SKIP),</li>
+<li>2 release / cleanup reports (v0.11.0 release, v0.11.1 surface
+cleanup).</li>
+</ul>
+<h2 id="reading-order-for-new-contributors">Reading order for new
+contributors</h2>
+<ol type="1">
+<li><strong><code>architecture.md</code></strong> — start here. The 42
+ratified decisions; the single-workspace plugin model; the modularised
+memory / skills / config / history layout; the model-tier symbol
+resolution.</li>
+<li><strong><code>router-agent.md</code></strong> — the per-turn entry
+point. Spawn / render-prompt / draft-config contract; how the router is
+the <em>sole</em> domain-aware component on the task-creation side.</li>
+<li><strong><code>memory-and-extraction.md</code></strong> — the
+after-phase loop. Patch-or-create policy, per-task caps (3 / 1 / 5), 80%
+water-mark, distiller promotion.</li>
+<li><strong><code>task-chains.md</code></strong> — parent suggestion
+(Jaccard top-3) and chain summarisation (two-pass LLM compression, ≤8K
+token budget).</li>
+<li><strong><code>implementation.md</code></strong> —
+milestone-by-milestone roadmap (M1 kernel → M11 spec consolidation),
+file skeletons, DoD scripts.</li>
+<li><strong><code>test-plan.md</code></strong> — 228 cases across 9
+subsystems, risk matrix R-01..R-28, fixtures, automation strategy.</li>
+<li><strong><code>requirements.md</code></strong> — ~70 FR / NFR (1162
+lines).</li>
+<li><strong><code>acceptance.md</code></strong> — 117 acceptance tests
+(1397 lines).</li>
+<li><strong><code>acceptance-execution-report.md</code></strong> —
+execution result per AT (100 PASS / 13 PARTIAL / 4 SKIP).</li>
+<li><strong><code>m9-test-cases.md</code></strong> /
+<strong><code>m10-test-cases.md</code></strong> — milestone-specific
+test catalogs.</li>
+<li><strong><code>m11-decisions.md</code></strong> — the 21-item
+decision list closed in v0.11.0 (16 SPEC-PATCH + 2 CODE-FIX + 2
+DELETE-DEAD-CODE + 6 DEFER-v0.12 + 1 no-op).</li>
+<li><strong><code>release-report-v0.11.md</code></strong> /
+<strong><code>cleanup-report-v0.11.1.md</code></strong> — what actually
+shipped in v0.11.0 and v0.11.1.</li>
+</ol>
+<h2 id="document-index">Document index</h2>
+<table>
+<colgroup>
+<col style="width: 17%" />
+<col style="width: 31%" />
+<col style="width: 27%" />
+<col style="width: 24%" />
+</colgroup>
+<thead>
+<tr>
+<th>Doc</th>
+<th>Purpose</th>
+<th>Status</th>
+<th style="text-align: right;">Lines</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>architecture.md</code></td>
+<td>Plugin architecture design — 42 ratified decisions</td>
+<td><strong>ratified · implemented</strong></td>
+<td style="text-align: right;">1633</td>
+</tr>
+<tr>
+<td><code>implementation.md</code></td>
+<td>Milestone roadmap (M1 → M11), file skeletons, DoD scripts</td>
+<td><strong>ratified · implemented</strong></td>
+<td style="text-align: right;">2727</td>
+</tr>
+<tr>
+<td><code>router-agent.md</code></td>
+<td>Router-agent specification (per-turn entry point)</td>
+<td><strong>ratified · implemented</strong></td>
+<td style="text-align: right;">640</td>
+</tr>
+<tr>
+<td><code>memory-and-extraction.md</code></td>
+<td>Memory layer + extraction policy + water-marks</td>
+<td><strong>ratified · implemented</strong></td>
+<td style="text-align: right;">882</td>
+</tr>
+<tr>
+<td><code>task-chains.md</code></td>
+<td>Parent suggestion + chain summarisation</td>
+<td><strong>ratified · implemented</strong></td>
+<td style="text-align: right;">1138</td>
+</tr>
+<tr>
+<td><code>test-plan.md</code></td>
+<td>228 cases × 9 subsystems · risk matrix R-01..R-28</td>
+<td><strong>ratified · implemented</strong></td>
+<td style="text-align: right;">1140</td>
+</tr>
+<tr>
+<td><code>m9-test-cases.md</code></td>
+<td>M9 (memory + extraction) test catalog</td>
+<td><strong>implemented</strong></td>
+<td style="text-align: right;">1076</td>
+</tr>
+<tr>
+<td><code>m10-test-cases.md</code></td>
+<td>M10 (task chains) test catalog</td>
+<td><strong>implemented</strong></td>
+<td style="text-align: right;">1075</td>
+</tr>
+<tr>
+<td><code>m11-decisions.md</code></td>
+<td>M11 backlog decisions (21 items)</td>
+<td><strong>closed (v0.11.0)</strong></td>
+<td style="text-align: right;">91</td>
+</tr>
+<tr>
+<td><code>requirements.md</code></td>
+<td>~70 FR / NFR + §A.1 / §A.2 reconciliation tables</td>
+<td><strong>ratified</strong></td>
+<td style="text-align: right;">1162</td>
+</tr>
+<tr>
+<td><code>acceptance.md</code></td>
+<td>117 acceptance tests</td>
+<td><strong>ratified</strong></td>
+<td style="text-align: right;">1397</td>
+</tr>
+<tr>
+<td><code>acceptance-execution-report.md</code></td>
+<td>Execution result per AT (100 / 13 / 4)</td>
+<td><strong>executed (v0.11.0)</strong></td>
+<td style="text-align: right;">262</td>
+</tr>
+<tr>
+<td><code>release-report-v0.11.md</code></td>
+<td>v0.11.0 release report (Spec Consolidation &amp; Cleanup)</td>
+<td><strong>shipped</strong></td>
+<td style="text-align: right;">171</td>
+</tr>
+<tr>
+<td><code>cleanup-report-v0.11.1.md</code></td>
+<td>v0.11.1 surface cleanup report</td>
+<td><strong>shipped</strong></td>
+<td style="text-align: right;">201</td>
+</tr>
+</tbody>
+</table>
+<p>HTML renders are siblings of each <code>.md</code> (theme:
+<code>default</code>).</p>
+<h2 id="status-snapshot-v0.11.1">Status snapshot (v0.11.1)</h2>
+<table>
+<colgroup>
+<col style="width: 53%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr>
+<th>Metric</th>
+<th style="text-align: right;">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bats assertions</td>
+<td style="text-align: right;"><strong>851 / 851</strong></td>
+</tr>
+<tr>
+<td>Acceptance tests</td>
+<td style="text-align: right;"><strong>100 PASS / 13 PARTIAL / 4
+SKIP</strong> (of 117)</td>
+</tr>
+<tr>
+<td>Milestones shipped</td>
+<td style="text-align: right;"><strong>M1 → M11</strong></td>
+</tr>
+<tr>
+<td>Open ambiguities in design</td>
+<td style="text-align: right;"><strong>0</strong></td>
+</tr>
+<tr>
+<td>Items deferred to v0.12</td>
+<td style="text-align: right;"><strong>6</strong> (A1-6, MEDIUM-04,
+AT-REL-1, AT-LLM-2.1, AT-COMPAT-1, AT-COMPAT-3)</td>
+</tr>
+</tbody>
+</table>
+<p>The 6 deferred items are scoped in
+<code>release-report-v0.11.md</code> §3 and tracked against the
+<code>session-resume schema v2</code> epic and the multi-process
+orchestration epic for v0.12.</p>
+<h2 id="relationship-to-top-level-docs">Relationship to top-level
+docs</h2>
+<ul>
+<li><a href="../README.md"><code>../README.md</code></a> — user-facing
+entry point.</li>
+<li><a href="../PIPELINE.md"><code>../PIPELINE.md</code></a> — runtime
+pipeline reference (kernel
+<ul>
+<li>plugin behaviour at execution time).</li>
+</ul></li>
+<li><a href="../CHANGELOG.md"><code>../CHANGELOG.md</code></a> — release
+history.</li>
+<li><a
+href="../skills/codenook-core/README.md"><code>../skills/codenook-core/README.md</code></a>
+— kernel package overview (subsystems, builtin skills, init.sh).</li>
+<li><a
+href="../plugins/development/README.md"><code>../plugins/development/README.md</code></a>
+— development plugin overview (8 phases, verdict contract,
+validators).</li>
+</ul>
+</body>
+</html>

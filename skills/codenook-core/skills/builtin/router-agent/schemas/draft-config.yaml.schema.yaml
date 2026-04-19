@@ -1,5 +1,5 @@
 # draft-config.yaml schema — M5 YAML DSL
-# (per docs/v6/router-agent-v6.md §4.2)
+# (per docs/router-agent.md §4.2)
 #
 # Mirrors the eventual state.json.config block plus a `_draft: true`
 # sentinel that prevents orchestrator-tick from ever loading the file
@@ -62,7 +62,7 @@ fields:
   custom:
     type: object
 
-  # M8.10 — multi-plugin + role gating (per docs/v6/router-agent-v6.md
+  # M8.10 — multi-plugin + role gating (per docs/router-agent.md
   # "Design patch — multi-plugin + workspace-overlay").
   selected_plugins:
     type: array

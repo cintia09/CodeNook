@@ -3,7 +3,7 @@
 ## Role
 
 Resolve a skill name against the **4-tier lookup chain** so sub-agents
-self-bootstrap deterministically. Implements implementation-v6.md §M5.5.
+self-bootstrap deterministically. Implements implementation.md §M5.5.
 
 ## Lookup order
 

@@ -30,4 +30,4 @@ set.sh --task <T-NNN> --key <k> --value <v> [--workspace <dir>] [--unset]
 - Idempotent (re-setting same value is no-op)
 - `--unset` removes the key
 
-→ Design basis: architecture-v6.md §3.2.4.1 (task-level model override)
+→ Design basis: architecture.md §3.2.4.1 (task-level model override)

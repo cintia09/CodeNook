@@ -1,4 +1,4 @@
-# CodeNook v6 — Conversational Router Agent
+# CodeNook — Conversational Router Agent
 
 > **Status**: Draft (M8.0). Authored 2026 in response to the M3 router-triage / M7
 > `router_select.py` shim falling short of the conversational task-creation flow

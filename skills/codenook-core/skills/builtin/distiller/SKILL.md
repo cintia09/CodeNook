@@ -5,7 +5,7 @@
 LLM-less router: given a `(plugin, topic, content_file)` triple, decide
 whether the distilled artifact promotes to workspace-level
 `.codenook/knowledge/` or stays in the plugin's
-`.codenook/memory/<plugin>/`. Implements implementation-v6.md §M5.4.
+`.codenook/memory/<plugin>/`. Implements implementation.md §M5.4.
 
 The actual distillation (LLM compression of raw conversation chunks
 into a topic note) is **out of scope** here — this skill assumes the

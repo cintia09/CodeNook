@@ -1,8 +1,8 @@
 # CodeNook v0.11 — Backlog Decisions (M11.0)
 
 > Source inputs:
-> - `docs/v6/requirements-v0.10.md` §A.1 (8 inconsistencies) + §A.2 (10 omissions)
-> - `docs/v6/acceptance-execution-report-v0.10.md` (13 PARTIAL + 4 SKIP)
+> - `docs/requirements.md` §A.1 (8 inconsistencies) + §A.2 (10 omissions)
+> - `docs/acceptance-execution-report.md` (13 PARTIAL + 4 SKIP)
 > - `CHANGELOG.md` v0.10.0-m10.0 → Known limitations (MEDIUM-04, MINOR-04, MINOR-06)
 >
 > Decision tags: **[SPEC-PATCH]** = update docs to match correct code behaviour;
@@ -17,7 +17,7 @@
 | ID | Topic | Decision | Rationale |
 |----|-------|----------|-----------|
 | A1-1 | `dual_mode` default = `serial` | **[SPEC-PATCH]** | Code behaviour (preflight only enforces field when `total_iterations > 1`) is correct & ergonomic; clarify spec to say "optional, default `serial`". |
-| A1-2 | Chain `max_depth` library default `None` vs. spec "default 10" | **[SPEC-PATCH]** | Library staying unbounded is the intended composable default; the protective bound (100) lives at the router-call site per `task-chains-v6.md` §6. Reconcile §3.5 + §7.3 wording. |
+| A1-2 | Chain `max_depth` library default `None` vs. spec "default 10" | **[SPEC-PATCH]** | Library staying unbounded is the intended composable default; the protective bound (100) lives at the router-call site per `task-chains.md` §6. Reconcile §3.5 + §7.3 wording. |
 | A1-3 | `plugin.yaml.sig` "first non-blank token" lenient compare | **[SPEC-PATCH]** | Lenient compare is intentional (allows comments). Document the rule in FR-PLUGIN-G05 + §6.5. |
 | A1-4 | extractor "24h idempotency" actually permanent (no rotation) | **[SPEC-PATCH]** | Spec wording rewritten: "idempotent on (task,phase,reason) until trigger-key file is rotated by the operator (no automatic 24h expiry in v0.10/v0.11)". Issue tracked as v0.12 candidate (key rotation). |
 | A1-5 | secret_scan = 9 patterns (spec mentions "10") | **[SPEC-PATCH]** | Code is the source of truth; correct the count to 9 in all spec/AT references. |
@@ -88,4 +88,4 @@ All ten are existing, deliberate code behaviours not yet documented. **All decis
 | DELETE-DEAD-CODE | 2 candidates pending grep verification |
 | DEFER-v0.12 | 6 (A1-6, MEDIUM-04 lock impl, AT-REL-1, AT-LLM-2.1, AT-COMPAT-1, AT-COMPAT-3) |
 
-Final tallies will be reported in `v011-release-report.md` after execution.
+Final tallies will be reported in `release-report-v0.11.md` after execution.

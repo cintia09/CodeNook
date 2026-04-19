@@ -43,7 +43,7 @@ built-in). The model's tier is the first priority bucket containing it.
 `resolved_tiers.<tier>` is the first id from `tier_priority[tier]` that is
 also in `available`.
 
-Built-in `tier_priority` mirrors implementation-v6.md §3.5.1.2:
+Built-in `tier_priority` mirrors implementation.md §3.5.1.2:
 
 ```yaml
 strong:   [opus-4.7, opus-4.6, sonnet-4.6, gpt-5.4]

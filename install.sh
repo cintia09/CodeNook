@@ -7,7 +7,7 @@ set -euo pipefail
 # This installer ships the codenook-init skill (legacy v4.9.5 stable
 # agent system). The v6 plugin-architecture kernel lives under
 # skills/codenook-core/ and is exercised via its own init.sh; see
-# docs/v6/ for design and milestone references.
+# docs/ for design and milestone references.
 
 VERSION="0.11.1"
 REPO="https://github.com/cintia09/CodeNook.git"

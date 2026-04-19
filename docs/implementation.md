@@ -1,6 +1,6 @@
-# CodeNook v6 — 实现文档（Implementation Plan）
+# CodeNook — 实现文档（Implementation Plan）
 
-> **状态**：基于已定稿的 `architecture-v6.md`（§1–§12）落地为可运行代码与文件的实现指南。本文档**只讲怎么做**，不复述设计动机；每节末尾以 `→ 设计依据：架构文档 §X.Y` 形式回指。
+> **状态**：基于已定稿的 `architecture.md`（§1–§12）落地为可运行代码与文件的实现指南。本文档**只讲怎么做**，不复述设计动机；每节末尾以 `→ 设计依据：架构文档 §X.Y` 形式回指。
 >
 > **范围约定**：
 > - 单 workspace 模型，所有路径都是 `<workspace>/.codenook/...` 相对路径
@@ -209,7 +209,7 @@
 > subagent + file-backed memory that holds a multi-turn dialog, consults
 > knowledge, drafts a task config for explicit user confirmation, and hands
 > off to `orchestrator-tick` itself. Canonical spec:
-> [`docs/v6/router-agent-v6.md`](../v6/router-agent-v6.md). Ratified decisions
+> [`docs/router-agent.md`](./router-agent.md). Ratified decisions
 > #46–#52 (architecture §12) are non-negotiable across all M8.x.
 
 **依赖**：M4（tick contract stable）、M5（config-resolve / config-validate ready）、M7（`_lib/router_select.py` available for reuse）
@@ -219,9 +219,9 @@
 **Scope**: Author the canonical router-agent spec; align architecture §4 / §12 and this implementation doc.
 
 **Deliverables**:
-- `docs/v6/router-agent-v6.md` — full spec (motivation, domain layering, lifecycle, schemas, prompt contract, concurrency, knowledge, handoff, termination, removal, open items).
-- `docs/v6/architecture-v6.md` §4 — banner pointing at the new doc; new §4.3 "Domain layering"; decisions #46–#52 appended to §12.
-- `docs/v6/implementation-v6.md` — this M8 section (M8.0–M8.8).
+- `docs/router-agent.md` — full spec (motivation, domain layering, lifecycle, schemas, prompt contract, concurrency, knowledge, handoff, termination, removal, open items).
+- `docs/architecture.md` §4 — banner pointing at the new doc; new §4.3 "Domain layering"; decisions #46–#52 appended to §12.
+- `docs/implementation.md` — this M8 section (M8.0–M8.8).
 
 **DoD**:
 1. New spec doc exists and is referenced from architecture §4 and §12.
@@ -229,7 +229,7 @@
 3. Decisions #46–#52 present in architecture §12 with cross-references.
 4. No code under `skills/` or `plugins/` is modified.
 
-→ 设计依据：`docs/v6/router-agent-v6.md` §1–§11
+→ 设计依据：`docs/router-agent.md` §1–§11
 
 #### M8.1 — Schemas + filesystem layout
 
@@ -242,11 +242,11 @@
 - bats: schema validation (positive + negative); atomic-append survives concurrent readers; frontmatter integrity after `decisions[]` append; `_draft_revision` monotonicity.
 
 **DoD**:
-1. All four schemas in `docs/v6/router-agent-v6.md` §4 round-trip through the helpers without loss.
+1. All four schemas in `docs/router-agent.md` §4 round-trip through the helpers without loss.
 2. A malformed `state` value or unknown frontmatter key is rejected with a `path`-tagged error.
 3. Concurrent append from two processes never produces a partial write (verified by a bats stress loop).
 
-→ 设计依据：`docs/v6/router-agent-v6.md` §4
+→ 设计依据：`docs/router-agent.md` §4
 
 #### M8.2 — `router-agent` skill (subagent prompt + spawn entry)
 
@@ -265,7 +265,7 @@
 2. Prompt template covers all 9 items in §5 verbatim or by structural equivalent.
 3. With a stub subagent that only echoes a fixed reply, end-to-end spawn → reply → release lock works.
 
-→ 设计依据：`docs/v6/router-agent-v6.md` §3, §5, §11
+→ 设计依据：`docs/router-agent.md` §3, §5, §11
 
 #### M8.3 — Knowledge + plugin discovery within router agent
 
@@ -282,7 +282,7 @@
 2. ToC for a fixture workspace returns the expected paths and titles.
 3. The 20-doc cap is enforced and surfaces a structured error to the router prompt.
 
-→ 设计依据：`docs/v6/router-agent-v6.md` §5, §7
+→ 设计依据：`docs/router-agent.md` §5, §7
 
 #### M8.4 — Concurrency + lock
 
@@ -298,7 +298,7 @@
 2. Cross-task contention never blocks.
 3. Stale lock with dead pid is recovered automatically; stale lock with live pid is respected.
 
-→ 设计依据：`docs/v6/router-agent-v6.md` §6
+→ 设计依据：`docs/router-agent.md` §6
 
 #### M8.5 — Handoff to orchestrator
 
@@ -314,7 +314,7 @@
 2. Exactly one `orchestrator-tick` invocation occurs in the handoff turn.
 3. The router-agent does not modify `state.json` after handoff (verified by mtime check across a no-op subsequent attempt).
 
-→ 设计依据：`docs/v6/router-agent-v6.md` §8
+→ 设计依据：`docs/router-agent.md` §8
 
 #### M8.6 — Main session protocol (CLAUDE.md) + domain-layering linter
 
@@ -335,7 +335,7 @@
 2. The lint test fails as expected when a forbidden token is intentionally introduced (negative test).
 3. Happy-path simulation (3 turns, confirm on turn 3) ends with `state.json` materialised and exit JSON `action: handoff`.
 
-→ 设计依据：`docs/v6/router-agent-v6.md` §2, §3, §9
+→ 设计依据：`docs/router-agent.md` §2, §3, §9
 
 #### M8.7 — Remove router-triage
 
@@ -353,7 +353,7 @@
 2. Full bats suite passes (588 → adjusted count) with `router-triage` deleted.
 3. `_lib/router_select.py` is no longer importable as a CLI entry.
 
-→ 设计依据：`docs/v6/router-agent-v6.md` §10
+→ 设计依据：`docs/router-agent.md` §10
 
 #### M8.8 — Multi-turn E2E acceptance
 
@@ -373,7 +373,7 @@
 3. `tasks/T-A/router-context.md.state == confirmed` and `turn_count == 3`; same shape for T-B.
 4. Combined wall-clock for parallel run ≤ 1.2× the slower task's serial run (loose isolation check).
 
-→ 设计依据：`docs/v6/router-agent-v6.md` §3, §6, §8, §9
+→ 设计依据：`docs/router-agent.md` §3, §6, §8, §9
 
 ---
 
@@ -383,7 +383,7 @@
 > （`<workspace>/.codenook/memory/`）+ **三类自动抽取器**（knowledge /
 > skills / config），把任务执行中沉淀的资产以 patch-first 方式吸收回
 > 项目。Canonical spec：
-> [`docs/v6/memory-and-extraction-v6.md`](../v6/memory-and-extraction-v6.md)；
+> [`docs/memory-and-extraction.md`](./memory-and-extraction.md)；
 > 决策 #53–#59（架构 §13）非协商。M9 是 greenfield 子系统。
 
 **依赖**：M4（tick contract）、M5（config-resolve / secret-scan）、M8（router-agent + spawn.sh）
@@ -393,8 +393,8 @@
 **Scope**：交付 M9 单一规范源；同步架构 §13 与本文 M9 段。
 
 **Deliverables**：
-- `docs/v6/memory-and-extraction-v6.md`（≥ 600 行；14 节）
-- `docs/v6/architecture-v6.md` §13「Memory Layer (M9)」+ 决策 #53–#59
+- `docs/memory-and-extraction.md`（≥ 600 行；14 节）
+- `docs/architecture.md` §13「Memory Layer (M9)」+ 决策 #53–#59
 - 本节（M9.0–M9.8）
 
 **DoD**：
@@ -403,7 +403,7 @@
 3. `skills/`、`plugins/` 下无代码改动
 4. 关联 AC：AC-DOC-1, AC-DOC-2
 
-→ 设计依据：`docs/v6/memory-and-extraction-v6.md` §1–§14
+→ 设计依据：`docs/memory-and-extraction.md` §1–§14
 
 #### M9.1 — Memory 布局 + `_lib/memory_layer.py`
 
@@ -588,7 +588,7 @@ spawn.sh handoff 物化双层资产；引入 token 预算估算与裁剪。
 > 在 M9 memory 层之上引入**任务父子链接**：新任务创建时由相似度
 > 评分推荐 top-3 候选父任务；用户确认后，router-agent 在每次 spawn
 > 时沿祖先链 LLM 摘要并注入 `{{TASK_CHAIN}}` slot。Canonical spec：
-> [`docs/v6/task-chains-v6.md`](../v6/task-chains-v6.md)。M10 是 M9
+> [`docs/task-chains.md`](./task-chains.md)。M10 是 M9
 > 的纯增量叠加：不修改 memory 语义、不改写 plugin 层、`parent_id` /
 > `chain_root` 作为 `state.json` 的可选字段共存。
 
@@ -602,7 +602,7 @@ M8（router-agent + render_prompt 槽位机制）、M9（extract_audit logger
 schema 增量；在本文新增 M10 章节。
 
 **Deliverables**：
-- `docs/v6/task-chains-v6.md`（≥ 600 行；12 节 + 3 附录）
+- `docs/task-chains.md`（≥ 600 行；12 节 + 3 附录）
 - 本节（M10.0–M10.7）
 
 **DoD**：
@@ -611,7 +611,7 @@ schema 增量；在本文新增 M10 章节。
 3. `skills/`、`plugins/`、`schemas/` 下无代码改动
 4. 关联 AC：AC-CHAIN-MOD-1, AC-CHAIN-COMPAT-1（仅文档定义）
 
-→ 设计依据：`docs/v6/task-chains-v6.md` §1–§12
+→ 设计依据：`docs/task-chains.md` §1–§12
 
 #### M10.0.1 — Test cases doc
 
@@ -619,7 +619,7 @@ schema 增量；在本文新增 M10 章节。
 case 索引。
 
 **Deliverables**：
-- `docs/v6/m10-test-cases.md`：每条 AC 对应 1+ TC-M10.x-NN，含
+- `docs/m10-test-cases.md`：每条 AC 对应 1+ TC-M10.x-NN，含
   前置条件、步骤、期望、对应 bats 文件名
 - `helpers/m10_chain.bash`：M10 通用 bats helper（构造 fake task 树、
   断言 chain walk 顺序、断言 audit 行存在）

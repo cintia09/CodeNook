@@ -3,7 +3,7 @@
 #
 # M1 scope: subcommand dispatcher only. Each non-meta subcommand body is a
 # stub that prints "TODO: ..." and exits 2 (not implemented). Real logic is
-# implemented incrementally in M2..M5 per docs/v6/implementation-v6.md.
+# implemented incrementally in M2..M5 per docs/implementation.md.
 
 set -euo pipefail
 

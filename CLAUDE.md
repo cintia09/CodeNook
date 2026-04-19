@@ -10,7 +10,7 @@
 > lives behind the router-agent skill; all per-phase work lives behind
 > `orchestrator-tick`.
 >
-> Canonical layering reference: `docs/v6/router-agent-v6.md` §2.
+> Canonical layering reference: `docs/router-agent.md` §2.
 
 ---
 
@@ -207,7 +207,7 @@ ASCII 1:4）。当估算 ≥ 80% model window 水位时（water-mark），按以
 `extractor-batch.sh --reason context-pressure` 的退出 JSON 当字符串转给
 用户。完整水位触发协议（路径 A / 路径 B、幂等键、`MEMORY_INDEX` 注入、
 `extraction-log.jsonl` 审计语义、context-pressure 事件类型）见
-`docs/v6/memory-and-extraction-v6.md` §5 / §8。
+`docs/memory-and-extraction.md` §5 / §8。
 
 ---
 

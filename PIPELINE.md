@@ -1,4 +1,4 @@
-# CodeNook Pipeline — v0.11 / v6 Runtime Reference
+# CodeNook Pipeline — v0.11 Runtime Reference
 
 This document describes the end-to-end runtime of CodeNook v0.11.1: how a user
 turn becomes a task, how a task advances through phases, how memory accumulates,
@@ -275,7 +275,7 @@ python3 skills/codenook-core/_lib/secret_scan.py <changed-files>
 # 5. Greenfield grep on user-facing docs (legacy version phrasing must be empty)
 #    Pattern enforced by CI; expected output: GREENFIELD CLEAN
 bash skills/codenook-core/tests/greenfield-docs.sh \
-    README.md PIPELINE.md docs/v6/README.md blog/vibe-coding-and-multi-agent.md
+    README.md PIPELINE.md docs/README.md blog/vibe-coding-and-multi-agent.md
 ```
 
 CI fails on any non-zero exit.

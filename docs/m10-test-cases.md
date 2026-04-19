@@ -5,10 +5,10 @@
 > 适用范围：M10.1 – M10.7 全部里程碑
 >
 > 关联文档：
-> - `docs/v6/task-chains-v6.md`（M10 唯一规范源；§1–§12 + 附录）
-> - `docs/v6/implementation-v6.md` §M10.0–M10.7（每里程碑文件 / 测试 / DoD）
-> - `docs/v6/memory-and-extraction-v6.md` §6（M9 mock LLM 协议，本文档 §0.3 沿用）
-> - `docs/v6/architecture-v6.md` §13（Memory Layer 决策；M10 不修改之）
+> - `docs/task-chains.md`（M10 唯一规范源；§1–§12 + 附录）
+> - `docs/implementation.md` §M10.0–M10.7（每里程碑文件 / 测试 / DoD）
+> - `docs/memory-and-extraction.md` §6（M9 mock LLM 协议，本文档 §0.3 沿用）
+> - `docs/architecture.md` §13（Memory Layer 决策；M10 不修改之）
 >
 > 本文档是 M10 TDD 阶段的**唯一**测试合同：所有 M10.x 的 bats / 集成 / E2E
 > 用例必须先在此文档登记（编号 + 关联 AC + 步骤 + 期望），sub-agent 才能
@@ -107,7 +107,7 @@ M10 仅引入一个 `call_name`：
 |------|------|
 | **ID** | `TC-M10.<milestone>-<NN>` 或 E2E 专用 `TC-M10.7-E2E-NN`，全局可 grep |
 | **类型** | `unit` / `integration` / `e2e` / `perf` / `negative` / `property` |
-| **关联 AC** | 必须能在 `task-chains-v6.md` §12 表格中 grep 到 |
+| **关联 AC** | 必须能在 `task-chains.md` §12 表格中 grep 到 |
 | **前置条件** | 描述 fixture / mock / env，testers 可逐字执行 |
 | **步骤** | 命令或 Python 调用，编号 1..N |
 | **期望** | bats 断言粒度（exit code、stdout/stderr 包含、文件内容、jq path） |
@@ -178,11 +178,11 @@ M10 仅引入一个 `call_name`：
 
 - **关联 AC**: 文档结构合同（spec §1–§12 + 附录）
 - **类型**: integration
-- **前置条件**: `docs/v6/task-chains-v6.md` 已存在
+- **前置条件**: `docs/task-chains.md` 已存在
 - **步骤**:
-  1. `grep -c '^## ' docs/v6/task-chains-v6.md`
-  2. `grep -E '^## (1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|11\.|12\.) ' docs/v6/task-chains-v6.md | wc -l`
-  3. `grep -c '^## 附录 [A-C]' docs/v6/task-chains-v6.md`
+  1. `grep -c '^## ' docs/task-chains.md`
+  2. `grep -E '^## (1\.|2\.|3\.|4\.|5\.|6\.|7\.|8\.|9\.|10\.|11\.|12\.) ' docs/task-chains.md | wc -l`
+  3. `grep -c '^## 附录 [A-C]' docs/task-chains.md`
 - **期望**:
   - 步骤 1 ≥ 12（顶层节数）
   - 步骤 2 = 12（§1–§12 全在）
@@ -194,7 +194,7 @@ M10 仅引入一个 `call_name`：
 - **类型**: integration
 - **前置条件**: 同上
 - **步骤**:
-  1. `awk '/^## 12\. /,/^## 附录/' docs/v6/task-chains-v6.md | grep -c '^| AC-CHAIN-'`
+  1. `awk '/^## 12\. /,/^## 附录/' docs/task-chains.md | grep -c '^| AC-CHAIN-'`
   2. 解析每行第二列（来源章节），断言取值集合 ⊆ `{§1..§12 子节标号}`
   3. 解析每行最后一列（计划测试文件），断言全部以 `m10-` 或 `m9-` 前缀
 - **期望**:
@@ -206,13 +206,13 @@ M10 仅引入一个 `call_name`：
 - **关联 AC**: greenfield 守门（plan.md §Greenfield rule）
 - **类型**: negative
 - **前置条件**: 同上 + 本测试文档（M10.0.1 产物）也参与扫描
-- **步骤**: 在 `docs/v6/task-chains-v6.md` 与 `docs/v6/m10-test-cases.md` 上
+- **步骤**: 在 `docs/task-chains.md` 与 `docs/m10-test-cases.md` 上
   跑等价于以下命令：
 
   ```bash
   PATTERN=$(printf '\xe8\xbf\x81\xe7\xa7\xbb|migra''tion|v''0\\.''8|\xe5\x85\xbc\xe5\xae\xb9|description\\.md')
-  ! grep -nE "$PATTERN" docs/v6/task-chains-v6.md
-  ! grep -nE "$PATTERN" docs/v6/m10-test-cases.md
+  ! grep -nE "$PATTERN" docs/task-chains.md
+  ! grep -nE "$PATTERN" docs/m10-test-cases.md
   ```
 
   pattern 通过 base64/printf 拼接，避免本文件自身命中（与 M9 §12 同技巧）。
@@ -227,9 +227,9 @@ M10 仅引入一个 `call_name`：
 - **前置条件**: spec §2.3 增量已落 `task-state.schema.json`（M10.1 DoD 项），
   本 case 验证「缺字段不破校验」的合同表述存在于 spec
 - **步骤**:
-  1. `grep -nE 'parent_id.*(optional|可选|null)' docs/v6/task-chains-v6.md`
-  2. `grep -nE 'chain_root.*(optional|可选|缓存)' docs/v6/task-chains-v6.md`
-  3. `grep -n 'AC-CHAIN-COMPAT-1' docs/v6/task-chains-v6.md`
+  1. `grep -nE 'parent_id.*(optional|可选|null)' docs/task-chains.md`
+  2. `grep -nE 'chain_root.*(optional|可选|缓存)' docs/task-chains.md`
+  3. `grep -n 'AC-CHAIN-COMPAT-1' docs/task-chains.md`
 - **期望**: 三步均至少 1 行命中 → 文档已锁定共存语义。
 
 ### TC-M10.0-05 default values appendix B sanity
@@ -238,7 +238,7 @@ M10 仅引入一个 `call_name`：
 - **类型**: integration
 - **前置条件**: 同上
 - **步骤**:
-  1. `awk '/^## 附录 B/,/^## 附录 C/' docs/v6/task-chains-v6.md | grep -cE '^[0-9]+\. '`
+  1. `awk '/^## 附录 B/,/^## 附录 C/' docs/task-chains.md | grep -cE '^[0-9]+\. '`
   2. 校验关键默认值字面量存在：`0.15`、`8192`、`1500`、`100`、`3`
 - **期望**: 步骤 1 ≥ 12（附录 B 列表至少 12 条）；步骤 2 全部命中。
 
@@ -1010,7 +1010,7 @@ M9 baseline regression 全绿；VERSION + CHANGELOG 完成。
 
 review agent 必看清单（与 M9 §11 同结构，针对 M10 调整）：
 
-1. **决策一致性**：本文档的「关联 AC」字段必须能在 `task-chains-v6.md` §12 表格
+1. **决策一致性**：本文档的「关联 AC」字段必须能在 `task-chains.md` §12 表格
    被 grep 到；任何 case 引用了不存在的 AC-CHAIN-* → 阻断。
 2. **附录 B 默认值守恒**：spec §附录 B 的 14 条默认值必须在测试中可见、不被偷
    偷修改：`0.15`（TC-M10.2-02）、`8192`（TC-M10.4-02/08、TC-M10.5-06）、
@@ -1024,7 +1024,7 @@ review agent 必看清单（与 M9 §11 同结构，针对 M10 调整）：
    - **Perf**: TC-M10.4-08, TC-M10.6-02, TC-M10.6-03, TC-M10.5-06
    - **Property**: TC-M10.2-05, TC-M10.4-08
 5. **Audit log schema 锁定**：TC-M10.6-01 是合同测试，schema 任何变更必须先改
-   `task-chains-v6.md` §9.1 再改实现。
+   `task-chains.md` §9.1 再改实现。
 6. **call_name 守恒**：M10 仅引入 `chain_summarize` 一个 call_name；review 时复跑
    `grep -c "call_name=\"chain_summarize\"" skills/codenook-core/skills/builtin/_lib/chain_summarize.py`
    应 ≥ 1，且 grep `call_name=` 在 `_lib/chain_summarize.py` 内**唯一**值为
@@ -1041,8 +1041,8 @@ review agent 必看清单（与 M9 §11 同结构，针对 M10 调整）：
 
 ```bash
 set -e
-DOC=docs/v6/m10-test-cases.md
-SPEC=docs/v6/task-chains-v6.md
+DOC=docs/m10-test-cases.md
+SPEC=docs/task-chains.md
 
 # 1. 行数下限（与 M9 测试文档同等密度）
 test "$(wc -l < $DOC)" -ge 800

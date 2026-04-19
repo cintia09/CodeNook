@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>CodeNook Pipeline — v0.11 Runtime Reference</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">CodeNook Pipeline — v0.11 Runtime Reference</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#codenook-pipeline-v0.11-runtime-reference"
+id="toc-codenook-pipeline-v0.11-runtime-reference">CodeNook Pipeline —
+v0.11 Runtime Reference</a>
+<ul>
+<li><a href="#lifecycles-at-a-glance" id="toc-lifecycles-at-a-glance">1.
+Lifecycles at a glance</a></li>
+<li><a href="#workspace-setup" id="toc-workspace-setup">2. Workspace
+setup</a>
+<ul>
+<li><a href="#seed" id="toc-seed">2.1 Seed</a></li>
+<li><a href="#plugin-install-12-gates"
+id="toc-plugin-install-12-gates">2.2 Plugin install (12 gates)</a></li>
+</ul></li>
+<li><a href="#per-turn-pipeline-router-agent"
+id="toc-per-turn-pipeline-router-agent">3. Per-turn pipeline
+(router-agent)</a>
+<ul>
+<li><a href="#prepare" id="toc-prepare">3.1 Prepare</a></li>
+<li><a href="#sub-agent-run" id="toc-sub-agent-run">3.2 Sub-agent
+run</a></li>
+<li><a href="#confirm" id="toc-confirm">3.3 Confirm</a></li>
+</ul></li>
+<li><a href="#per-task-pipeline-orchestrator-tick"
+id="toc-per-task-pipeline-orchestrator-tick">4. Per-task pipeline
+(orchestrator-tick)</a>
+<ul>
+<li><a href="#the-development-plugins-8-phases"
+id="toc-the-development-plugins-8-phases">4.1 The development plugin’s 8
+phases</a></li>
+</ul></li>
+<li><a href="#memory-extraction-lifecycle"
+id="toc-memory-extraction-lifecycle">5. Memory &amp; extraction
+lifecycle</a>
+<ul>
+<li><a href="#patch-or-create" id="toc-patch-or-create">5.1
+Patch-or-create</a></li>
+<li><a href="#water-marks" id="toc-water-marks">5.2 Water-marks</a></li>
+<li><a href="#workspace-promotion" id="toc-workspace-promotion">5.3
+Workspace promotion</a></li>
+</ul></li>
+<li><a href="#task-chains" id="toc-task-chains">6. Task chains</a>
+<ul>
+<li><a href="#parent-suggestion" id="toc-parent-suggestion">6.1 Parent
+suggestion</a></li>
+<li><a href="#chain-context-injection"
+id="toc-chain-context-injection">6.2 Chain context injection</a></li>
+</ul></li>
+<li><a href="#quality-gates-per-commit"
+id="toc-quality-gates-per-commit">7. Quality gates per commit</a></li>
+<li><a href="#where-to-look-when-something-breaks"
+id="toc-where-to-look-when-something-breaks">8. Where to look when
+something breaks</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="codenook-pipeline-v0.11-runtime-reference">CodeNook Pipeline —
+v0.11 Runtime Reference</h1>
+<p>This document describes the end-to-end runtime of CodeNook v0.11.1:
+how a user turn becomes a task, how a task advances through phases, how
+memory accumulates, and how task chains stitch follow-up work back to
+its ancestors.</p>
+<p>The kernel is <code>skills/codenook-core/</code>; the canonical
+software-engineering plugin is <code>plugins/development/</code>.
+Everything else is per-workspace state under
+<code>.codenook/</code>.</p>
+<hr />
+<h2 id="lifecycles-at-a-glance">1. Lifecycles at a glance</h2>
+<pre><code>┌─ workspace ───────────────────────────────────────────────────────────────┐
+│                                                                          │
+│   init.sh                init.sh --install-plugin                        │
+│      │                            │                                      │
+│      ▼                            ▼                                      │
+│   .codenook/ seeded   →   .codenook/plugins/&lt;p&gt;/  (atomic, read-only)    │
+│                                                                          │
+│   ┌─ per turn ──────────────────────────────────────────────────────┐    │
+│   │ user turn ──► router-agent.spawn (prepare) ──► user confirms    │    │
+│   │                       │                                         │    │
+│   │                       ▼                                         │    │
+│   │           spawn --confirm  ─►  first orchestrator-tick          │    │
+│   │                                                                 │    │
+│   │   ┌─ per task ───────────────────────────────────────────────┐  │    │
+│   │   │ tick → load phase → dispatch sub-agent → read verdict    │  │    │
+│   │   │      → post_validate → extractor-batch → hitl gate? →    │  │    │
+│   │   │      → advance per transitions.yaml → tick again         │  │    │
+│   │   └──────────────────────────────────────────────────────────┘  │    │
+│   └─────────────────────────────────────────────────────────────────┘    │
+└──────────────────────────────────────────────────────────────────────────┘</code></pre>
+<p>There are three nested loops: workspace (one-shot install), turn (one
+router-agent invocation per user utterance), and task
+(orchestrator-tick, called once per phase).</p>
+<hr />
+<h2 id="workspace-setup">2. Workspace setup</h2>
+<h3 id="seed">2.1 Seed</h3>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">init.sh</span></span></code></pre></div>
+<p>Creates <code>.codenook/</code> with an empty <code>tasks/</code>, an
+empty <code>memory/</code>, a default <code>config.yaml</code>, and a
+<code>state.json</code> skeleton. No plugin is installed yet.</p>
+<h3 id="plugin-install-12-gates">2.2 Plugin install (12 gates)</h3>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">init.sh</span> <span class="at">--install-plugin</span> <span class="op">&lt;</span>path<span class="kw">|</span><span class="ex">url</span><span class="op">&gt;</span></span></code></pre></div>
+<p>The <code>install-orchestrator</code> skill runs gates G01–G12
+against the staged tarball and only commits to
+<code>.codenook/plugins/&lt;id&gt;/</code> on success.</p>
+<table>
+<colgroup>
+<col style="width: 27%" />
+<col style="width: 31%" />
+<col style="width: 40%" />
+</colgroup>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Skill</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>G01</td>
+<td><code>plugin-format</code></td>
+<td>Well-formedness, no escaping symlinks</td>
+</tr>
+<tr>
+<td>G02</td>
+<td><code>plugin-schema</code></td>
+<td><code>plugin.yaml</code> schema validation</td>
+</tr>
+<tr>
+<td>G03</td>
+<td><code>plugin-id-validate</code></td>
+<td>Id regex + reserved + already-installed</td>
+</tr>
+<tr>
+<td>G04</td>
+<td><code>plugin-version-check</code></td>
+<td>SemVer + <code>--upgrade</code> strict-greater</td>
+</tr>
+<tr>
+<td>G05</td>
+<td><code>plugin-signature</code></td>
+<td>Optional sha256 (when <code>CODENOOK_REQUIRE_SIG</code>)</td>
+</tr>
+<tr>
+<td>G06</td>
+<td><code>plugin-deps-check</code></td>
+<td><code>requires.core_version</code> comparator</td>
+</tr>
+<tr>
+<td>G07</td>
+<td><code>plugin-subsystem-claim</code></td>
+<td><code>declared_subsystems</code> collision detection</td>
+</tr>
+<tr>
+<td>G08</td>
+<td><code>sec-audit</code></td>
+<td>Workspace security scan</td>
+</tr>
+<tr>
+<td>G09</td>
+<td>inline</td>
+<td>Disk-quota check</td>
+</tr>
+<tr>
+<td>G10</td>
+<td><code>plugin-shebang-scan</code></td>
+<td>Shebang allowlist for <code>+x</code> files</td>
+</tr>
+<tr>
+<td>G11</td>
+<td><code>plugin-path-normalize</code></td>
+<td>No symlinks; no abs / <code>~</code> / <code>..</code> in YAML
+paths</td>
+</tr>
+<tr>
+<td>G12</td>
+<td>inline</td>
+<td>Atomic commit (rename staged tree into place)</td>
+</tr>
+</tbody>
+</table>
+<p>After install, the plugin tree is <strong>read-only</strong> by
+contract — <code>plugin_readonly</code> verifies this on every kernel
+invocation.</p>
+<hr />
+<h2 id="per-turn-pipeline-router-agent">3. Per-turn pipeline
+(router-agent)</h2>
+<p>The main session (Claude Code or Copilot CLI) invokes
+<code>skills/builtin/router-agent/spawn.sh</code> once per user
+turn.</p>
+<h3 id="prepare">3.1 Prepare</h3>
+<pre><code>spawn.sh --task-id T-NNN --workspace &lt;ws&gt; --user-turn-file &lt;f&gt;</code></pre>
+<p><code>render_prompt.py</code> runs deterministically (no LLM)
+and:</p>
+<ol type="1">
+<li>Acquires a per-task fcntl lock on
+<code>tasks/&lt;tid&gt;/.lock</code>.</li>
+<li>Computes the four prompt slots:
+<ul>
+<li><code>{{MEMORY_INDEX}}</code> — <code>_lib/memory_index.py</code>
+digest of <code>memory/knowledge/</code> and
+<code>memory/config.yaml</code> (token-budgeted).</li>
+<li><code>{{PLUGINS_INDEX}}</code> — list of installed plugins with
+one-line summaries.</li>
+<li><code>{{TASK_CHAIN}}</code> — <code>_lib/chain_summarize.py</code>
+output if a parent is set, otherwise empty.</li>
+<li><code>{{USER_TURN}}</code> — verbatim user utterance.</li>
+</ul></li>
+<li>Renders <code>prompt.md</code> into
+<code>tasks/&lt;tid&gt;/.router-prompt.md</code>.</li>
+<li>Emits a JSON envelope telling the host runtime to spawn a Task
+sub-agent with that prompt.</li>
+</ol>
+<h3 id="sub-agent-run">3.2 Sub-agent run</h3>
+<p>The router-agent sub-agent (default model:
+<code>claude-opus-4.7</code>) reads the rendered prompt and writes back
+three artefacts:</p>
+<table>
+<colgroup>
+<col style="width: 40%" />
+<col style="width: 60%" />
+</colgroup>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tasks/&lt;tid&gt;/router-context.md</code></td>
+<td>What the agent observed about the workspace</td>
+</tr>
+<tr>
+<td><code>tasks/&lt;tid&gt;/router-reply.md</code></td>
+<td>Conversational reply for the user</td>
+</tr>
+<tr>
+<td><code>tasks/&lt;tid&gt;/draft-config.yaml</code></td>
+<td>Proposed plugin, phase entry, dual_mode, model tier, parent
+task</td>
+</tr>
+</tbody>
+</table>
+<p>If a parent task is suggested, <code>_lib/parent_suggester.py</code>
+has already computed the Jaccard top-3 candidates and they are presented
+inline.</p>
+<h3 id="confirm">3.3 Confirm</h3>
+<p>Once the user confirms (<code>spawn.sh --confirm …</code>),
+<code>render_prompt.py</code>:</p>
+<ol type="1">
+<li>Materialises <code>draft-config.yaml</code> into
+<code>tasks/&lt;tid&gt;/state.json</code>.</li>
+<li>Overlays the chosen plugin and the memory layer into the task prompt
+directory (<code>_lib/workspace_overlay.py</code>).</li>
+<li>Invokes <code>orchestrator-tick</code> for the first time.</li>
+</ol>
+<hr />
+<h2 id="per-task-pipeline-orchestrator-tick">4. Per-task pipeline
+(orchestrator-tick)</h2>
+<p><code>tick.sh --task T-NNN</code> advances the task by exactly one
+phase.</p>
+<pre><code>tick
+ │
+ ├─ resolve current phase from plugins/&lt;p&gt;/phases.yaml
+ │
+ ├─ entry-questions check (entry-questions.yaml)
+ │     └─ block if any required state field missing
+ │
+ ├─ dispatch_subagent
+ │     ├─ render manifest-templates/phase-N-&lt;role&gt;.md
+ │     │     with role profile, criteria-&lt;phase&gt;.md, ancestor context
+ │     ├─ resolve model (task → phase → role → tier_* → platform default)
+ │     └─ spawn sub-agent; wait for outputs/phase-N-&lt;role&gt;.md
+ │
+ ├─ read_verdict
+ │     └─ parse YAML frontmatter (verdict ∈ {ok, needs_revision, blocked})
+ │
+ ├─ post_validate (if phases.yaml declares post_validate)
+ │     └─ run validators/post-&lt;phase&gt;.sh; non-zero ⇒ verdict = needs_revision
+ │
+ ├─ extractor-batch (after_phase hook)
+ │     └─ see §5
+ │
+ ├─ open HITL gate (if phases.yaml declares gate)
+ │     └─ enqueue to .codenook/queue/hitl-&lt;gate&gt;; tick exits 1 (blocked)
+ │
+ └─ advance via transitions.yaml
+       ok            → next phase
+       needs_revision→ replay current phase (retry counter += 1)
+       blocked       → exit 1 (blocked)</code></pre>
+<p>Exit codes: <code>0</code> advanced / waiting / done · <code>1</code>
+blocked (entry questions, HITL, max_iterations, error) · <code>2</code>
+usage error · <code>3</code> legacy idle / terminal phase.</p>
+<h3 id="the-development-plugins-8-phases">4.1 The development plugin’s 8
+phases</h3>
+<table>
+<colgroup>
+<col style="width: 8%" />
+<col style="width: 18%" />
+<col style="width: 16%" />
+<col style="width: 21%" />
+<col style="width: 16%" />
+<col style="width: 18%" />
+</colgroup>
+<thead>
+<tr>
+<th>#</th>
+<th>Phase</th>
+<th>Role</th>
+<th>Output</th>
+<th>Gate</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>clarify</code></td>
+<td>clarifier</td>
+<td><code>outputs/phase-1-clarifier.md</code></td>
+<td>—</td>
+<td>turns the user’s vague request into a testable spec</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>design</code></td>
+<td>designer</td>
+<td><code>outputs/phase-2-designer.md</code></td>
+<td><code>design_signoff</code></td>
+<td>dual_mode_compatible</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>plan</code></td>
+<td>planner</td>
+<td><code>outputs/phase-3-planner.md</code></td>
+<td>—</td>
+<td><code>allows_fanout</code> (sub-tasks seeded if
+<code>decomposed=true</code>)</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>implement</code></td>
+<td>implementer</td>
+<td><code>outputs/phase-4-implementer.md</code></td>
+<td><code>pre_test_review</code></td>
+<td>dual_mode_compatible ·
+<code>post_validate=validators/post-implement.sh</code> ·
+<code>supports_iteration</code> · <code>allows_fanout</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>test</code></td>
+<td>tester</td>
+<td><code>outputs/phase-5-tester.md</code></td>
+<td>—</td>
+<td><code>post_validate=validators/post-test.sh</code> ·
+<code>supports_iteration</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>accept</code></td>
+<td>acceptor</td>
+<td><code>outputs/phase-6-acceptor.md</code></td>
+<td><code>acceptance</code></td>
+<td></td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>validate</code></td>
+<td>validator</td>
+<td><code>outputs/phase-7-validator.md</code></td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>ship</code></td>
+<td>reviewer</td>
+<td><code>outputs/phase-8-reviewer.md</code></td>
+<td>—</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>Each role has a profile in
+<code>plugins/development/roles/&lt;role&gt;.md</code> that pins the
+<code>one_line_job</code>, the verdict enum, and the dispatch contract.
+Quality criteria for the three high-stakes phases live in
+<code>plugins/development/prompts/criteria-{implement,test,accept}.md</code>.</p>
+<hr />
+<h2 id="memory-extraction-lifecycle">5. Memory &amp; extraction
+lifecycle</h2>
+<p><code>extractor-batch</code> runs after every phase. It invokes three
+sub-extractors:</p>
+<table>
+<colgroup>
+<col style="width: 34%" />
+<col style="width: 15%" />
+<col style="width: 18%" />
+<col style="width: 31%" />
+</colgroup>
+<thead>
+<tr>
+<th>Sub-extractor</th>
+<th>Reads</th>
+<th>Writes</th>
+<th>Per-task cap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>knowledge-extractor</code></td>
+<td>role output + criteria</td>
+<td><code>memory/knowledge/&lt;topic&gt;.md</code> (patch or
+create)</td>
+<td>3</td>
+</tr>
+<tr>
+<td><code>skill-extractor</code></td>
+<td>role output</td>
+<td><code>memory/skills/&lt;name&gt;/SKILL.md</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>config-extractor</code></td>
+<td>role output</td>
+<td><code>memory/config.yaml</code> (single <code>entries[]</code>
+log)</td>
+<td>5</td>
+</tr>
+</tbody>
+</table>
+<h3 id="patch-or-create">5.1 Patch-or-create</h3>
+<p>For each candidate extraction, <code>_lib/memory_layer.py</code>:</p>
+<ol type="1">
+<li>Computes a content hash; bails if the hash already exists in
+<code>memory/history/extraction-log.jsonl</code>.</li>
+<li>Asks the LLM (<code>_lib/llm_call.py</code>) to compare the
+candidate against the pre-computed <code>memory_index</code> digest of
+all current notes.</li>
+<li>The LLM returns either
+<code>{action: patch, target: &lt;path&gt;, diff: …}</code> or
+<code>{action: create, topic: &lt;slug&gt;, body: …}</code>.</li>
+<li>Atomic write under <code>memory/</code>; append a JSONL audit
+entry.</li>
+</ol>
+<h3 id="water-marks">5.2 Water-marks</h3>
+<p>The 80% prompt-budget water-mark is enforced by
+<code>_lib/token_estimate.py</code>. When the running prompt for the
+next phase would exceed 80% of the model’s context window (computed from
+<code>state.json.model_catalog</code>), <code>extractor-batch</code>
+skips the non-essential extractions for that round and emits a
+<code>truncated</code> audit kind.</p>
+<h3 id="workspace-promotion">5.3 Workspace promotion</h3>
+<p>The <code>distiller</code> skill promotes plugin-local notes to
+workspace level when the plugin’s
+<code>plugin.yaml.knowledge.produces.promote_to_workspace_when</code>
+boolean expressions evaluate to true. The expression context includes
+hit-count, cross-task references, and explicit
+<code>promote: true</code> directives in the note’s frontmatter.</p>
+<hr />
+<h2 id="task-chains">6. Task chains</h2>
+<h3 id="parent-suggestion">6.1 Parent suggestion</h3>
+<p>Before the router-agent presents <code>draft-config.yaml</code>,
+<code>_lib/parent_suggester.py</code>:</p>
+<ol type="1">
+<li>Loads every active task’s title and last-phase summary.</li>
+<li>Tokenises the user turn and computes Jaccard similarity against each
+candidate.</li>
+<li>Returns the top-3 with scores plus an <code>independent</code>
+option.</li>
+</ol>
+<h3 id="chain-context-injection">6.2 Chain context injection</h3>
+<p>If the user picks a parent (or chain of ancestors),
+<code>_lib/chain_summarize.py</code>:</p>
+<ol type="1">
+<li>Walks ancestors from root → child via
+<code>state.json.parent_task_id</code>.</li>
+<li>Two-pass LLM compression — pass 1 summarises each ancestor
+individually; pass 2 merges the summaries into a single ≤8K-token
+narrative.</li>
+<li>Injects the narrative into the child task’s prompt as
+<code>{{TASK_CHAIN}}</code>.</li>
+</ol>
+<p>This is what makes follow-up turns like <em>“now add refresh-token
+support”</em> inherit the original <em>“add JWT login”</em> design
+without dragging in unrelated history.</p>
+<hr />
+<h2 id="quality-gates-per-commit">7. Quality gates per commit</h2>
+<p>Every commit on this repo passes the following before merge to
+<code>main</code>:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Full bats sweep</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">bats</span> skills/codenook-core/tests/                       <span class="co"># 851 / 851 expected</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. CLAUDE.md linter</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> skills/codenook-core/_lib/claude_md_linter.py <span class="at">--check-claude-md</span> CLAUDE.md</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Plugin read-only invariant</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> skills/codenook-core/_lib/plugin_readonly.py <span class="at">--target</span> . <span class="at">--json</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. Secret scan</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> skills/codenook-core/_lib/secret_scan.py <span class="op">&lt;</span>changed-files<span class="op">&gt;</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. Greenfield grep on user-facing docs (legacy version phrasing must be empty)</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="co">#    Pattern enforced by CI; expected output: GREENFIELD CLEAN</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> skills/codenook-core/tests/greenfield-docs.sh <span class="dt">\</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    README.md PIPELINE.md docs/README.md blog/vibe-coding-and-multi-agent.md</span></code></pre></div>
+<p>CI fails on any non-zero exit.</p>
+<hr />
+<h2 id="where-to-look-when-something-breaks">8. Where to look when
+something breaks</h2>
+<table>
+<colgroup>
+<col style="width: 32%" />
+<col style="width: 67%" />
+</colgroup>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>First file to read</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tick exits 1 immediately</td>
+<td><code>tasks/&lt;tid&gt;/audit/tick-*.json</code> (latest)</td>
+</tr>
+<tr>
+<td>Sub-agent verdict missing</td>
+<td><code>tasks/&lt;tid&gt;/outputs/phase-N-&lt;role&gt;.md</code>
+(frontmatter parse)</td>
+</tr>
+<tr>
+<td>Memory write failed</td>
+<td><code>memory/history/extraction-log.jsonl</code> (last entry)</td>
+</tr>
+<tr>
+<td>HITL never resolves</td>
+<td><code>.codenook/queue/hitl-&lt;gate&gt;/</code> (queue-runner
+state)</td>
+</tr>
+<tr>
+<td>Plugin install failed</td>
+<td><code>install-orchestrator</code> JSON output (gate id +
+reason)</td>
+</tr>
+<tr>
+<td>Router-agent loops</td>
+<td><code>tasks/&lt;tid&gt;/.router-prompt.md</code> (slot
+rendering)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><em>Generated for CodeNook v0.11.1 — kernel + plugin runtime
+reference.</em></p>
+</body>
+</html>

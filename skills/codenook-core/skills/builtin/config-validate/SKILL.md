@@ -47,5 +47,5 @@ schema's `deprecated:` list emit warnings.
 
 - M1 scope: enough coverage for DoD fields (`models.default`, `hitl.mode`,
   `concurrency.max_parallel`). Grow the schema as subsystems land.
-- M5 will layer plugin-specific schemas on top (see implementation-v6.md
+- M5 will layer plugin-specific schemas on top (see implementation.md
   §M5.2).

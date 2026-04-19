@@ -9,7 +9,7 @@ Selected by the M7 router whenever no specialised plugin
 
 ## Pinned design
 
-Per `docs/v6/implementation-v6.md` §M7.1 (L833-846) the spec lists
+Per `docs/implementation.md` §M7.1 (L833-846) the spec lists
 phases `clarify / analyze / execute / deliver` with roles
 `clarifier / analyzer / executor / deliverer`. The M7 task prompt
 mentions an alternative wording (`clarify -> execute -> review -> ship`,

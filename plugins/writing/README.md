@@ -6,7 +6,7 @@ A v6 CodeNook plugin that drives long-form authoring tasks through a
 
 ## Pinned design
 
-The M7 task prompt and `docs/v6/implementation-v6.md` §M7.2 (L869-875)
+The M7 task prompt and `docs/implementation.md` §M7.2 (L869-875)
 disagree on naming. We pin to the **task prompt**:
 
 - Phases: `outline / draft / review / revise / publish`

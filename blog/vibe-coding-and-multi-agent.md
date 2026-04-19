@@ -192,7 +192,7 @@ Before: humans design, humans code, humans test. Now: agents design, agents code
 
 This may be the ultimate form of Vibe Coding — not one person endlessly going back and forth with one Agent, but an **agent team** with a deterministic kernel, a swappable plugin layer, and a memory layer that actually remembers — collaborating like a real software development team.
 
-The framework realising these ideas today is CodeNook v0.11. The kernel is `skills/codenook-core/`. The pipeline is `plugins/development/`. The runtime is `.codenook/`. The design archive — 9 design docs, 117 acceptance tests, 100 PASS / 13 PARTIAL / 4 SKIP — is under [`docs/v6/`](../docs/v6/README.md).
+The framework realising these ideas today is CodeNook v0.11. The kernel is `skills/codenook-core/`. The pipeline is `plugins/development/`. The runtime is `.codenook/`. The design archive — 9 design docs, 117 acceptance tests, 100 PASS / 13 PARTIAL / 4 SKIP — is under [`docs/`](../docs/README.md).
 
 And the interesting part? This framework itself was built by agents.
 

@@ -30,4 +30,4 @@ preflight.sh --task <T-NNN> [--workspace <dir>] [--json]
 }
 ```
 
-→ Design basis: architecture-v6.md §3.1.3 (orchestrator-tick prerequisites)
+→ Design basis: architecture.md §3.1.3 (orchestrator-tick prerequisites)

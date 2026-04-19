@@ -13,7 +13,7 @@ assertions continue to pass.
 - `skills/codenook-v5-poc/` deleted in full (79 files, 668 KB,
   11,856 LOC). The v5 monolithic PoC has been the historical
   predecessor of the v6 plugin architecture (codenook-core +
-  plugins/) shipping since v0.10. Per `docs/v6/architecture-v6.md`
+  plugins/) shipping since v0.10. Per `docs/architecture.md`
   §9, v5 is now retired. No source under `skills/codenook-core/`,
   `skills/codenook-init/`, or `plugins/` referenced v5-poc — verified
   by repo-wide grep before removal.
@@ -21,7 +21,7 @@ assertions continue to pass.
 ### Updated
 
 - `README.md`: replaced v5.0 POC banner with v0.11.0 / v6 plugin
-  architecture banner; added `docs/v6/` navigation; bumped task-board
+  architecture banner; added `docs/` navigation; bumped task-board
   and config schema examples from version `4.9.5` → `0.11.0`;
   reframed the v3.x / v4.x migration section as a "Historical
   Evolution" section pointing at v6.
@@ -35,7 +35,7 @@ assertions continue to pass.
   `(v5.0 POC)` header annotations.
 - `skills/codenook-core/README.md`: removed "v5 remains the working
   end-to-end reference" note.
-- `docs/v6/{README,architecture-v6,implementation-v6,test-plan-v6}.md`:
+- `docs/{README,architecture,implementation,test-plan}.md`:
   flipped status from "design draft / shipping v5" to "implemented in
   v0.10 / v0.11"; marked v5 → v6 migration chapters as historical /
   completed archive.
@@ -52,7 +52,7 @@ assertions continue to pass.
 Surgical release with **no new functional surface**. Three workstreams:
 
 1. Reconcile the 8 spec/code inconsistencies + 10 spec omissions
-   catalogued in `docs/v6/requirements-v0.10.md` §A.1 / §A.2.
+   catalogued in `docs/requirements.md` §A.1 / §A.2.
 2. Address two of the three M10 known-limitations
    (MINOR-04 / MINOR-06) with diagnostic-only hardening; defer the
    third (MEDIUM-04 snapshot TOCTOU) to v0.12 alongside the
@@ -60,7 +60,7 @@ Surgical release with **no new functional surface**. Three workstreams:
 3. Drop two pieces of confirmed-dead code (`_SECRET_PATTERNS` alias,
    `now_safe_iso` stub).
 
-Decision rationale lives in `docs/v6/m11-decisions.md`.
+Decision rationale lives in `docs/m11-decisions.md`.
 
 #### Highlights
 
@@ -83,26 +83,26 @@ Decision rationale lives in `docs/v6/m11-decisions.md`.
   and ≤500 B per task; `plugin_readonly --target . --json` reports
   `writes_to_plugins: []`; `claude_md_linter` exits 0.
 
-#### Spec patches (per docs/v6/m11-decisions.md)
+#### Spec patches (per docs/m11-decisions.md)
 
 | ID | Where patched | Topic |
 |----|---------------|-------|
-| A1-1 | requirements-v0.10.md FR-TASK-3 | dual_mode optional, defaults to `serial` |
-| A1-2 | requirements-v0.10.md FR-CHAIN-2 + L-9 | `walk_ancestors` lib default `None`, router site default 100 |
-| A1-3 | requirements-v0.10.md G05 row | `plugin.yaml.sig` lenient first-non-blank-token compare |
-| A1-4 | requirements-v0.10.md FR-TASK-4 + FR-EXTRACT-4 + NFR-REL-4 + memory-and-extraction-v6.md §5.2 | Trigger-key persistence (no 24h auto-expiry) |
-| A1-5 | requirements-v0.10.md FR-EXTRACT-5 | secret_scan = 9 patterns (single source of truth) |
-| A1-7 | requirements-v0.10.md FR-ROUTER-2 | `--confirm` exit 4 enumerates 5 failure paths |
-| A1-8 | requirements-v0.10.md G01 + G11 rows | Symlink policy split (defence in depth) |
-| A2-1 | requirements-v0.10.md FR-SKILL-2 | plugin_readonly standalone CLI mode + default exclusions |
-| A2-2 | requirements-v0.10.md FR-CHAIN-5 | ~70 EN+ZH stopwords + done/cancelled excluded |
-| A2-3 | requirements-v0.10.md FR-ROUTER-3 | task_lock 300 s threshold + unparsable payload conservative |
-| A2-4 | requirements-v0.10.md FR-MEM-4 | `promoted=true` entries never evicted |
-| A2-6 | requirements-v0.10.md FR-EXTRACT-5 | dispatch-audit redaction reuses `_lib/secret_scan` list |
-| A2-7 | requirements-v0.10.md FR-ROUTER-2 | `--user-turn-file -` reads stdin |
-| A2-8 | requirements-v0.10.md FR-DIST-1 | Sandbox blocks `__` and `import` tokens |
-| A2-9 | requirements-v0.10.md FR-EXTRACT-4 | `nohup` detach mechanism |
-| A2-10 | requirements-v0.10.md FR-PLUGIN-MANIFEST + §5.6 | `DEFAULT_PRIORITY = 100` |
+| A1-1 | requirements.md FR-TASK-3 | dual_mode optional, defaults to `serial` |
+| A1-2 | requirements.md FR-CHAIN-2 + L-9 | `walk_ancestors` lib default `None`, router site default 100 |
+| A1-3 | requirements.md G05 row | `plugin.yaml.sig` lenient first-non-blank-token compare |
+| A1-4 | requirements.md FR-TASK-4 + FR-EXTRACT-4 + NFR-REL-4 + memory-and-extraction.md §5.2 | Trigger-key persistence (no 24h auto-expiry) |
+| A1-5 | requirements.md FR-EXTRACT-5 | secret_scan = 9 patterns (single source of truth) |
+| A1-7 | requirements.md FR-ROUTER-2 | `--confirm` exit 4 enumerates 5 failure paths |
+| A1-8 | requirements.md G01 + G11 rows | Symlink policy split (defence in depth) |
+| A2-1 | requirements.md FR-SKILL-2 | plugin_readonly standalone CLI mode + default exclusions |
+| A2-2 | requirements.md FR-CHAIN-5 | ~70 EN+ZH stopwords + done/cancelled excluded |
+| A2-3 | requirements.md FR-ROUTER-3 | task_lock 300 s threshold + unparsable payload conservative |
+| A2-4 | requirements.md FR-MEM-4 | `promoted=true` entries never evicted |
+| A2-6 | requirements.md FR-EXTRACT-5 | dispatch-audit redaction reuses `_lib/secret_scan` list |
+| A2-7 | requirements.md FR-ROUTER-2 | `--user-turn-file -` reads stdin |
+| A2-8 | requirements.md FR-DIST-1 | Sandbox blocks `__` and `import` tokens |
+| A2-9 | requirements.md FR-EXTRACT-4 | `nohup` detach mechanism |
+| A2-10 | requirements.md FR-PLUGIN-MANIFEST + §5.6 | `DEFAULT_PRIORITY = 100` |
 
 #### Fixes
 
@@ -201,8 +201,8 @@ chain roots so cold lookups stay sub-5 ms after the first walk.
     `2` (cycle / corrupt) / `3` (already-attached) / `4` (parent
     attach failed at confirm time).
 
-  Reference: `docs/v6/task-chains-v6.md` §4 (interface) and
-  `docs/v6/m10-test-cases.md` §M10.1 (behavioural test cases).
+  Reference: `docs/task-chains.md` §4 (interface) and
+  `docs/m10-test-cases.md` §M10.1 (behavioural test cases).
 
 #### New library APIs
 
@@ -289,8 +289,8 @@ chain roots so cold lookups stay sub-5 ms after the first walk.
 
 #### Per-milestone
 
-- **M10.0** Spec doc `docs/v6/task-chains-v6.md` (12 sections, 5
-  FR groups, 7 NFR), `docs/v6/m10-test-cases.md` test plan.
+- **M10.0** Spec doc `docs/task-chains.md` (12 sections, 5
+  FR groups, 7 NFR), `docs/m10-test-cases.md` test plan.
 - **M10.1** `_lib/task_chain.py` primitives + state-schema fields
   + CLI; usage errors exit 64 (§4.3); R1 fixes raised
   CorruptChainError on corrupt parent ancestry and warn-class
@@ -327,9 +327,9 @@ new GC CLI.
 
 #### Added — Per-milestone summary
 
-- **M9.0** Spec doc `docs/v6/memory-and-extraction-v6.md` (Hermes-inspired
+- **M9.0** Spec doc `docs/memory-and-extraction.md` (Hermes-inspired
   patch-first pattern, 5 FR groups, 6 NFR, 8 milestones); architecture
-  §13 ratifies M9; implementation-v6.md M9 sections.
+  §13 ratifies M9; implementation.md M9 sections.
 - **M9.1** Memory layout primitives — `_lib/memory_layer.py`
   (knowledge / skill / config + atomic IO + fcntl read-modify-write +
   21-function public API surface) and `_lib/memory_index.py`
@@ -423,8 +423,8 @@ conversation with the user and hands off to `orchestrator-tick` on
 confirmation. **692/692 bats tests green.**
 
 #### Added — Core (`skills/codenook-core/`)
-- **M8.0** Spec doc `docs/v6/router-agent-v6.md` (640 lines) + decisions
-  #46–#52 ratified in architecture-v6.md §12 (router-agent as stateless
+- **M8.0** Spec doc `docs/router-agent.md` (640 lines) + decisions
+  #46–#52 ratified in architecture.md §12 (router-agent as stateless
   subagent, YAML+md context, router calls init-task + first tick,
   300s stale-lock threshold, domain layering, M3 router-triage removed).
 - **M8.1** Schemas + helpers — `_lib/router_context.py`,

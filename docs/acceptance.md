@@ -2,7 +2,7 @@
 
 > 版本：v0.10.0-m10.0 / FAT-Phase2
 > 编写日期：2026-04
-> 关联文档：`docs/v6/requirements-v0.10.md`（SRS，Phase 1）
+> 关联文档：`docs/requirements.md`（SRS，Phase 1）
 > 文档维护者：CodeNook Core Team
 
 ---
@@ -11,7 +11,7 @@
 
 ### 1.1 目的
 
-本文档把 SRS（`requirements-v0.10.md`）每一条 FR / NFR 翻译为**可执行的验收测试用例（Acceptance Test, AT）**。
+本文档把 SRS（`requirements.md`）每一条 FR / NFR 翻译为**可执行的验收测试用例（Acceptance Test, AT）**。
 作为 v0.10 验收阶段的执行清单：
 
 - Phase 2（本文档）：定义全部 AT；
@@ -1164,12 +1164,12 @@ PARTIAL 用例总计：**8** 条（与 §A.1 一一对应）。
 
 ---
 
-## 7. 验收执行汇总表（Phase 3 已填充 — 详见 `acceptance-execution-report-v0.10.md`）
+## 7. 验收执行汇总表（Phase 3 已填充 — 详见 `acceptance-execution-report.md`）
 
 > Phase 3 执行结果（2026-04-20）：**100 PASS / 13 PARTIAL / 4 SKIP / 0 FAIL / 0 BLOCKED**（共 117 AT）。  
 > P0：59 PASS + 7 PARTIAL + 1 SKIP；P1：36 PASS + 5 PARTIAL + 1 SKIP；P2：5 PASS + 1 PARTIAL + 2 SKIP。  
 > 自动化基线：`bats skills/codenook-core/tests/*.bats` → **847/847 PASS**。  
-> 完整状态矩阵、性能数据、SKIP 原因、SPEC-PATCH 列表均见 `docs/v6/acceptance-execution-report-v0.10.md`。
+> 完整状态矩阵、性能数据、SKIP 原因、SPEC-PATCH 列表均见 `docs/acceptance-execution-report.md`。
 
 ### 7.1 FR 用例汇总
 

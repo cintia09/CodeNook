@@ -2,7 +2,7 @@
 
 > 版本：v0.10.0-m10.0  
 > 执行日期：2026-04-20  
-> 验收基线：`docs/v6/acceptance-v0.10.md`（117 AT，P0=66 P1=37 P2=14 — 实际计数）  
+> 验收基线：`docs/acceptance.md`（117 AT，P0=66 P1=37 P2=14 — 实际计数）  
 > 测试工作区：`/Users/mingdw/Documents/workspace/development`  
 > 源仓库：`/Volumes/MacData/MyData/Documents/project/CodeNook`（main @ `dcd9fed v0.10.0-m10.0`）  
 > 自动化基线：`bats skills/codenook-core/tests/*.bats` → **847/847 PASS, exit 0**
@@ -80,8 +80,8 @@ bash /Volumes/MacData/MyData/Documents/project/CodeNook/skills/codenook-core/ski
 
 | 项目 | 改动 | commit | push |
 |------|------|--------|------|
-| FR-INIT-2 spec 与代码对齐 | `docs/v6/requirements-v0.10.md` 第 177–184 行：明确 install.sh 装全局 skill / `init/init.sh` 装工作区 | 待 commit (`docs(v0.10)·SPEC-PATCH FR-INIT-2`) | 与本报告一并推 |
-| 验收报告 | 新增 `docs/v6/acceptance-execution-report-v0.10.md` | 待 commit (`docs(v0.10)·FAT-Phase3 execution report`) | 同上 |
+| FR-INIT-2 spec 与代码对齐 | `docs/requirements.md` 第 177–184 行：明确 install.sh 装全局 skill / `init/init.sh` 装工作区 | 待 commit (`docs(v0.10)·SPEC-PATCH FR-INIT-2`) | 与本报告一并推 |
+| 验收报告 | 新增 `docs/acceptance-execution-report.md` | 待 commit (`docs(v0.10)·FAT-Phase3 execution report`) | 同上 |
 
 > 本轮 90 分钟内未发现需源码修复的 P0/P1 缺陷，**0 source-code commit**。所有偏差均为已知 §6 不一致或 spec 表达不准。
 

@@ -1,4 +1,4 @@
-# CodeNook v6 — Task Chains（任务链：父子链接 + 链感知上下文）
+# CodeNook — Task Chains（任务链：父子链接 + 链感知上下文）
 
 > **Status**: Draft (M10.0). 本文是 M10 全系列里程碑（M10.0–M10.7）的规范来源。
 > M10 在 M9 memory 层与 conversational router-agent 之上引入**任务父子链接**
@@ -8,7 +8,7 @@
 > `parent_id` / `chain_root` 作为 task `state.json` 的可选字段共存。
 >
 > 配套交互式需求/验收文档将在 M10.0.1 测试用例文档中产出
-> （`docs/v6/m10-test-cases.md`）。本文与之一一对应：每条 FR-CHAIN-XXX /
+> （`docs/m10-test-cases.md`）。本文与之一一对应：每条 FR-CHAIN-XXX /
 > AC-CHAIN-XXX / G-CHAIN-X 在本文中至少出现一次以阐明取舍。
 
 ---
@@ -1038,7 +1038,7 @@ CodeNook 当前没有删除任务的官方 CLI（任务只能 cancel）。若用
 
 ## 12. Acceptance Criteria Mapping
 
-下表把本文约束映射到 M10.0.1 测试用例文档（`docs/v6/m10-test-cases.md`）
+下表把本文约束映射到 M10.0.1 测试用例文档（`docs/m10-test-cases.md`）
 将引用的 AC 编号；**测试用例文档以本表为合同**。
 
 | AC ID | 来源章节 | 验收要点 | 计划测试文件 |

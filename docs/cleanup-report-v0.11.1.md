@@ -38,16 +38,16 @@ plugins/development/prompts/criteria-test.md:1     # Test Criteria (v5.0 POC)
 plugins/development/prompts/criteria-accept.md:1   # Acceptance Criteria (v5.0 POC)
 install.sh:4                                  # CodeNook v4.9.5 (stable) + v5.0 POC Installer
 install.sh:7-8                                # Note: v5.0 POC is shipped under skills/codenook-v5-poc/...
-docs/v6/implementation-v6.md:155              ### M6 — 第一个真实 plugin：development（从 v5 codenook-v5-poc 提取）
-docs/v6/test-plan-v6.md:41                    | 复用 v5-poc reports 中的 e2e 剧本 |
+docs/implementation.md:155              ### M6 — 第一个真实 plugin：development（从 v5 codenook-v5-poc 提取）
+docs/test-plan.md:41                    | 复用 v5-poc reports 中的 e2e 剧本 |
 README.md:25                                  v5.0 POC available banner
 README.md:298, 483                            "version": "4.9.5"
 README.md:599, 626                            v4.9.5 migration prose
-docs/v6/README.md:3                           "the shipping product is still v5"
-docs/v6/architecture-v6.md:3                  "未实现"
-docs/v6/architecture-v6.md:1390+              v5 → v6 migration map
-docs/v6/architecture-v6.md:1487               §12 provenance v5-poc reports ref
-docs/v6/test-plan-v6.md:699                   H-001 v5-poc reports ref
+docs/README.md:3                           "the shipping product is still v5"
+docs/architecture.md:3                  "未实现"
+docs/architecture.md:1390+              v5 → v6 migration map
+docs/architecture.md:1487               §12 provenance v5-poc reports ref
+docs/test-plan.md:699                   H-001 v5-poc reports ref
 plugins/development/CHANGELOG.md:3, 8, 13     "ported from v5" entries
 plugins/development/README.md:7, 55           "Ported from the v5.0 PoC" / "M6 DoD diff against v5"
 skills/codenook-core/README.md:6              "v5 PoC … not a drop-in replacement"
@@ -71,7 +71,7 @@ Source-code grep (`.py` / `.sh` / `.bats`) for `codenook-v5-poc` /
 | PIPELINE.md header + footer | **UPDATE → v0.11.0+** (commit 2) |
 | plugins/development {README, CHANGELOG, criteria-{test,accept}} | **UPDATE → v6 framework** (commit 3) |
 | skills/codenook-core/README.md "v5 remains the working reference" | **UPDATE → v5 removed** (commit 3) |
-| docs/v6/{README, architecture-v6, implementation-v6, test-plan-v6} | **MARK AS HISTORICAL / COMPLETED** (commit 3) |
+| docs/{README, architecture, implementation, test-plan} | **MARK AS HISTORICAL / COMPLETED** (commit 3) |
 | CHANGELOG.md `## [5.0.0-poc.1]` entry | **PRESERVE AS HISTORY** (per task spec §G) |
 | skills/codenook-init/* (v4.9.5 banners) | **PRESERVE** — codenook-init is the legacy v4.9.5 stable agent system; its internal version label is intentional and untouched per task scope |
 
@@ -94,17 +94,17 @@ Source-code grep (`.py` / `.sh` / `.bats`) for `codenook-v5-poc` /
 - `install.sh` — banner (L4), v5-poc note (L7-8), `VERSION` fallback (L10)
 - `PIPELINE.md` — header (L1), footer (L211)
 
-### Commit 3 — plugins & docs/v6 (`49faf9a`)
+### Commit 3 — plugins & docs (`49faf9a`)
 
 - `plugins/development/README.md` — ported→built; M6 DoD note
 - `plugins/development/CHANGELOG.md` — 0.1.0 entry rewrite
 - `plugins/development/prompts/criteria-test.md` — drop `(v5.0 POC)`
 - `plugins/development/prompts/criteria-accept.md` — drop `(v5.0 POC)`
 - `skills/codenook-core/README.md` — drop "v5 remains the working reference"
-- `docs/v6/README.md` — flip status to implemented
-- `docs/v6/architecture-v6.md` — L3 status banner; §9 marked historical
-- `docs/v6/implementation-v6.md` — M6 header + 第四部分 marked historical
-- `docs/v6/test-plan-v6.md` — L41 row + H-001 case annotated as archive
+- `docs/README.md` — flip status to implemented
+- `docs/architecture.md` — L3 status banner; §9 marked historical
+- `docs/implementation.md` — M6 header + 第四部分 marked historical
+- `docs/test-plan.md` — L41 row + H-001 case annotated as archive
 
 ### Commit 4 — release (`42e635c`)
 
@@ -122,14 +122,14 @@ Source-code grep (`.py` / `.sh` / `.bats`) for `codenook-v5-poc` /
 ```
 CHANGELOG.md:484                       # in [5.0.0-poc.1] historical entry — preserved per spec §G
 CHANGELOG.md:510                       # in [5.0.0-poc.1] historical entry — preserved per spec §G
-docs/v6/architecture-v6.md:1387        # in §9 "历史记录 — 已完成" header
-docs/v6/architecture-v6.md:1392        # historical migration map (now flagged as completed)
-docs/v6/architecture-v6.md:1393        # historical migration map (now flagged as completed)
-docs/v6/architecture-v6.md:1402        # historical migration map (now flagged as completed)
-docs/v6/architecture-v6.md:1487        # §12 provenance — historical session capture
-docs/v6/implementation-v6.md:155       # M6 header — annotated as historical extraction
-docs/v6/implementation-v6.md:2321      # 第四部分 migration table — flagged as historical archive
-docs/v6/test-plan-v6.md:699            # H-001 — annotated "archive only — 路径已不存在"
+docs/architecture.md:1387        # in §9 "历史记录 — 已完成" header
+docs/architecture.md:1392        # historical migration map (now flagged as completed)
+docs/architecture.md:1393        # historical migration map (now flagged as completed)
+docs/architecture.md:1402        # historical migration map (now flagged as completed)
+docs/architecture.md:1487        # §12 provenance — historical session capture
+docs/implementation.md:155       # M6 header — annotated as historical extraction
+docs/implementation.md:2321      # 第四部分 migration table — flagged as historical archive
+docs/test-plan.md:699            # H-001 — annotated "archive only — 路径已不存在"
 ```
 
 All remaining hits are inside explicit "historical / completed /
@@ -174,7 +174,7 @@ Workspace under inspection: `/Users/mingdw/Documents/workspace/development`
 |---|-----|---------|
 | 1 | `969bac7` | refactor(v0.11.1) · remove skills/codenook-v5-poc/ |
 | 2 | `850d084` | docs(v0.11.1) · README + install.sh + PIPELINE.md → v0.11.0 |
-| 3 | `49faf9a` | docs(v0.11.1) · plugins/development & docs/v6 → v6 framework |
+| 3 | `49faf9a` | docs(v0.11.1) · plugins/development & docs → v6 framework |
 | 4 | `42e635c` | chore(release) · v0.11.1 |
 
 All four commits include the `Co-authored-by: Copilot` trailer.

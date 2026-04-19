@@ -4,7 +4,7 @@ A v6 CodeNook plugin that drives software-engineering tasks through an
 8-phase pipeline: **clarify → design → plan → implement → test →
 accept → validate → ship**.
 
-Built on the v6 plugin framework (`docs/v6/implementation-v6.md` §M6).
+Built on the v6 plugin framework (`docs/implementation.md` §M6).
 
 ## Install
 

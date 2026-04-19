@@ -29,7 +29,7 @@
   <a href="#task-chains">Chains</a> ·
   <a href="#extending-write-your-own-plugin">Extending</a> ·
   <a href="#quality-gates">Gates</a> ·
-  <a href="docs/v6/README.md">v6 Design Docs</a> ·
+  <a href="docs/README.md">v6 Design Docs</a> ·
   <a href="PIPELINE.md">Pipeline</a>
 </p>
 
@@ -267,21 +267,21 @@ v0.11.1 is the **specification-consolidation milestone** — M1–M11 are shippe
 - **MEDIUM-04** — snapshot `fcntl.flock` to close the multi-process snapshot TOCTOU window.
 - **AT-REL-1, AT-LLM-2.1, AT-COMPAT-1, AT-COMPAT-3** — four acceptance tests deferred pending real-LLM and multi-host fixtures.
 
-Tracked in [`docs/v6/v011-release-report.md`](docs/v6/v011-release-report.md) and [`docs/v6/v0111-cleanup-report.md`](docs/v6/v0111-cleanup-report.md).
+Tracked in [`docs/release-report-v0.11.md`](docs/release-report-v0.11.md) and [`docs/cleanup-report-v0.11.1.md`](docs/cleanup-report-v0.11.1.md).
 
 ## Documentation
 
 | Doc | Purpose |
 |-----|---------|
 | [`PIPELINE.md`](PIPELINE.md) | End-to-end runtime pipeline reference |
-| [`docs/v6/README.md`](docs/v6/README.md) | Index of the 9 v6 design docs + acceptance + execution reports |
-| [`docs/v6/architecture-v6.md`](docs/v6/architecture-v6.md) | Plugin architecture design (42 ratified decisions) |
-| [`docs/v6/router-agent-v6.md`](docs/v6/router-agent-v6.md) | Router-agent specification |
-| [`docs/v6/memory-and-extraction-v6.md`](docs/v6/memory-and-extraction-v6.md) | Memory layer + extraction policy |
-| [`docs/v6/task-chains-v6.md`](docs/v6/task-chains-v6.md) | Parent suggestion + chain summarisation |
-| [`docs/v6/requirements-v0.10.md`](docs/v6/requirements-v0.10.md) | ~70 FR / NFR (1162 lines) |
-| [`docs/v6/acceptance-v0.10.md`](docs/v6/acceptance-v0.10.md) | 117 acceptance tests |
-| [`docs/v6/acceptance-execution-report-v0.10.md`](docs/v6/acceptance-execution-report-v0.10.md) | 100 PASS / 13 PARTIAL / 4 SKIP |
+| [`docs/README.md`](docs/README.md) | Index of the 9 v6 design docs + acceptance + execution reports |
+| [`docs/architecture.md`](docs/architecture.md) | Plugin architecture design (42 ratified decisions) |
+| [`docs/router-agent.md`](docs/router-agent.md) | Router-agent specification |
+| [`docs/memory-and-extraction.md`](docs/memory-and-extraction.md) | Memory layer + extraction policy |
+| [`docs/task-chains.md`](docs/task-chains.md) | Parent suggestion + chain summarisation |
+| [`docs/requirements.md`](docs/requirements.md) | ~70 FR / NFR (1162 lines) |
+| [`docs/acceptance.md`](docs/acceptance.md) | 117 acceptance tests |
+| [`docs/acceptance-execution-report.md`](docs/acceptance-execution-report.md) | 100 PASS / 13 PARTIAL / 4 SKIP |
 | [`blog/vibe-coding-and-multi-agent.md`](blog/vibe-coding-and-multi-agent.md) | Background essay |
 | [`CHANGELOG.md`](CHANGELOG.md) | Release notes |
 

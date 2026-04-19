@@ -1,5 +1,5 @@
 # router.lock JSON-payload schema — M5 YAML DSL
-# (per docs/v6/router-agent-v6.md §4.4 / §6)
+# (per docs/router-agent.md §4.4 / §6)
 #
 # While locked, router.lock contains a JSON object identifying the
 # holder. This schema describes that JSON payload (it is not the

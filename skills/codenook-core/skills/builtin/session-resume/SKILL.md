@@ -50,4 +50,4 @@ M1 behaviour: scan every `tasks/*/state.json`, exclude `phase==done`
 or `status ∈ {done,cancelled}`, sort by `updated_at` descending. The
 M1 bats suite (10 tests) continues to pass.
 
-→ Design basis: implementation-v6.md §3.4, architecture-v6.md §3.1.4
+→ Design basis: implementation.md §3.4, architecture.md §3.1.4

@@ -54,4 +54,4 @@ Main session 在每个非闲聊输入上 dispatch 的第一个 sub-agent。
 ## 输出
 
 `router-agent` 产出 (M8.2)：`{action, task_id, reply_path, ...}`。
-详见 `docs/v6/router-agent-v6.md`。
+详见 `docs/router-agent.md`。

@@ -42,7 +42,7 @@ audit.sh --workspace <dir> [--json]
 
 ## M1 scope
 
-Minimal subset of the fuller M2.3 scanner (implementation-v6.md §M2.3).
+Minimal subset of the fuller M2.3 scanner (implementation.md §M2.3).
 Currently covers: secret regex, secrets.yaml perms, world-writable under
 `.codenook/`. Other M2.3 gates (symlinks, shebang allowlist, keyword
 blacklist) land in M2.

@@ -1,7 +1,7 @@
 # orchestrator-tick — Advance one task one phase
 
 **Role**: Core builtin skill that drives the per-task state machine
-defined in `implementation-v6.md §3.3`.
+defined in `implementation.md §3.3`.
 
 ## CLI
 
@@ -86,4 +86,4 @@ When `state.json` lacks the `plugin` field, `_tick.py` falls back to
 the simpler M1 stub algorithm (preflight + iteration++ + tick_log) so
 the M1 bats suite (29 tests) continues to pass without churn.
 
-→ Design basis: implementation-v6.md §3.3, architecture-v6.md §3.1.3, §3.1.7
+→ Design basis: implementation.md §3.3, architecture.md §3.1.3, §3.1.7

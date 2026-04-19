@@ -1,5 +1,5 @@
 # router-context.md frontmatter schema — M5 YAML DSL
-# (per docs/v6/router-agent-v6.md §4.1; consumed by _lib/router_context.py)
+# (per docs/router-agent.md §4.1; consumed by _lib/router_context.py)
 #
 # This is NOT JSON-Schema draft-07. It uses the same DSL shape as
 # plugins/development/config-schema.yaml: top-level `fields:` mapping,

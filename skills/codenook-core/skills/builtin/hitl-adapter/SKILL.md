@@ -38,4 +38,4 @@ terminal.sh decide --id <id> --decision <approve|reject|needs_changes>
 * M6+: interactive REPL (multi-entry triage, diff display,
   comment editor) is out of scope for M4.
 
-→ Design basis: implementation-v6.md M4.4
+→ Design basis: implementation.md M4.4

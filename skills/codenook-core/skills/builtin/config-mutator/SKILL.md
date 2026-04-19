@@ -4,7 +4,7 @@
 
 Dispatched config writer. Updates a single config value at workspace
 or task scope, validates against schema, and appends a structured
-audit-log line. Implements implementation-v6.md §M5.6.
+audit-log line. Implements implementation.md §M5.6.
 
 ## CLI
 

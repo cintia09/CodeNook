@@ -6,7 +6,7 @@ Resolves `${env:NAME}` and `${file:path}` placeholders inside a merged
 config JSON. Emits a new JSON with secrets inlined. Never leaks resolved
 values to stderr/logs — only placeholder *keys* (when missing).
 
-Implements implementation-v6.md §M5.3 (simplified for M1: operates on the
+Implements implementation.md §M5.3 (simplified for M1: operates on the
 already-merged config produced by `config-resolve`, rather than reading
 `.codenook/secrets.yaml` directly).
 
