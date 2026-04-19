@@ -60,8 +60,8 @@ ml.write_knowledge('$ws', topic='alpha', summary='s', tags=['x'], body='hello')
 assert os.path.exists(target), 'final missing'
 assert calls, 'os.replace never called'
 src, dst = calls[-1]
-assert dst == target, ('dst', dst)
-assert os.path.basename(src).startswith('.tmp.'), ('tmp prefix', src)
+assert str(dst) == target, ('dst', dst)
+assert os.path.basename(str(src)).startswith('.tmp.'), ('tmp prefix', src)
 print('OK')
 "
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
