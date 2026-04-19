@@ -130,8 +130,9 @@ required = {
     'init_memory_skeleton', 'scan_memory',
     'scan_knowledge', 'read_knowledge', 'write_knowledge', 'patch_knowledge',
     'replace_knowledge', 'promote_knowledge', 'archive_knowledge',
-    'scan_skills', 'read_skill', 'write_skill', 'patch_skill',
+    'scan_skills', 'read_skill', 'write_skill', 'patch_skill', 'promote_skill',
     'read_config_entries', 'upsert_config_entry', 'match_entries_for_task',
+    'promote_config_entry',
     'find_similar', 'has_hash', 'append_audit',
 }
 public = {n for n in dir(m) if not n.startswith('_')}
