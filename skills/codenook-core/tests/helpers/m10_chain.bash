@@ -187,6 +187,27 @@ YAML
   fi
 }
 
+# make_chain_depth <ws> <root_id> <depth>
+# Build a linear chain of (depth+1) tasks: root + 'depth' descendants.
+# IDs: <root>, <root>-1, <root>-2, ..., <root>-<depth>. Leaf is the last.
+# Echoes the leaf task_id on stdout.
+make_chain_depth() {
+  local ws="$1" root="$2" depth="$3"
+  make_task "$ws" "$root"
+  local prev="$root"
+  local i cur
+  for i in $(seq 1 "$depth"); do
+    cur="${root}-${i}"
+    make_task "$ws" "$cur"
+    PYTHONPATH="$M10_LIB_DIR" WS="$ws" CHILD="$cur" PARENT="$prev" python3 - <<'PY'
+import os, task_chain as tc
+tc.set_parent(os.environ["WS"], os.environ["CHILD"], os.environ["PARENT"])
+PY
+    prev="$cur"
+  done
+  echo "$prev"
+}
+
 # m10_router_render <task_id> <ws> [extra args...]
 # Invoke render_prompt.py with PYTHONPATH=$M10_LIB_DIR.
 m10_router_render() {
