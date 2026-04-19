@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# CodeNook v0.11.0 Installer
+# CodeNook v0.11.1 Installer
 # Usage: curl -sL https://raw.githubusercontent.com/cintia09/CodeNook/main/install.sh | bash
 #
 # This installer ships the codenook-init skill (legacy v4.9.5 stable
@@ -9,7 +9,7 @@ set -euo pipefail
 # skills/codenook-core/ and is exercised via its own init.sh; see
 # docs/v6/ for design and milestone references.
 
-VERSION="0.11.0"
+VERSION="0.11.1"
 REPO="https://github.com/cintia09/CodeNook.git"
 TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/CodeNook.XXXXXX")
 trap 'rm -rf "$TMP_DIR"' EXIT
