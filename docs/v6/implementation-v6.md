@@ -583,6 +583,222 @@ spawn.sh handoff 物化双层资产；引入 token 预算估算与裁剪。
 
 ---
 
+### M10 — Task Chains（父子链接 + 链感知 router 上下文）
+
+> 在 M9 memory 层之上引入**任务父子链接**：新任务创建时由相似度
+> 评分推荐 top-3 候选父任务；用户确认后，router-agent 在每次 spawn
+> 时沿祖先链 LLM 摘要并注入 `{{TASK_CHAIN}}` slot。Canonical spec：
+> [`docs/v6/task-chains-v6.md`](../v6/task-chains-v6.md)。M10 是 M9
+> 的纯增量叠加：不修改 memory 语义、不改写 plugin 层、`parent_id` /
+> `chain_root` 作为 `state.json` 的可选字段共存。
+
+**依赖**：M4（state.json + tick）、M5（atomic / secret_scan）、
+M8（router-agent + render_prompt 槽位机制）、M9（extract_audit logger
+与 LLM mock 协议）
+
+#### M10.0 — Spec doc
+
+**Scope**：交付 M10 单一规范源；调研当前任务存储模型并锁定
+schema 增量；在本文新增 M10 章节。
+
+**Deliverables**：
+- `docs/v6/task-chains-v6.md`（≥ 600 行；12 节 + 3 附录）
+- 本节（M10.0–M10.7）
+
+**DoD**：
+1. spec doc 存在并完整覆盖 §1–§12 + 附录
+2. greenfield grep 在新增 diff 上零命中（plan.md 列出的全部历史 token）
+3. `skills/`、`plugins/`、`schemas/` 下无代码改动
+4. 关联 AC：AC-CHAIN-MOD-1, AC-CHAIN-COMPAT-1（仅文档定义）
+
+→ 设计依据：`docs/v6/task-chains-v6.md` §1–§12
+
+#### M10.0.1 — Test cases doc
+
+**Scope**：把 §12 acceptance criteria mapping 展开为可执行 bats
+case 索引。
+
+**Deliverables**：
+- `docs/v6/m10-test-cases.md`：每条 AC 对应 1+ TC-M10.x-NN，含
+  前置条件、步骤、期望、对应 bats 文件名
+- `helpers/m10_chain.bash`：M10 通用 bats helper（构造 fake task 树、
+  断言 chain walk 顺序、断言 audit 行存在）
+
+**DoD**：
+1. 所有 AC-CHAIN-* 至少被一条 TC 覆盖
+2. helper 暴露 `make_task <id> [parent_id]`、`assert_audit <outcome>`、
+  `assert_chain_walk <id> <expected_csv>` 三组 API
+
+→ 设计依据：spec §12
+
+#### M10.1 — Chain primitives `_lib/task_chain.py`
+
+**Scope**：实现 chain 的 CRUD + walk + cycle 检测；schema 增量落地。
+
+**Deliverables**：
+- `skills/codenook-core/skills/builtin/_lib/task_chain.py`：
+  `get_parent / set_parent / walk_ancestors / chain_root / detach`
+  + `CycleError / TaskNotFoundError / AlreadyAttachedError` +
+  `__main__` CLI（`attach|detach|show`）
+- `skills/codenook-core/schemas/task-state.schema.json`：追加
+  `parent_id` 与 `chain_root` 两个可选属性（`required` 不变）
+- `.codenook/.gitignore` 模板加入 `tasks/.chain-snapshot.json`
+  （由 init.sh 写入）
+- bats：`m10-task-chain.bats`、`m10-task-chain-cli.bats`、
+  `m10-schema.bats`
+  - 自环 / 间接环抛 `CycleError`（AC-CHAIN-MOD-2/3）
+  - chain_root 沿父链终点（AC-CHAIN-MOD-4）
+  - CLI attach/detach/show 行为契约（AC-CHAIN-LINK-*）
+  - 缺字段的旧 state.json 仍通过 schema（AC-CHAIN-COMPAT-1）
+
+**DoD**：
+1. AC-CHAIN-MOD-* / AC-CHAIN-LINK-* / AC-CHAIN-COMPAT-1 全绿
+2. 所有写操作走 `_lib/atomic.atomic_write_json`
+3. `task_chain` 不 import `memory_layer`（仅 `extract_audit`）
+
+→ 设计依据：spec §2、§3、§4
+
+#### M10.2 — Similarity scorer `_lib/parent_suggester.py`
+
+**Scope**：零依赖 token-set Jaccard 排名候选父任务；阈值 0.15、top-3。
+
+**Deliverables**：
+- `skills/codenook-core/skills/builtin/_lib/parent_suggester.py`：
+  `Suggestion` NamedTuple + `suggest_parents(workspace, child_brief,
+  *, top_k=3, threshold=0.15, exclude_ids=())`
+- 内置 stopword 列表（≤ 50 词，中英混合）
+- bats：`m10-parent-suggester.bats`
+  - 排序 + top_k 截断（AC-CHAIN-SUG-1）
+  - 阈值过滤（AC-CHAIN-SUG-2）
+  - done/cancelled 不入候选（AC-CHAIN-SUG-3）
+  - 损坏 state.json 异常 → 空列表 + audit（AC-CHAIN-SUG-4）
+
+**DoD**：
+1. AC-CHAIN-SUG-* 全绿
+2. 50 任务规模下 `suggest_parents` ≤ 30 ms（NFR 性能验证）
+3. 不引入任何第三方 NLP 依赖
+
+→ 设计依据：spec §5
+
+#### M10.3 — Creation-time UX hook（router-agent 集成）
+
+**Scope**：把 suggester 接入 router-agent 提问流；在 `--confirm` 路径
+落盘 `parent_id`。
+
+**Deliverables**：
+- `render_prompt.py` prepare 路径调用 `suggest_parents`，把候选
+  注入 router-agent 的工具提示（不进 `{{TASK_CHAIN}}`，是 prompt
+  辅助元信息）
+- `render_prompt.py` `--confirm` 路径在 `freeze_to_state_json` 之后
+  调用 `task_chain.set_parent`（来源于用户在对话中的确认；解析
+  `draft-config.yaml` 的 `parent_id` 字段）
+- `draft-config.yaml.schema.yaml` 扩展 `parent_id: string | null`
+- bats：`m10-creation-flow.bats`
+  - mock 用户选 "1"（top suggestion）→ state.json 含 parent_id
+  - mock 用户选 "independent" → state.json 无 parent_id
+
+**DoD**：
+1. router-agent prompt 可见 top-3 候选 + score + reason
+2. confirm 后落盘正确
+
+→ 设计依据：spec §3.1、§3.2
+
+#### M10.4 — Chain summarizer `_lib/chain_summarize.py`
+
+**Scope**：两阶段 LLM 压缩；mock 协议复用 M9.0.1 §0.3。
+
+**Deliverables**：
+- `skills/codenook-core/skills/builtin/_lib/chain_summarize.py`：
+  `summarize(workspace, task_id, *, max_tokens=8192)` → markdown
+- pass-1：per-ancestor ≤ 1500 token；call_name=`chain_summarize`
+- pass-2（仅当总和 > 8K）：保留最近 3 ancestor 原文 + 远祖压缩
+- secret-scan + redact + audit
+- 路径穿透防御（`assert_within`）
+- bats：`m10-chain-summarize.bats`、`m10-chain-secret.bats`
+  - 渲染含 H3 + artifacts（AC-CHAIN-CTX-4）
+  - pass-1 token 上限（AC-CHAIN-BUD-1，mock 协议下验证）
+  - pass-2 触发条件（AC-CHAIN-BUD-2/3）
+  - LLM 抛错 → 空字符串 + audit（AC-CHAIN-NF-1）
+  - secret 命中 → redact + audit（AC-CHAIN-NF-3）
+
+**DoD**：
+1. AC-CHAIN-CTX-4 / AC-CHAIN-BUD-* / AC-CHAIN-NF-1/3 全绿
+2. 不写 `.codenook/memory/` 与 `.codenook/plugins/`
+
+→ 设计依据：spec §6、§9
+
+#### M10.5 — Router slot 集成（`{{TASK_CHAIN}}`）
+
+**Scope**：把 chain 摘要注入 router-agent prompt 的固定 slot。
+
+**Deliverables**：
+- `skills/codenook-core/skills/builtin/router-agent/prompt.md`：在
+  `{{MEMORY_INDEX}}` 之上新增 `{{TASK_CHAIN}}` slot
+- `render_prompt.py`：新增 `_render_task_chain` + 2 个 import；
+  `parent_id is None` → 空字符串；非 None → `cs.summarize(...)`
+- token 预算文档化：router prompt 总额抬升至 ≤ 20K（保留 8K
+  给 chain，其余与 M9.6 一致）
+- bats：`m10-prompt-slots.bats`、`m10-render-prompt.bats`
+  - prompt.md 含 slot 占位符（AC-CHAIN-CTX-1）
+  - parent_id 缺失时 slot 为空（AC-CHAIN-CTX-2）
+  - parent_id 非空 → 调用 chain_summarize（AC-CHAIN-CTX-3，mock 验证）
+  - M9 既有 `m9-router-memory-scan.bats` 全部 regression 通过
+    （AC-CHAIN-COMPAT-2）
+
+**DoD**：
+1. AC-CHAIN-CTX-* 全绿
+2. M9 套件 regression 全绿
+3. spawn.sh 无变更
+
+→ 设计依据：spec §7
+
+#### M10.6 — Snapshot 缓存 + audit + perf
+
+**Scope**：实现 `.chain-snapshot.json` 缓存机制；扩展 audit logger
+覆盖；性能验证。
+
+**Deliverables**：
+- `task_chain._build_snapshot / _read_snapshot / _invalidate_snapshot`：
+  `(generation, mtime)`-based 失效协议（spec §8.1/8.2）
+- `set_parent` / `detach` 自动 bump `generation`
+- audit outcome 6 + diagnostic 4（spec §9.1）；asset_type=`"chain"`
+- bats：`m10-chain-perf.bats`、`m10-chain-audit.bats`、
+  `m10-chain-readonly.bats`
+  - depth=10 walk < 100 ms snapshot 命中（AC-CHAIN-PERF-1）
+  - N=200 重建 < 1 s（AC-CHAIN-PERF-2）
+  - 6 个 outcome 全部可观察（AC-CHAIN-AUD-1）
+  - audit 行通过 8-key schema（AC-CHAIN-AUD-2）
+  - 强行写 `plugins/` → M9.7 guard 拦截（AC-CHAIN-RO-1）
+
+**DoD**：
+1. AC-CHAIN-PERF-* / AC-CHAIN-AUD-* / AC-CHAIN-RO-1 全绿
+2. snapshot 文件在 `.gitignore` 内
+
+→ 设计依据：spec §8、§9
+
+#### M10.7 — E2E + 发布 v0.10.0-m10.0
+
+**Scope**：完整跑通 + 版本发布。
+
+**Deliverables**：
+- `tests/e2e/m10-e2e.bats`：
+  - 父任务实现 → 子任务测试任务 → suggester top-1 hit → confirm →
+    state.json 含 parent_id（AC-CHAIN-E2E-1）
+  - 子任务 spawn → prompt 含正确祖先 H3（AC-CHAIN-E2E-2）
+  - depth=8 链 → pass-2 触发 → router prompt ≤ 20K（AC-CHAIN-E2E-3）
+  - LLM error injection → spawn 仍退 0，prompt 含其它 slot
+    （AC-CHAIN-E2E-4）
+- `VERSION` → `0.10.0-m10.0`；`CHANGELOG.md` 完整记录 M10.0–M10.7
+- tag `v0.10.0-m10.0`
+- 全套 bats 全绿（M9 baseline + M10 新增 ~50）
+
+**DoD**：spec §1–§12 全部目标 + AC-CHAIN-E2E-* 全绿；push 在用户
+显式批准后单次执行（plan.md push policy）
+
+→ 设计依据：spec §1–§12
+
+---
+
 ## 第二部分：逐 Milestone 实现细节
 
 ### M1 — 内核骨架
