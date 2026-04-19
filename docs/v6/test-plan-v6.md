@@ -38,7 +38,7 @@
 | **单元测试（L1）** | 单个 builtin skill 算法、单个 validator gate、安全扫描单条规则、config 4 层合并算法、router 输出 schema 校验、entry-questions 解析 | 数百级 | 本机 / CI；纯文件 + bash + jq + yq；mock LLM | bats-core / shellspec / pytest（如有 Python helper） |
 | **集成测试（L2）** | `init.sh` 各子命令端到端；plugin 安装管线（scaffold→pack→install→list→remove→reinstall→force）；router self-scan；OT 单跳；SR 单跳；config-resolve 端到端；HITL queue 写入/弹出 | 数十级 | 临时 workspace；mock LLM 或受控 Stub agent | bats + 自研 LLM stub |
 | **系统测试（L3 / E2E）** | 完整 plugin 装→任务创建→phase 推进→蒸馏→HITL→accept；多 plugin 共存切换；卸载/重装/升级；secrets 隔离；多 task 并发 | 个位数到 20 用例 | 干净 workspace + 真 LLM（限定模型）或高保真 Stub | 端到端脚本 + 断言 + artifact diff |
-| **回归套件** | v5 关键场景（dev plugin 6 phase 流水线 / fanout / dual_mode review-iteration / HITL accept）在 v6 上重跑 | 5–10 个固定剧本 | 同 L3 | 复用 v5-poc reports 中的 e2e 剧本 |
+| **回归套件** | v5 关键场景（dev plugin 6 phase 流水线 / fanout / dual_mode review-iteration / HITL accept）在 v6 上重跑 | 5–10 个固定剧本 | 同 L3 | 历史档案；v5 源码已移除（v0.11.1），由 codenook-core e2e 套件覆盖 |
 
 ### 1.2 覆盖矩阵（设计章节 → 测试层）
 
@@ -695,8 +695,8 @@
 
 ### H. v5 → v6 迁移（§9）
 
-**H-001 — v5 e2e 剧本在 v6 上跑通**
-- 输入：`skills/codenook-v5-poc/reports/e2e-development-20260418-091543.md` 中描述的输入序列。
+**H-001 — v5 e2e 剧本在 v6 上跑通**（历史 — v5 源码已于 v0.11.1 移除）
+- 输入：`skills/codenook-v5-poc/reports/e2e-development-20260418-091543.md` 中描述的输入序列（archive only — 路径已不存在）。
 - 期望：v6 + development plugin 产出等价的 phase artifacts；最终任务状态=ship。
 
 **H-002 — 旧 codenook-core.md 不再被 MS 加载（文件审计）**

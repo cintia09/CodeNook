@@ -152,7 +152,7 @@
 
 ---
 
-### M6 — 第一个真实 plugin：development（从 v5 codenook-v5-poc 提取）
+### M6 — 第一个真实 plugin：development（基于 v6 plugin 框架；历史上从 v5 codenook-v5-poc 设计提取，v5 源码已于 v0.11.1 移除）
 
 **交付物**
 - `plugins/development/` 完整目录（架构 §5.0 全套文件）
@@ -2316,9 +2316,11 @@ post_validate_default: string  # 可选，全局默认 validator
 
 ---
 
-## 第四部分：v5 → v6 代码迁移映射表
+## 第四部分：v5 → v6 代码迁移映射表（历史记录 — 已完成）
 
-> 在 §3.1.6 给出了高层迁移；这里精确到代码文件层。源根：`skills/codenook-v5-poc/`。目标根：`skills/codenook-core/`（内核 + builtin）+ `plugins/development/`（领域）。
+> **状态**：迁移已在 v0.10 / v0.11 完成，v5 源码已于 v0.11.1 从仓库移除。下文中的 `skills/codenook-v5-poc/` 路径已不存在，本表仅保留作为决策档案与设计回溯。
+>
+> 在 §3.1.6 给出了高层迁移；这里精确到代码文件层。源根（历史）：`skills/codenook-v5-poc/`。目标根：`skills/codenook-core/`（内核 + builtin）+ `plugins/development/`（领域）。
 
 ### 4.1 内核侧（v5 → codenook-core/）
 

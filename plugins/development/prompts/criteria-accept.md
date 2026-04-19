@@ -1,4 +1,4 @@
-# Acceptance Criteria (v5.0 POC)
+# Acceptance Criteria
 
 An accept-phase output passes when **all** of:
 

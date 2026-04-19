@@ -1,4 +1,4 @@
-# Test Criteria (v5.0 POC)
+# Test Criteria
 
 A test-phase output passes when **all** of:
 

@@ -4,8 +4,7 @@ A v6 CodeNook plugin that drives software-engineering tasks through an
 8-phase pipeline: **clarify → design → plan → implement → test →
 accept → validate → ship**.
 
-Ported from the v5.0 PoC (`skills/codenook-v5-poc/templates/`) per
-`docs/v6/implementation-v6.md` §M6.
+Built on the v6 plugin framework (`docs/v6/implementation-v6.md` §M6).
 
 ## Install
 
@@ -52,7 +51,8 @@ summary: <≤200 chars>
 
 ## Known gaps (M6 scope)
 
-* The M6 DoD test "diff against v5 baseline" is **skipped** — no v5
-  baseline artefacts exist in the M6 source tree (impl-v6 §M6.4).
+* The M6 DoD test "diff against v5 baseline" is **skipped** — v5 has
+  been fully removed from the repo (see CHANGELOG v0.11.1); semantic
+  equivalence is the v6 acceptance bar (§9.5 / decision #T-13).
 * The plugin uninstall path is not exercised; M2 ships install only.
   An archive-on-uninstall flow is M7+.

@@ -3,9 +3,10 @@
 This package is the **v6 internal kernel** for CodeNook: shell loader, builtin
 agents/skills, and the `init.sh` installer/plugin-manager dispatcher.
 
-It is **not** a drop-in replacement for the v5 PoC (`skills/codenook-v5-poc/`).
-v5 remains the working end-to-end reference until v6 reaches feature parity
-(see `docs/v6/implementation-v6.md` milestones M1–M7).
+It is the v6 successor to the now-removed v5 monolithic PoC; v5 source
+has been deleted from the repo as of v0.11.1 (see top-level CHANGELOG).
+The historical migration map is preserved in `docs/v6/architecture-v6.md`
+§9 and `docs/v6/implementation-v6.md` §第四部分 for reference.
 
 ## Layout (M1 + M2 + M3)
 
