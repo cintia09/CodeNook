@@ -46,6 +46,7 @@ from typing import Optional
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from atomic import atomic_write_json, atomic_write_json_validated  # noqa: E402
 import extract_audit  # noqa: E402
+import memory_layer as _ml  # noqa: E402
 
 _TASK_ID_RE = re.compile(r"^T-[A-Za-z0-9_-]+$")
 
@@ -233,37 +234,46 @@ def _build_snapshot(workspace: Path | str) -> dict:
                 "state_mtime": _iso_mtime(sp),
             }
 
-    # Memoised chain_root resolver. ``in_progress`` blocks cycles.
+    # Memoised chain_root resolver. Returns ``(root, cycle)`` so the
+    # outer frame can detect when a descendant signalled a cycle (or an
+    # ancestor on the in-progress stack pointed back at itself) and
+    # avoid memoising a bogus root for any node still inside the cycle.
+    # Spec §8.2: chain_root is null for cycle members, self-parents,
+    # and tasks whose parent is missing.
     roots: dict[str, Optional[str]] = {}
 
-    def resolve(tid: str, in_progress: set[str]) -> Optional[str]:
+    def resolve(tid: str, in_progress: set[str]) -> tuple[Optional[str], bool]:
         if tid in roots:
-            return roots[tid]
+            return roots[tid], False
         if tid in in_progress:
-            roots[tid] = None  # cycle
-            return None
+            # Cycle: do NOT memoise — every frame on the stack must see
+            # the cycle signal so it can refuse to record a fake root.
+            return None, True
         node = raw.get(tid)
         if node is None:
             roots[tid] = None
-            return None
+            return None, False
         pid = node["parent_id"]
         if pid is None:
             roots[tid] = None
-            return None
+            return None, False
         if pid not in raw:
             roots[tid] = None
-            return None
+            return None, False
         in_progress.add(tid)
-        parent_root = resolve(pid, in_progress)
+        parent_root, cycle = resolve(pid, in_progress)
         in_progress.discard(tid)
+        if cycle:
+            # Don't memoise — tid sits on (or hangs off) the cycle.
+            return None, True
         # tid's chain_root = parent's chain_root if parent has one,
         # else parent itself (parent is a root with at least one child).
         roots[tid] = parent_root if parent_root is not None else pid
-        return roots[tid]
+        return roots[tid], False
 
     entries: dict[str, dict] = {}
     for tid, node in raw.items():
-        cr = resolve(tid, set())
+        cr, _cycle = resolve(tid, set())
         entries[tid] = {
             "parent_id": node["parent_id"],
             "chain_root": cr,
@@ -358,17 +368,26 @@ def _audit(workspace: Path | str, *, outcome: str, verdict: str,
 
 def _diag(workspace: Path | str, *, kind: str, source_task: str = "",
           reason: str = "") -> None:
-    """Emit a diagnostic side-record (extra={"kind": ...}). Spec §9.1."""
+    """Emit a single diagnostic jsonl record (spec §9.1).
+
+    Bypasses ``extract_audit.audit`` to avoid the canonical+side-record
+    duplication that would otherwise emit two lines (one with ``kind``,
+    one without). Writes directly via ``memory_layer.append_audit`` with
+    the 8 canonical keys plus ``kind``.
+    """
     try:
-        extract_audit.audit(
-            workspace,
-            asset_type="chain",
-            outcome="diagnostic",
-            verdict="noop",
-            source_task=source_task,
-            reason=reason,
-            extra={"kind": kind},
-        )
+        rec = {
+            "asset_type": "chain",
+            "candidate_hash": "",
+            "existing_path": None,
+            "outcome": "diagnostic",
+            "reason": reason,
+            "source_task": source_task,
+            "timestamp": extract_audit._now_iso(),
+            "verdict": "noop",
+            "kind": kind,
+        }
+        _ml.append_audit(workspace, rec)
     except Exception:
         pass
 
@@ -411,7 +430,10 @@ def walk_ancestors(workspace: Path | str, task_id: str, *,
                    reason=f"unreadable state.json at {cur}")
             break
         if cur in seen:
-            raise CycleError(f"cycle detected at {cur}")
+            _audit(workspace, outcome="chain_walk_truncated", verdict="warn",
+                   source_task=task_id,
+                   reason=f"cycle detected at {cur}")
+            break
         seen.add(cur)
         chain.append(cur)
         # Snapshot freshness check: stale entry → diag (one per walk).

@@ -48,6 +48,7 @@ from typing import Iterable, NamedTuple, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import extract_audit  # noqa: E402
+import memory_layer as _ml  # noqa: E402
 
 # ───────────────────────────────────────────────────────── public types
 
@@ -127,17 +128,24 @@ def _audit(workspace: Path | str, *, outcome: str, verdict: str,
 
 def _diag(workspace: Path | str, *, kind: str, source_task: str = "",
           reason: str = "") -> None:
-    """Spec §9.1 diagnostic side-record (extra={"kind": ...})."""
+    """Spec §9.1 diagnostic: emit a single jsonl record with ``kind``.
+
+    Bypasses ``extract_audit.audit`` to avoid the canonical+side-record
+    duplication (which would emit two lines, one missing ``kind``).
+    """
     try:
-        extract_audit.audit(
-            workspace,
-            asset_type="chain",
-            outcome="diagnostic",
-            verdict="noop",
-            source_task=source_task,
-            reason=reason,
-            extra={"kind": kind},
-        )
+        rec = {
+            "asset_type": "chain",
+            "candidate_hash": "",
+            "existing_path": None,
+            "outcome": "diagnostic",
+            "reason": reason,
+            "source_task": source_task,
+            "timestamp": extract_audit._now_iso(),
+            "verdict": "noop",
+            "kind": kind,
+        }
+        _ml.append_audit(workspace, rec)
     except Exception:
         pass
 
