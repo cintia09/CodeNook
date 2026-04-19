@@ -377,6 +377,212 @@
 
 ---
 
+### M9 — Memory Layer + LLM-driven Extraction
+
+> 在 M8 conversational router-agent 之上引入**唯一可写的项目记忆层**
+> （`<workspace>/.codenook/memory/`）+ **三类自动抽取器**（knowledge /
+> skills / config），把任务执行中沉淀的资产以 patch-first 方式吸收回
+> 项目。Canonical spec：
+> [`docs/v6/memory-and-extraction-v6.md`](../v6/memory-and-extraction-v6.md)；
+> 决策 #53–#59（架构 §13）非协商。M9 是 greenfield 子系统。
+
+**依赖**：M4（tick contract）、M5（config-resolve / secret-scan）、M8（router-agent + spawn.sh）
+
+#### M9.0 — Spec doc
+
+**Scope**：交付 M9 单一规范源；同步架构 §13 与本文 M9 段。
+
+**Deliverables**：
+- `docs/v6/memory-and-extraction-v6.md`（≥ 600 行；14 节）
+- `docs/v6/architecture-v6.md` §13「Memory Layer (M9)」+ 决策 #53–#59
+- 本节（M9.0–M9.8）
+
+**DoD**：
+1. spec doc 存在并被架构 §13 引用
+2. 决策 #53–#59 在架构 §12 / §13 中可定位
+3. `skills/`、`plugins/` 下无代码改动
+4. 关联 AC：AC-DOC-1, AC-DOC-2
+
+→ 设计依据：`docs/v6/memory-and-extraction-v6.md` §1–§14
+
+#### M9.1 — Memory 布局 + `_lib/memory_layer.py`
+
+**Scope**：建立 memory 骨架与读 / 写 / 扫描 / patch 公共 API；引入元数
+据索引（含 hash dedup 用）。
+
+**Deliverables**：
+- `skills/codenook-core/skills/builtin/_lib/memory_layer.py`：
+  `init_memory_skeleton / scan_knowledge / read_knowledge / write_knowledge /
+  patch_knowledge / replace_knowledge / promote_* / archive_* /
+  scan_skills / read_skill / write_skill / patch_skill /
+  read_config_entries / upsert_config_entry / match_entries_for_task /
+  find_similar / has_hash / append_audit / scan_memory`（详见 spec §10）
+- `skills/codenook-core/skills/builtin/_lib/memory_index.py`：
+  mtime-cached 元数据索引；维护 hash 索引
+- `init.sh`：在 init 时创建 `.codenook/memory/{knowledge,skills,history}/`
+  + 空 `config.yaml`（`version: 1\nentries: []\n`）
+- bats：`m9-memory-layer.bats`、`m9-memory-index.bats`
+  - 原子写、并发写互斥
+  - `find_similar` 阈值（tags 50% / title cosine 0.7）
+  - 1000 文件下 `scan_memory` ≤ 500ms（NFR-PERF-1）
+  - config.yaml 同 key 合并、重复 key 检测
+
+**DoD**：
+1. spec §3 / §4 schema round-trip 无损
+2. AC-LAY-1 / AC-LAY-2 / AC-LAY-4 / AC-LAY-5 / AC-LAY-6 全绿
+3. `_lib/workspace_overlay.py` 不再被任何运行时代码 import
+
+→ 设计依据：spec §2、§3、§4、§10
+
+#### M9.2 — 提取触发器（after_phase hook + 上下文水位协议）
+
+**Scope**：把抽取调度接入 orchestrator-tick 与主会话；引入幂等键。
+
+**Deliverables**：
+- `skills/codenook-core/skills/builtin/orchestrator-tick/_tick.py`：在 phase
+  进入 terminal 状态（done / blocked）后调用 `after_phase` hook
+- `skills/codenook-core/skills/builtin/extractor-batch/extractor-batch.sh`：
+  接受 `--task-id` 与 `--reason` 两参；按
+  `(task_id, phase, reason)` 哈希幂等；异步派生子进程；返回 JSON
+  `{enqueued_jobs: [...], skipped: [...]}`
+- 根 `CLAUDE.md` 新段：主会话上下文 80% 水位监听协议（AC-TRG-3 / AC-DOC-3）
+- bats：`m9-tick-after-phase.bats`、`m9-extractor-batch.bats`
+  - hook 在 phase=done 后被调用一次（mock 验证）
+  - 同 task 同 phase 重复触发只产生一次有效抽取（AC-TRG-2）
+  - extractor 失败不阻塞 tick 退出（AC-TRG-4）
+  - CLAUDE.md linter 通过（M8.6 词表已包含 memory token）
+
+**DoD**：
+1. AC-TRG-* 全绿
+2. CLAUDE.md 通过域无关 linter
+3. extractor-batch 调度即返回，不阻塞 orchestrator-tick
+
+→ 设计依据：spec §5
+
+#### M9.3 — Knowledge extractor（含 patch-or-create 决策流）
+
+**Scope**：第一个抽取器，承载 patch-first 决策流的参考实现。
+
+**Deliverables**：
+- `skills/codenook-core/skills/builtin/knowledge-extractor/`：SKILL.md +
+  CLI 入口 + LLM judge prompt 模板
+- 强约束 frontmatter（summary ≤ 200，tags ≤ 8）+ slug 派生
+- `find_similar()` + LLM judge merge / replace / create（默认 merge）
+- per-task 上限 ≤ 3；hash dedup（前 512 chars）
+- secret-scan 集成（fail-close）
+- audit log 写 `memory/history/extraction-log.jsonl`
+- bats：`m9-knowledge-extractor.bats`、`m9-knowledge-merge.bats`
+  - 单 CLI 调用产出合规文件（AC-EXT-1）
+  - mock LLM 抛错不阻塞任务（AC-EXT-4）
+  - secret-scanner 命中拒绝写入（AC-EXT-5）
+  - 已有 tags 重叠 ≥ 50% 时调 LLM 判定（AC-EXT-MERGE-1）
+  - 判定理由进 audit log（AC-EXT-MERGE-2）
+  - hash 命中直接 dedup（AC-EXT-MERGE-4）
+
+**DoD**：
+1. AC-EXT-1, AC-EXT-4, AC-EXT-5, AC-EXT-MERGE-1/2/4 全绿
+2. patch 决策流可被 M9.4 / M9.5 共用（提取为 `_lib/extract_decision.py`）
+
+→ 设计依据：spec §3.1、§6、§7
+
+#### M9.4 — Skill extractor
+
+**Scope**：检测重复脚本/命令模式 ≥ 3 次 → 提案 candidate skill。
+
+**Deliverables**：
+- `skills/codenook-core/skills/builtin/skill-extractor/`
+- 复用 M9.3 的决策流；per-task 上限 ≤ 1
+- bats：`m9-skill-extractor.bats`
+  - ≥ 3 次重复才提案；< 3 次不提案（AC-EXT-2）
+  - patch-first 行为同 M9.3
+
+**DoD**：AC-EXT-2 + AC-EXT-MERGE-* 与 skill 相关条目全绿
+
+→ 设计依据：spec §3.2、§6
+
+#### M9.5 — Config extractor（单文件 entries 合并）
+
+**Scope**：识别 `task-config-set` 调用产出的有效 fields → 落 config.yaml entries[]。
+
+**Deliverables**：
+- `skills/codenook-core/skills/builtin/config-extractor/`
+- 同 key 合并为最新值（latest-wins，§4.2 规则）；per-task 上限 ≤ 5 entries
+- 由 LLM 生成自然语言 `applies_when`（≤ 200 chars）
+- bats：`m9-config-extractor.bats`
+  - 同 key 合并不产生重复（AC-EXT-3 / AC-LAY-6）
+  - applies_when 命中检测（与 router-agent mock 集成）
+  - patch-first 决策流复用
+
+**DoD**：AC-EXT-3 + AC-LAY-6 + 相关 AC-EXT-MERGE-* 全绿
+
+→ 设计依据：spec §3.3、§4、§6
+
+#### M9.6 — Router-agent 扫描升级 + Context 预算
+
+**Scope**：router-agent 看见 memory；draft-config 加 `selected_memory`；
+spawn.sh handoff 物化双层资产；引入 token 预算估算与裁剪。
+
+**Deliverables**：
+- `skills/codenook-core/skills/builtin/router-agent/prompt.md`：新增
+  `## Memory index` section（§8 骨架）
+- `skills/codenook-core/skills/builtin/_lib/token_estimate.py`：CJK 1:1、
+  ASCII 1:4 启发式
+- `draft-config.yaml` schema 扩展 `selected_memory.{knowledge,skills}` +
+  `context_budget.{router_prompt_tokens,task_prompt_tokens}`（AC-SEL-3）
+- `spawn.sh --confirm`：合成 plugins + memory 双层资产到任务 prompt
+  context（AC-SEL-4 / spec §11.3）
+- router-context 8 轮归档器 → `router-context-archive.md`（AC-BUD-3）
+- knowledge ≤ 5、skills ≤ 3 默认上限（AC-SEL-6）
+- config 中 `applies_when` 命中的 entry 无条件注入（AC-SEL-5）
+- 自然语言修改选择集（FR-SEL-7）
+- bats：`m9-router-memory-scan.bats`、`m9-context-budget.bats`
+  - 100 fake knowledge + 50 turns 压力测试 router prompt ≤ 16K tokens
+  - task prompt ≤ 32K，超出按 FR-BUD-3 优先级裁剪
+  - 知识 body > 2KB 时只注入 summary + 路径（AC-BUD-4）
+
+**DoD**：AC-SEL-* + AC-BUD-* 全绿；router 选择决策写
+`memory/history/router-selection-log.jsonl`
+
+→ 设计依据：spec §4.3、§8、§11
+
+#### M9.7 — 插件只读 + linter 扩展
+
+**Scope**：codify「plugins 运行时只读」+ 扩展主会话 linter 词表。
+
+**Deliverables**：
+- `skills/codenook-core/skills/builtin/_lib/plugin_readonly_check.py`：
+  扫描代码路径中的写操作（`open(..., "w"|"a"|"x")`、`Path.write_*`、
+  `shutil.copy`/`move` 等）目标是否在 `plugins/`
+- M8.6 linter 词表扩展：禁止主会话 prompt / 回复出现 `memory/`、
+  `extraction-log`、`MEMORY_INDEX` 等域 token
+- bats：`m9-plugin-readonly.bats`、`m9-linter-memory.bats`
+  - mock extractor 强行写 `plugins/` → 抛 `PermissionError`（AC-RO-2）
+  - linter 拦截描述对 plugins/ 的写操作（AC-RO-3）
+
+**DoD**：AC-RO-* 全绿
+
+→ 设计依据：spec §2.1、§9
+
+#### M9.8 — E2E + 发布 v0.9.0-m9.0
+
+**Scope**：完整跑通 + 版本发布。
+
+**Deliverables**：
+- `tests/e2e/m9-e2e.bats`：
+  - 用户 router 对话 → 任务 → tick → 自动抽取 → 二次任务 router 显示
+    promoted 候选（AC-E2E-1）
+  - 模拟 80% 信号 → extractor 异步运行 → memory 出现 candidate（AC-E2E-2）
+  - 并行 3 任务 memory 写入互不冲突，audit log 完整（AC-E2E-3）
+- `VERSION` → `0.9.0-m9.0`；`CHANGELOG.md` 完整记录 M9.0–M9.8
+- tag `v0.9.0-m9.0`
+- 全套 bats ≥ 760 全绿（M8 baseline 692 + M9 新增 ~70；AC-E2E-4）
+
+**DoD**：spec §13 退出标准 1–7 全部满足
+
+→ 设计依据：spec §1–§14
+
+---
+
 ## 第二部分：逐 Milestone 实现细节
 
 ### M1 — 内核骨架

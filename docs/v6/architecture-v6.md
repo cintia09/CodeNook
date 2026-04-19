@@ -1543,3 +1543,89 @@ Run `./init.sh --upgrade-core` (recommended) or install a compatible plugin vers
 50. ✅ **#50** (router-agent §6) **Per-task `fcntl` exclusive lock** on `tasks/<tid>/router.lock`, acquired by main session before each spawn. Stale lock recovery threshold pinned at **300 seconds** (5 min); lock file carries `{pid, hostname, started_at, task_id}` JSON for stale detection.
 51. ✅ **#51** (router-agent §2; architecture §4.3) **Domain layering** — main session is **domain-agnostic** (Conductor); router-agent is the **sole domain interpreter** on the task-creation side (Specialist); `orchestrator-tick` / `hitl-adapter` / `session-resume` are protocol surfaces (Metronome); phase agents are domain-aware per role (Performers). Enforced by an M8.6 lint test scanning `templates/CLAUDE.md` for forbidden domain tokens.
 52. ✅ **#52** (router-agent §10) M3 `router-triage` skill and its bats are **removed in M8.7**. M7 `_lib/router_select.py` is **repurposed** as an internal scoring helper of router-agent (Python API only; no CLI entry). `history/router-decisions.jsonl` continues to be written, now by the router-agent, with added `turn` field and `kind: handoff|cancel` records.
+
+---
+
+## 13. Memory Layer (M9)
+
+> **Status**: Spec ratified at M9.0. Full design in
+> [`docs/v6/memory-and-extraction-v6.md`](./memory-and-extraction-v6.md).
+> Implementation work (M9.1–M9.8) is tracked in `implementation-v6.md`.
+
+M9 在 M8 conversational router-agent 之上引入**唯一可写的项目记忆层** +
+**三类自动抽取器**，让任务执行中沉淀的知识 / 技能 / 配置以 patch-first
+的方式持续吸收回项目记忆。
+
+### 13.1 分层硬规则（runtime + linter 双重守护）
+
+1. **`<workspace>/.codenook/plugins/` 在运行时严格只读**。所有抽取器、
+   router、orchestrator-tick 都不允许写 plugin 目录；由
+   `_lib/plugin_readonly_check.py` + bats 守护。
+2. **`<workspace>/.codenook/memory/` 是唯一可写积累层**，按资产类型分
+   `knowledge/ | skills/ | config.yaml` 三处；不再按 plugin / 领域分桶。
+3. **主会话不允许扫描 `memory/`**（NFR-LAYER）；M8.6 linter 词表在 M9.7
+   扩展以拦截违例。
+
+### 13.2 三类资产 + 单文件 config
+
+- **knowledge**：`memory/knowledge/<topic>.md`（frontmatter:
+  title/summary/tags/status/...）
+- **skills**：`memory/skills/<name>/SKILL.md`（frontmatter:
+  name/one_line_job/applies_when/status/...）
+- **config**：`memory/config.yaml` 单文件，schema 为
+  `{version: 1, entries: [{key, value, applies_when, summary, status, ...}]}`；
+  同 key 自动合并（latest-wins）。
+- `applies_when` 是**自然语言提示**，由 router-agent LLM 推理判断命中，
+  **不**是表达式。
+
+### 13.3 触发与流程
+
+- **触发 A**：orchestrator-tick `after_phase` hook 在 phase 进入 terminal
+  状态时调度 `extractor-batch.sh --reason phase-complete`。
+- **触发 B**：主会话感知上下文 ≥ 80% 时调用
+  `extractor-batch.sh --reason context-pressure`（CLAUDE.md 描述协议）。
+- 抽取异步执行、best-effort、按 `(task_id, phase, reason)` 哈希幂等。
+- 抽取流程：secret-scan → hash dedup → `find_similar()` → **LLM 判定
+  merge / replace / create**（默认偏好 merge） → 原子写入 → audit log。
+
+### 13.4 反膨胀 — patch-first
+
+- per-task 上限：knowledge ≤ 3、skills ≤ 1、config ≤ 5 entries（超出按
+  信息密度排序丢弃）
+- hash dedup：候选 body 前 512 chars 的 SHA-256，作为廉价第一道关
+- candidate → promoted 两阶段：抽取产出默认 candidate；router 在下一次
+  对话开场提议 promote；30 天未 promote → archived（不删除）
+
+### 13.5 router-agent 升级
+
+- prompt 新增 `MEMORY_INDEX` section（元数据-only，token 预算 ≤ 4K）
+- `draft-config.yaml` 新增 `selected_memory.{knowledge,skills}` 段；
+  config entries 由 applies_when 自动筛选
+- `spawn.sh --confirm` 物化时合成 plugins + memory 双层资产到 task prompt
+- `_lib/token_estimate.py` + 预算裁剪保证 router prompt ≤ 16K、task
+  prompt ≤ 32K（启发式）
+
+### 13.6 Hermes Agent 借鉴
+
+M9 沿用 NousResearch [hermes-agent](https://github.com/NousResearch/hermes-agent)
+的「prompt 引导 + 暴露 patch 工具 + 索引注入让 LLM 自决」三件套；不再
+重新发明启发式 detector。完整对照表见 memory-and-extraction-v6.md §12。
+
+**M9 ratified decisions** (memory + extraction spec, 2026-06; full detail
+in [`docs/v6/memory-and-extraction-v6.md`](./memory-and-extraction-v6.md)):
+
+53. ✅ **#53** Memory layer = workspace-local 唯一可写积累层；plugins/
+    严格只读，runtime + linter 双重守护。
+54. ✅ **#54** memory 不引入项目级背景文件 / 不按 plugin 分桶；仅
+    `knowledge/ | skills/ | config.yaml` 三类。
+55. ✅ **#55** config 为单文件 entries[] schema；同 key 合并（latest-wins）；
+    `applies_when` 是自然语言提示，由 router LLM 判断命中。
+56. ✅ **#56** 抽取器三件套（knowledge / skills / config）共用 patch-first
+    决策流程：find_similar → LLM judge → audit log，默认偏好合并。
+57. ✅ **#57** Per-task 上限：knowledge ≤ 3、skills ≤ 1、config ≤ 5；
+    hash dedup（前 512 chars SHA-256）。
+58. ✅ **#58** 触发由 orchestrator-tick `after_phase` hook + 主会话 80%
+    上下文水位双路驱动；抽取异步、best-effort、按 `(task_id, phase, reason)`
+    幂等。
+59. ✅ **#59** M9 是 greenfield 子系统：M9.1 引入全新的
+    `_lib/memory_layer.py`，由 init 直接创建 memory 空骨架。
