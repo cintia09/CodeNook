@@ -150,8 +150,10 @@ PY
   [ "$status" -eq 0 ] || { echo "out=$output"; return 1; }
 
   log="$ws/.codenook/memory/history/extraction-log.jsonl"
-  cnt=$(grep -c 'DECIDE_MARKER_M95_04' "$log" || true)
-  [ "$cnt" -eq 1 ] || { echo "expected decide marker exactly 1x, got $cnt"; cat "$log"; return 1; }
+  # Count canonical 8-key extractor records whose `reason` carries the
+  # decide marker — proves the decide endpoint produced the rationale.
+  cnt=$(jq -c 'select(has("asset_type") and has("verdict") and has("outcome") and .reason=="DECIDE_MARKER_M95_04")' "$log" | wc -l | tr -d ' ')
+  [ "$cnt" -eq 1 ] || { echo "expected decide marker in exactly 1 canonical audit, got $cnt"; cat "$log"; return 1; }
 }
 
 # ------------------------------------------------------------------ TC-M9.5-05
