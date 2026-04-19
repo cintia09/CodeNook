@@ -42,6 +42,7 @@ sys.path.insert(0, str(_LIB))
 
 import chain_summarize as cs    # noqa: E402  (M10.5 - {{TASK_CHAIN}} slot)
 import draft_config as dc          # noqa: E402
+import extract_audit as ea         # noqa: E402  (v0.11 MINOR-04 / MINOR-06)
 import knowledge_index as ki       # noqa: E402  (kept for prompt-side reference)
 import memory_layer as ml          # noqa: E402  (M9.6 — match_entries_for_task)
 import parent_suggester as ps      # noqa: E402  (M10.3 — top-3 candidates)
@@ -272,7 +273,76 @@ def render_prompt(*, task_id: str, workspace: Path,
     out = template
     for k, v in subs.items():
         out = out.replace(k, v)
+
+    # v0.11 MINOR-04 — guard against substitution-recursion edge case:
+    # if any slot value re-introduced a literal `{{...}}` token, emit a
+    # diagnostic so operators can spot accidental double-templating.
+    # Single-pass substitution is intentional (no shell expansion); the
+    # diagnostic merely surfaces the residual rather than blocking.
+    if "{{" in out and "}}" in out:
+        try:
+            _emit_render_residual_diag(workspace, task_id, out)
+        except Exception:
+            pass
+
     return out
+
+
+_RESIDUAL_RE = __import__("re").compile(r"\{\{([A-Z_]+)\}\}")
+
+
+def _emit_render_residual_diag(workspace: Path, task_id: str,
+                                rendered: str) -> None:
+    """Emit a `chain_render_residual_slot` diagnostic when a rendered
+    prompt still contains a `{{SLOT}}` token after substitution
+    (v0.11 MINOR-04). Best-effort; never raises."""
+    matches = _RESIDUAL_RE.findall(rendered or "")
+    if not matches:
+        return
+    rec = {
+        "asset_type": "chain",
+        "candidate_hash": "",
+        "existing_path": None,
+        "outcome": "diagnostic",
+        "reason": ",".join(sorted(set(matches))[:5]),
+        "source_task": task_id,
+        "timestamp": ea._now_iso(),
+        "verdict": "noop",
+        "kind": "chain_render_residual_slot",
+    }
+    ml.append_audit(workspace, rec)
+
+
+def _maybe_audit_stale_parent(workspace: Path, child_task_id: str,
+                               parent_id: str) -> None:
+    """v0.11 MINOR-06 — emit `chain_parent_stale` diagnostic when the
+    confirmed parent transitioned to done/cancelled between prepare
+    and confirm. Best-effort; never raises."""
+    state_path = (
+        Path(workspace) / ".codenook" / "tasks" / parent_id / "state.json"
+    )
+    if not state_path.is_file():
+        return
+    try:
+        with state_path.open("r", encoding="utf-8") as f:
+            parent_state = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return
+    status = parent_state.get("status")
+    if status not in ("done", "cancelled"):
+        return
+    rec = {
+        "asset_type": "chain",
+        "candidate_hash": "",
+        "existing_path": None,
+        "outcome": "diagnostic",
+        "reason": f"parent={parent_id},parent_status={status}",
+        "source_task": child_task_id,
+        "timestamp": ea._now_iso(),
+        "verdict": "noop",
+        "kind": "chain_parent_stale",
+    }
+    ml.append_audit(workspace, rec)
 
 
 # ---------------------------------------------------------------- modes
@@ -446,6 +516,16 @@ def cmd_confirm(args: argparse.Namespace) -> int:
     # chain_attached / chain_attach_failed audit itself.
     parent_id = draft.get("parent_id")
     if isinstance(parent_id, str) and parent_id:
+        # v0.11 MINOR-06 — confirm-side stale-parent check. Suggestions
+        # are computed at cmd_prepare time; if the candidate transitioned
+        # to done/cancelled between prepare and confirm, emit a
+        # `chain_parent_stale` diagnostic before attempting attach.
+        # Behaviour stays permissive (no exit 4) to match existing
+        # "stale suggestion" semantics elsewhere in the router.
+        try:
+            _maybe_audit_stale_parent(workspace, args.task_id, parent_id)
+        except Exception:
+            pass
         try:
             tc.set_parent(workspace, args.task_id, parent_id)
         except (
