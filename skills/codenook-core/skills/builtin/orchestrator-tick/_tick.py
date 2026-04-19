@@ -736,6 +736,44 @@ def _legacy_log(state: dict, action: str, result: str) -> None:
     )
 
 
+def after_phase(workspace_root: Path, task_id: str, phase: str | None,
+                summary_status: str) -> None:
+    """M9.2 hook: dispatch extractor-batch when a tick produces a phase
+    transition or terminal status.  Best-effort — never raises (FR-EXT-5 /
+    AC-TRG-4).  Default batch path can be overridden via CN_EXTRACTOR_BATCH
+    (used by tests to inject a stub)."""
+    import subprocess
+    if summary_status not in ("done", "blocked", "advanced"):
+        return
+    batch = os.environ.get("CN_EXTRACTOR_BATCH", "")
+    if not batch:
+        core = _find_core_root()
+        if not core:
+            return
+        batch = os.path.join(core, "skills", "builtin",
+                             "extractor-batch", "extractor-batch.sh")
+    if not os.path.exists(batch):
+        return
+    cmd = ["bash", batch,
+           "--task-id", task_id,
+           "--reason", "after_phase",
+           "--workspace", str(workspace_root),
+           "--phase", phase or ""]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if proc.returncode != 0:
+            print(f"orchestrator-tick: extractor batch failed (exit={proc.returncode})",
+                  file=sys.stderr)
+            if proc.stderr:
+                print(proc.stderr.rstrip(), file=sys.stderr)
+    except subprocess.TimeoutExpired:
+        print("orchestrator-tick: extractor batch failed (exit=timeout)",
+              file=sys.stderr)
+    except Exception as exc:  # noqa: BLE001 - best-effort
+        print(f"orchestrator-tick: extractor batch failed (exit=exception:{exc})",
+              file=sys.stderr)
+
+
 def _find_core_root() -> str:
     cur = os.path.dirname(os.path.abspath(__file__))
     while cur != "/":
@@ -778,6 +816,10 @@ def main() -> None:
     if not (waiting_noop or inert_noop):
         new_state["updated_at"] = now_iso()
         persist_state(state_file, new_state)
+    # M9.2 — after_phase hook (best-effort; never blocks tick exit).
+    after_phase(workspace, task,
+                new_state.get("phase") or prior_state.get("phase"),
+                summary.get("status", ""))
     if json_mode:
         emit_summary(summary)
     sys.exit(_exit_for(summary))

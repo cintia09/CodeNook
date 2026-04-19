@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# extractor-batch.sh — M9.2 dispatcher.
+#
+# Fan out knowledge / skill / config extractors for a finished task phase or
+# context-pressure event.  Best-effort + idempotent on (task_id, phase, reason).
+#
+# Args:
+#   --task-id   ID            (required)
+#   --reason    REASON        (required) e.g. after_phase | context-pressure
+#   --workspace WS            (optional, defaults to $CN_WORKSPACE / $CODENOOK_WORKSPACE / pwd)
+#   --phase     PHASE         (optional, defaults to "")
+#
+# Env:
+#   CN_EXTRACTOR_LOOKUP_ROOT  override extractor lookup root (default: skills/builtin)
+#
+# Output: one JSON object on stdout, e.g.
+#   {"enqueued_jobs":["knowledge-extractor"],"skipped":[{"name":"skill-extractor","reason":"not_present"}]}
+#
+# Exit code is always 0 unless argument parsing fails (FR-EXT-5 / AC-TRG-4).
+
+set -euo pipefail
+
+TASK_ID=""
+REASON=""
+WORKSPACE="${CN_WORKSPACE:-${CODENOOK_WORKSPACE:-}}"
+PHASE=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --task-id)   TASK_ID="$2"; shift 2 ;;
+    --reason)    REASON="$2"; shift 2 ;;
+    --workspace) WORKSPACE="$2"; shift 2 ;;
+    --phase)     PHASE="$2"; shift 2 ;;
+    -h|--help)
+      sed -n '1,30p' "$0"; exit 0 ;;
+    *) echo "extractor-batch.sh: unknown arg: $1" >&2; exit 2 ;;
+  esac
+done
+
+[ -n "$TASK_ID" ] || { echo "extractor-batch.sh: --task-id is required" >&2; exit 2; }
+[ -n "$REASON" ]  || { echo "extractor-batch.sh: --reason is required" >&2; exit 2; }
+
+if [ -z "$WORKSPACE" ]; then
+  cur="$(pwd)"
+  while [ "$cur" != "/" ]; do
+    if [ -d "$cur/.codenook" ]; then WORKSPACE="$cur"; break; fi
+    cur="$(dirname "$cur")"
+  done
+fi
+[ -n "$WORKSPACE" ] || { echo "extractor-batch.sh: workspace not found" >&2; exit 2; }
+
+HISTORY_DIR="$WORKSPACE/.codenook/memory/history"
+mkdir -p "$HISTORY_DIR"
+TRIGGER_KEYS="$HISTORY_DIR/.trigger-keys"
+LOG="$HISTORY_DIR/extraction-log.jsonl"
+
+ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+sha() { printf '%s' "$1" | shasum -a 256 | awk '{print $1}'; }
+
+KEY="$(sha "${TASK_ID}|${PHASE}|${REASON}")"
+
+log_event() {
+  local event="$1" name="${2:-}"
+  jq -cn \
+    --arg ts "$(ts)" --arg task "$TASK_ID" --arg phase "$PHASE" \
+    --arg reason "$REASON" --arg event "$event" --arg name "$name" \
+    --arg key "$KEY" \
+    '{ts:$ts, task_id:$task, phase:$phase, reason:$reason, event:$event,
+      name:($name | select(. != "")), key:$key}
+     | with_entries(select(.value != null))' >> "$LOG"
+}
+
+# Idempotency: if key already recorded, short-circuit.
+if [ -f "$TRIGGER_KEYS" ] && grep -qxF "$KEY" "$TRIGGER_KEYS"; then
+  log_event "deduped"
+  jq -cn --arg key "$KEY" '{enqueued_jobs:[], skipped:[{reason:"deduped", key:$key}], reason:"deduped"}'
+  exit 0
+fi
+printf '%s\n' "$KEY" >> "$TRIGGER_KEYS"
+
+LOOKUP_ROOT="${CN_EXTRACTOR_LOOKUP_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+
+ENQUEUED=()
+SKIPPED_JSON='[]'
+
+push_skipped() {
+  local name="$1" reason="$2"
+  SKIPPED_JSON=$(echo "$SKIPPED_JSON" | jq -c --arg n "$name" --arg r "$reason" '. + [{name:$n, reason:$r}]')
+}
+
+dispatch_one() {
+  local name="$1"
+  local script="$LOOKUP_ROOT/$name/extract.sh"
+  if [ ! -x "$script" ]; then
+    if [ -f "$script" ]; then
+      log_event "extractor_not_executable" "$name"
+      push_skipped "$name" "not_executable"
+    else
+      log_event "extractor_missing" "$name"
+      push_skipped "$name" "not_present"
+    fi
+    return 0
+  fi
+  # Spawn detached; failures captured to per-extractor log, not propagated.
+  local err_log="$HISTORY_DIR/.extractor-${name}.err"
+  nohup "$script" --task-id "$TASK_ID" --workspace "$WORKSPACE" \
+        --phase "$PHASE" --reason "$REASON" \
+        </dev/null >>"$err_log" 2>&1 &
+  disown $! 2>/dev/null || true
+  log_event "extractor_dispatched" "$name"
+  ENQUEUED+=("$name")
+}
+
+for name in knowledge-extractor skill-extractor config-extractor; do
+  dispatch_one "$name"
+done
+
+log_event "phase_complete"
+
+ENQ_JSON=$(printf '%s\n' "${ENQUEUED[@]:-}" | jq -R . | jq -s -c 'map(select(. != ""))')
+jq -cn --argjson e "$ENQ_JSON" --argjson s "$SKIPPED_JSON" \
+  '{enqueued_jobs:$e, skipped:$s}'
+
+exit 0

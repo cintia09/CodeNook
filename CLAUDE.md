@@ -188,6 +188,28 @@ cat plugins/development/roles/implementer.md
 
 ---
 
+## 上下文水位监控 (M9.2)
+
+主会话需要周期性自评估上下文使用率（启发式：本地估算 token，CJK 1:1，
+ASCII 1:4）。当估算 ≥ 80% model window 水位时（water-mark），按以下协议
+处理，避免上下文溢出导致丢失任务知识：
+
+1. **停止新功能工作**——不再启动新的 sub-agent / 不再展开新文件读。
+2. **沉淀当前任务知识**——对每个 active task ID 调用一次：
+   `bash skills/codenook-core/skills/builtin/extractor-batch/extractor-batch.sh \
+       --task-id <T-NNN> --reason context-pressure --workspace <ws>`
+   该命令在子进程异步派发 knowledge / skill / config 三类 extractor，
+   wall-clock ≤ 200ms 返回，不阻塞主会话。
+3. **压缩或重置自身**——根据返回 JSON 的 `enqueued_jobs` 数量决定是否
+   触发 `/clear` 或 `/compact`，必要时 resume 已记录在 memory 中的工作。
+
+主会话**不允许**直接扫描 `.codenook/memory/` 下任何文件；只能依赖
+`extractor-batch.sh --reason context-pressure` 的退出 JSON 当字符串转给
+用户。完整水位触发协议（路径 A / 路径 B、幂等键、context-pressure 事件
+类型）见 `docs/v6/memory-and-extraction-v6.md` §5。
+
+---
+
 ## Linter
 
 The rules above are enforced by

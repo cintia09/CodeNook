@@ -62,7 +62,8 @@ STUB
   mk_batch_stub "$stub" "$log" 0
 
   CN_EXTRACTOR_BATCH="$stub" run bash "$TICK_SH" --task T2 --workspace "$ws"
-  [ "$status" -eq 0 ] || { echo "tick exit=$status output=$output"; return 1; }
+  # tick exit code for blocked status is 1 by design; the hook MUST still fire.
+  [ "$status" -eq 0 ] || [ "$status" -eq 1 ] || { echo "tick exit=$status output=$output"; return 1; }
   [ -f "$log" ] || { echo "stub never called"; return 1; }
   calls=$(wc -l <"$log" | tr -d ' ')
   [ "$calls" -eq 1 ] || { echo "expected 1 call, got $calls; log=$(cat "$log")"; return 1; }
@@ -91,7 +92,7 @@ STUB
   mkdir -p "$lookup/knowledge-extractor"
   cat > "$lookup/knowledge-extractor/extract.sh" <<'STUB'
 #!/usr/bin/env bash
-exec sleep 5 knowledge_extractor_marker
+exec python3 -c 'import time; time.sleep(5)' knowledge_extractor_marker
 STUB
   chmod +x "$lookup/knowledge-extractor/extract.sh"
 
@@ -99,19 +100,27 @@ STUB
   run env CN_EXTRACTOR_LOOKUP_ROOT="$lookup" bash "$BATCH_SH" \
         --task-id t1 --reason after_phase --workspace "$ws" --phase complete
   end=$(python3 -c 'import time;print(int(time.time()*1000))')
-  [ "$status" -eq 0 ] || { echo "batch exit=$status output=$output"; pkill -f knowledge_extractor_marker || true; return 1; }
+  [ "$status" -eq 0 ] || { echo "batch exit=$status output=$output"; for p in $(pgrep -f knowledge_extractor_marker 2>/dev/null); do kill "$p" 2>/dev/null || true; done; return 1; }
   elapsed=$((end - start))
   echo "wall=${elapsed}ms"
-  [ "$elapsed" -le 1000 ] || { echo "wall ${elapsed}ms > 1000ms (perf budget)"; pkill -f knowledge_extractor_marker || true; return 1; }
-  echo "$output" | jq -e '.enqueued_jobs | length >= 1' >/dev/null || { echo "no enqueued_jobs in: $output"; pkill -f knowledge_extractor_marker || true; return 1; }
+  [ "$elapsed" -le 1000 ] || { echo "wall ${elapsed}ms > 1000ms (perf budget)"; for p in $(pgrep -f knowledge_extractor_marker 2>/dev/null); do kill "$p" 2>/dev/null || true; done; return 1; }
+  echo "$output" | jq -e '.enqueued_jobs | length >= 1' >/dev/null || { echo "no enqueued_jobs in: $output"; for p in $(pgrep -f knowledge_extractor_marker 2>/dev/null); do kill "$p" 2>/dev/null || true; done; return 1; }
 
   # Allow OS a moment to schedule the child.
-  sleep 0.2
-  if ! pgrep -f knowledge_extractor_marker >/dev/null; then
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    sleep 0.1
+    alive=$(ps -axww | grep knowledge_extractor_marker | grep -v grep || true)
+    [ -n "$alive" ] && break
+  done
+  [ -n "$alive" ] || {
     echo "expected child still alive"
+    echo "DIAG output: $output"
+    echo "DIAG err log: $(cat "$ws/.codenook/memory/history/.extractor-knowledge-extractor.err" 2>/dev/null || echo none)"
+    echo "DIAG ps full:"; ps -axww | grep -i 'extract\|knowledge' | grep -v grep || true
     return 1
-  fi
-  pkill -f knowledge_extractor_marker || true
+  }
+  pid=$(echo "$alive" | awk '{print $1}' | head -1)
+  [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
 }
 
 @test "[m9.2] TC-M9.2-08 batch json contract (enqueued_jobs[] + skipped[])" {
