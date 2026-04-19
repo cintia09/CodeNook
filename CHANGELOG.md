@@ -2,6 +2,168 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.0-m10.0] - 2026-04-19
+
+### 🔗 v6.0 Milestone M10 — Task Chains
+
+Greenfield parent–child linkage between tasks. A child task can now
+declare a `parent_id`, and the router-agent automatically aggregates
+chain context for the child's prompt: design decisions, summaries,
+and key artefacts from each ancestor (root → parent) are
+LLM-summarised into a single `## TASK_CHAIN (M10)` block above the
+existing `MEMORY_INDEX`. A workspace-local
+`.codenook/tasks/.chain-snapshot.json` (schema v2, gitignored) caches
+chain roots so cold lookups stay sub-5 ms after the first walk.
+
+#### Highlights
+
+- **Parent–child task linking.** `state.json` gains optional
+  `parent_id` and `chain_root` fields (additive — no migration; pre-M10
+  tasks continue to be treated as independent roots).
+- **Chain-aware context aggregation for child agents.** Router-agent
+  invokes a 2-pass chain_summarize that (1) summarises each ancestor
+  individually, (2) re-summarises the bundle if the per-chain token
+  budget is exceeded; the newest 3 ancestors stay verbatim.
+- **Snapshot-cached lineage walk.** v2 snapshot stores
+  `{schema_version, generation, built_at, entries[<tid>] = {parent_id,
+  chain_root, state_mtime}}`; mtime-aware invalidation rebuilds only
+  on drift, full rebuild guaranteed sub-1 s for N ≤ 200 tasks.
+- **Audit observability.** 6 canonical chain outcomes
+  (`chain_attached`, `chain_attach_failed`, `chain_detached`,
+  `chain_walk_truncated`, `chain_summarized`,
+  `chain_summarize_failed`) plus 4 diagnostic kinds
+  (`chain_root_stale`, `chain_snapshot_slow_rebuild`,
+  `chain_summarize_redacted`, attach-time `chain_root_uncertain`).
+
+#### New CLI
+
+- `python -m task_chain {attach,detach,show,root}` — the M10 chain
+  primitive surface, English-only output.
+  - `attach <child> <parent> [--force]` — set the child's parent_id
+    + chain_root; refuses self-loops, ancestor cycles, and corrupt
+    parent ancestry.
+  - `detach <child>` — clear parent_id and chain_root (idempotent).
+  - `show <task> [--format text|json]` — print the ancestor chain
+    in child→root order; JSON envelope includes
+    `parent_id, chain_root, ancestors[], depth, snapshot_hit`.
+  - `root <task>` — print cached chain_root.
+  - Usage errors (unknown subcommand, missing positional, unknown
+    flag) exit `64` per spec §4.3; operational errors map to `1` /
+    `2` (cycle / corrupt) / `3` (already-attached) / `4` (parent
+    attach failed at confirm time).
+
+  Reference: `docs/v6/task-chains-v6.md` §4 (interface) and
+  `docs/v6/m10-test-cases.md` §M10.1 (behavioural test cases).
+
+#### New library APIs
+
+- **`_lib/task_chain`** — `get_parent`, `set_parent`,
+  `walk_ancestors`, `chain_root`, `detach`, plus public
+  `CycleError` / `CorruptChainError` / `TaskNotFoundError` /
+  `AlreadyAttachedError`. Snapshot v2 maintained transparently on
+  every mutation.
+- **`_lib/parent_suggester`** — top-3 parent candidates with
+  symmetric-difference + Jaccard score; threshold 0.15; ties broken
+  alphabetically by task_id; `done` / `cancelled` tasks excluded.
+- **`_lib/chain_summarize`** — 2-pass LLM summariser with built-in
+  token-budget enforcement, secret-scan redaction, and per-call
+  audit (`chain_summarized` / `chain_summarize_failed` /
+  `chain_summarize_redacted`).
+- **`_lib/token_estimate`** — shared 4-chars-per-token estimator;
+  also exposes `truncate_to_budget`.
+
+#### Router prompt
+
+- New `{{TASK_CHAIN}}` slot, ordered above `{{MEMORY_INDEX}}` which
+  remains above `{{USER_TURN}}`. When `parent_id` is null the slot
+  collapses to empty (no `chain_summarize` invocation).
+- New `{{PARENT_SUGGESTIONS}}` slot rendered during `prepare`, with
+  the user-visible `## Suggested parents` block (top-3 +
+  `0. independent (no parent)` opt-out).
+
+#### State.json
+
+- Optional `parent_id: string | null` and `chain_root: string | null`
+  fields (no schema change required for legacy state.json files —
+  both default to null).
+
+#### Snapshot
+
+- `.codenook/tasks/.chain-snapshot.json` (schema v2 per spec §8.2)
+  cached per workspace, gitignored via the init skill's
+  `.codenook/tasks/.gitignore`.
+
+#### Audit
+
+- 6 chain outcomes (canonical 8-key records, `asset_type=chain`).
+- 4 diagnostic kinds emitted as `outcome=diagnostic, verdict=noop`
+  side-records carrying a `kind` discriminator (does not violate
+  the canonical-schema contract enforced by TC-M9.4-04).
+
+#### Two-phase confirm
+
+- `router-agent` `cmd_confirm` now writes `state.json` with
+  `status=pending` BEFORE calling `task_chain.set_parent`; only
+  flips to `in_progress` after attachment succeeds. A failed attach
+  exits `4` (`parent_attach_failed`) and leaves the task in
+  `pending` for the operator to re-prompt.
+
+#### Known limitations
+
+- **MEDIUM-04 (M10.6 §8 Issue 3) — Snapshot rebuild TOCTOU.** A
+  concurrent writer mutating `state.json` during
+  `_build_snapshot`'s O(N) scan may produce a snapshot that
+  reflects a transient read. By contract M10 is single-process
+  (the orchestrator serialises chain ops via the per-task
+  task_lock); re-running set_parent / detach refreshes the
+  snapshot deterministically. To be revisited if multi-process
+  orchestration lands.
+- **MINOR-04 (M10.5) — Substitution-recursion class.**
+  `chain_summarize` body that itself contains the literal token
+  `{{TASK_CHAIN}}` is rendered verbatim; the slot substitution is
+  single-pass (no recursive re-render). Documented; not a security
+  issue (no shell expansion).
+- **MINOR-06 (M10.5) — `cmd_prepare` vs `cmd_confirm` slot timing.**
+  `{{PARENT_SUGGESTIONS}}` is computed at `cmd_prepare` time; if a
+  candidate task transitions to `done` / `cancelled` between
+  prepare and confirm the user can still pick it. Confirm-side
+  re-validation is NOT performed; behaviour matches "stale
+  suggestion" semantics elsewhere in the router.
+
+#### Migration
+
+- **No migration required.** Pre-M10 tasks are naturally treated
+  as independent (parent_id absent → null → no chain). Existing
+  workspaces gain the new `.codenook/tasks/.chain-snapshot.json`
+  file (and its `.gitignore` entry) on the next invocation of any
+  M10 entry-point or `init` re-run.
+
+#### Per-milestone
+
+- **M10.0** Spec doc `docs/v6/task-chains-v6.md` (12 sections, 5
+  FR groups, 7 NFR), `docs/v6/m10-test-cases.md` test plan.
+- **M10.1** `_lib/task_chain.py` primitives + state-schema fields
+  + CLI; usage errors exit 64 (§4.3); R1 fixes raised
+  CorruptChainError on corrupt parent ancestry and warn-class
+  audit on truncated walks.
+- **M10.2** `_lib/parent_suggester.py` with deterministic ranking
+  + threshold + status filter.
+- **M10.3** Router-agent spawn parent-UX hook (suggester →
+  prompt; confirm → set_parent). Two-phase state.json write so
+  attach failure leaves status=pending.
+- **M10.4** `_lib/chain_summarize.py` 2-pass LLM aggregator,
+  per-chain token budget, secret-scan redaction, audit; path
+  traversal and unknown asset_type rejected.
+- **M10.5** Router prompt `{{TASK_CHAIN}}` slot wired above
+  `{{MEMORY_INDEX}}`; substitution failure mode = exit 0 + audit.
+- **M10.6** Snapshot v2 schema, audit 6+4, perf budgets
+  (depth=10 walk ≤100 ms avg, cold rebuild ≤1 s, warm cache
+  ≤5 ms for N=200), cycle/self-parent → chain_root=null.
+- **M10.7** Backlog fold: argparse exit-64 lock-in, set_parent
+  warn-on-truncated, two-phase confirm, refuse-corrupt-ancestry,
+  comment cleanup, and a comprehensive end-to-end TC binding all
+  six audit outcomes + diagnostic + snapshot v2.
+
 ## [0.9.0-m9.0] - 2026-04-19
 
 ### 🧠 v6.0 Milestone M9 — Memory Layer + LLM-Driven Extraction
