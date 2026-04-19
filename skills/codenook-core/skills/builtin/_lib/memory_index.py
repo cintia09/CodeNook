@@ -92,11 +92,37 @@ def _read_snapshot(workspace_root: Path | str) -> dict[str, Any]:
 
 
 def _write_snapshot(workspace_root: Path | str, snapshot: dict[str, Any]) -> None:
+    import fcntl
+    import tempfile
+
     p = _snapshot_path(workspace_root)
     p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.parent / f".tmp.{p.name}.{os.getpid()}"
-    tmp.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, p)
+    # Per-call unique tmp prevents collisions across threads/processes;
+    # the leading "." keeps it filtered by build_index's scandir loops.
+    fd, tmp = tempfile.mkstemp(
+        dir=str(p.parent), prefix=".tmp-snap.", suffix=".json"
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(snapshot, ensure_ascii=False))
+            f.flush()
+            os.fsync(f.fileno())
+        # Serialize the rename across threads/processes so concurrent
+        # writers do not race os.replace targeting the same path.
+        lock_path = p.with_name(p.name + ".lock")
+        lock_fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o600)
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            os.replace(tmp, p)
+        finally:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            os.close(lock_fd)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 # ---------------------------------------------------------------- public
@@ -128,6 +154,9 @@ def build_index(workspace_root: Path | str, *, force: bool = False) -> dict[str,
         new_k: dict[str, dict[str, Any]] = {}
         with os.scandir(kdir) as it:
             for entry in it:
+                # Skip hidden / in-flight tmp files (".tmp.*", ".tmp-snap.*").
+                if entry.name.startswith("."):
+                    continue
                 if not entry.is_file() or not entry.name.endswith(".md"):
                     continue
                 ap = entry.path
@@ -153,6 +182,8 @@ def build_index(workspace_root: Path | str, *, force: bool = False) -> dict[str,
         new_s: dict[str, dict[str, Any]] = {}
         with os.scandir(sdir) as it:
             for entry in it:
+                if entry.name.startswith("."):
+                    continue
                 if not entry.is_dir():
                     continue
                 skill_md = Path(entry.path) / "SKILL.md"

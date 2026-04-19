@@ -53,6 +53,7 @@ MEMORY_DIRNAME = "memory"
 
 MAX_SUMMARY_CHARS = 200
 MAX_TAGS = 8
+MAX_TOPIC_CHARS = 64
 
 LOCK_TIMEOUT_S = 5.0
 
@@ -129,7 +130,9 @@ def init_memory_skeleton(workspace_root: Path | str) -> None:
 def _atomic_write_text(path: Path, content: str) -> None:
     """tempfile + os.replace in the same directory → atomic on POSIX."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".tmp.", suffix=path.suffix)
+    # suffix=".tmp" (not the real extension) so concurrent scanners that
+    # filter by extension cannot race-pick the in-flight file.
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".tmp.", suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(content)
@@ -203,6 +206,9 @@ def _validate_frontmatter(fm: dict[str, Any]) -> None:
         raise ValueError("tags must be a list")
     if len(tags) > MAX_TAGS:
         raise ValueError(f"tags exceed {MAX_TAGS} (got {len(tags)})")
+    for t in tags:
+        if not isinstance(t, str):
+            raise ValueError(f"tag must be a string: {t!r}")
 
 
 # --------------------------------------------------------------- topic util
@@ -216,6 +222,8 @@ def _validate_topic(topic: str) -> None:
         raise ValueError(f"topic must use flat layout (no path separators): {topic!r}")
     if not _TOPIC_RE.match(topic):
         raise ValueError(f"invalid topic name: {topic!r}")
+    if len(topic) > MAX_TOPIC_CHARS:
+        raise ValueError(f"topic exceeds {MAX_TOPIC_CHARS} chars (got {len(topic)})")
 
 
 def _knowledge_path(ws: Path | str, topic: str) -> Path:

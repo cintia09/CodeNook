@@ -562,6 +562,11 @@ context_budget:
 
 ### 10.1 公共函数签名
 
+> **签名形式说明（M9.1 实现校准）**：所有写入/变更接口统一采用
+> `workspace_root` 作为首位参数 + 关键字参数 + mutator 回调的形式。
+> 这样可以防止跨 workspace 误写，并让审计轨迹（哪个 workspace、哪个
+> topic、哪种 verdict）永远显式可见，避免裸 `Path` 调用泄漏到错误目录。
+
 ```python
 # ---- 路径与发现 ----
 def memory_root(workspace_root: Path | str) -> Path: ...
@@ -572,26 +577,67 @@ def init_memory_skeleton(workspace_root: Path | str) -> None:
 # ---- knowledge ----
 def scan_knowledge(workspace_root) -> list[KnowledgeMeta]:
     """返回元数据列表（不读 body）；mtime-cached。"""
-def read_knowledge(path: Path) -> KnowledgeDoc:
-    """读 frontmatter + body。"""
-def write_knowledge(workspace_root, doc: KnowledgeDoc) -> Path:
-    """原子写入；返回最终路径。create 路径。"""
-def patch_knowledge(path: Path, new_doc: KnowledgeDoc, rationale: str) -> Path:
-    """合并写入；frontmatter 按 §6.3 规则合并。"""
-def replace_knowledge(path: Path, new_doc: KnowledgeDoc, rationale: str) -> Path: ...
-def promote_knowledge(path: Path) -> None: ...
-def archive_knowledge(path: Path) -> None: ...
+def read_knowledge(path: Path | str) -> KnowledgeDoc:
+    """读 frontmatter + body。接受文件绝对路径。"""
+def write_knowledge(
+    workspace_root,
+    *,
+    topic: str,
+    summary: str = "",
+    tags: list[str] | None = None,
+    body: str = "",
+    frontmatter: dict | None = None,
+    doc: KnowledgeDoc | None = None,   # 等价输入：{"topic","frontmatter","body"}
+    status: str = "candidate",
+    created_from_task: str = "",
+    atomic: bool = True,
+) -> Path:
+    """原子写入；create 路径，返回最终文件路径。"""
+def patch_knowledge(
+    workspace_root,
+    *,
+    topic: str,
+    mutator: Callable[[KnowledgeDoc], KnowledgeDoc],
+    rationale: str,
+) -> Path:
+    """读-改-原子写；mutator 在 fcntl 临界区内被调用，返回新 doc。
+    审计 verdict=merge。"""
+def replace_knowledge(
+    workspace_root,
+    *,
+    topic: str,
+    frontmatter: dict,
+    body: str,
+    rationale: str,
+) -> Path:
+    """全量覆盖；审计 verdict=replace。"""
+def promote_knowledge(workspace_root, path: Path | str) -> None: ...
+def archive_knowledge(workspace_root, path: Path | str) -> None: ...
 
 # ---- skills ----
 def scan_skills(workspace_root) -> list[SkillMeta]: ...
-def read_skill(name: str, workspace_root) -> SkillDoc: ...
-def write_skill(workspace_root, doc: SkillDoc) -> Path: ...
-def patch_skill(name: str, workspace_root, new_doc: SkillDoc, rationale: str) -> Path: ...
-def promote_skill(name: str, workspace_root) -> None: ...
+def read_skill(workspace_root, name: str) -> SkillDoc: ...
+def write_skill(
+    workspace_root,
+    *,
+    name: str,
+    frontmatter: dict,
+    body: str,
+    status: str = "candidate",
+    created_from_task: str = "",
+) -> Path: ...
+def patch_skill(
+    workspace_root,
+    *,
+    name: str,
+    mutator: Callable[[SkillDoc], SkillDoc],
+    rationale: str,
+) -> Path: ...
+def promote_skill(workspace_root, name: str) -> None: ...
 
 # ---- config ----
 def read_config_entries(workspace_root) -> list[ConfigEntry]: ...
-def upsert_config_entry(workspace_root, entry: ConfigEntry, rationale: str) -> ConfigEntry:
+def upsert_config_entry(workspace_root, *, entry: ConfigEntry, rationale: str) -> ConfigEntry:
     """同 key 命中则按 §4.2 合并；否则 append。"""
 def match_entries_for_task(workspace_root, task_brief: str) -> list[ConfigEntry]:
     """走 LLM 判断 applies_when 命中；router-agent 在选择阶段调用。"""
@@ -606,7 +652,7 @@ def find_similar(
     *,
     tag_overlap_threshold: float = 0.5,
     title_cosine_threshold: float = 0.7,
-) -> SimilarMatch | None: ...
+) -> list[SimilarMatch]: ...
 
 def has_hash(workspace_root, kind: str, dedup_key: str) -> bool: ...
 def append_audit(workspace_root, entry: dict) -> None: ...

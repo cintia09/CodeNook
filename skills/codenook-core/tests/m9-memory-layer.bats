@@ -121,9 +121,11 @@ print('OK')
   assert_contains "$output" "OK"
 }
 
-@test "[m9.1] TC-M9.1-06 public api surface locked" {
+@test "[m9.1] TC-M9.1-06 public api signature smoke (no TypeError)" {
+  ws=$(m9_seed_workspace); m9_init_memory "$ws"
   run m9_py "
 import memory_layer as m
+# Surface check first.
 required = {
     'init_memory_skeleton', 'scan_memory',
     'scan_knowledge', 'read_knowledge', 'write_knowledge', 'patch_knowledge',
@@ -135,6 +137,112 @@ required = {
 public = {n for n in dir(m) if not n.startswith('_')}
 missing = required - public
 assert not missing, 'missing: ' + ','.join(sorted(missing))
+
+ws = '$ws'
+# --- knowledge ---
+p = m.write_knowledge(ws, topic='alpha', summary='s', tags=['x'], body='b')
+doc = m.read_knowledge(p)
+assert doc['frontmatter']['topic'] == 'alpha'
+m.patch_knowledge(ws, topic='alpha',
+                  mutator=lambda d: d, rationale='noop')
+m.replace_knowledge(ws, topic='alpha',
+                    frontmatter={'summary': 's2', 'tags': ['y'], 'status': 'candidate'},
+                    body='b2', rationale='replace')
+m.promote_knowledge(ws, p)
+m.archive_knowledge(ws, p)
+m.scan_knowledge(ws)
+
+# --- skills ---
+m.write_skill(ws, name='helper',
+              frontmatter={'one_line_job': 'do x', 'applies_when': 'always',
+                           'status': 'candidate', 'created_from_task': 't1',
+                           'created_at': '2025-01-01T00:00:00Z'},
+              body='echo hi')
+sk = m.read_skill(ws, 'helper')
+assert sk['name'] == 'helper'
+m.patch_skill(ws, name='helper', mutator=lambda d: d, rationale='noop')
+m.scan_skills(ws)
+
+# --- config ---
+m.upsert_config_entry(ws, entry={'key': 'log.level', 'value': 'info'},
+                      rationale='init')
+m.read_config_entries(ws)
+m.match_entries_for_task(ws, 'some brief')
+
+# --- generic ---
+m.find_similar(ws, 'knowledge', 'alpha', tags=['x'])
+m.has_hash(ws, 'knowledge', 'deadbeef')
+m.append_audit(ws, {'ts': '2025-01-01T00:00:00Z', 'asset_type': 'meta'})
+m.scan_memory(ws)
+print('OK')
+"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  assert_contains "$output" "OK"
+}
+
+@test "[m9.1] TC-M9.1-11 concurrent write never leaks .tmp.* into scan" {
+  ws=$(m9_seed_workspace); m9_init_memory "$ws"
+  run m9_py "
+import os, threading, time, memory_layer as ml
+ws = '$ws'
+errors = []
+seen_tmp = []
+stop = time.time() + 1.5
+def writer(i):
+    n = 0
+    while time.time() < stop:
+        try:
+            ml.write_knowledge(ws, topic=f'topic-{i}-{n}',
+                               summary='s', tags=['t'], body='B'*4096)
+        except Exception as e:
+            errors.append(repr(e)); return
+        n += 1
+def scanner():
+    while time.time() < stop:
+        try:
+            idx = ml.scan_memory(ws)
+        except Exception as e:
+            errors.append(repr(e)); return
+        for entry in idx['knowledge']:
+            base = os.path.basename(entry['path'])
+            if base.startswith('.') or '.tmp' in base:
+                seen_tmp.append(base); return
+threads = [threading.Thread(target=writer, args=(i,)) for i in range(6)]
+threads += [threading.Thread(target=scanner) for _ in range(4)]
+for t in threads: t.start()
+for t in threads: t.join()
+assert not errors, errors
+assert not seen_tmp, f'scan returned tmp file(s): {seen_tmp[:3]}'
+print('OK')
+"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  assert_contains "$output" "OK"
+}
+
+@test "[m9.1] TC-M9.1-12 parallel build_index(force=True) snapshot stays valid" {
+  ws=$(m9_seed_workspace); m9_init_memory "$ws"
+  m9_seed_n_knowledge "$ws" 30
+  run m9_py "
+import json, threading, memory_index as mi
+ws = '$ws'
+errors = []
+def worker():
+    try:
+        mi.build_index(ws, force=True)
+    except Exception as e:
+        errors.append(repr(e))
+ts = [threading.Thread(target=worker) for _ in range(20)]
+for t in ts: t.start()
+for t in ts: t.join()
+assert not errors, errors
+snap_path = ws + '/.codenook/memory/.index-snapshot.json'
+data = json.load(open(snap_path))
+assert data.get('version') == 1
+assert len(data.get('knowledge', {})) == 30
+# leftover tmp snapshot files must not exist
+import os
+left = [n for n in os.listdir(ws + '/.codenook/memory') if n.startswith('.tmp-snap.')]
+assert not left, left
 print('OK')
 "
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
