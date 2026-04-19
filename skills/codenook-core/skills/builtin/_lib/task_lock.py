@@ -17,9 +17,26 @@ here (the lock IS the atomicity).
 POSIX-only. ``fcntl`` is unavailable on Windows; this module raises
 ``ImportError`` at import time on non-POSIX platforms.
 
-Stale-recovery policy: silent. We detect a stale lock (dead pid OR
-``started_at`` older than ``stale_threshold`` OR unparseable payload),
-unlink it, log one line to stderr, and retry the acquire loop.
+Stale-recovery policy: silent and conservative. We unlink the
+lockfile ONLY on positively stale evidence:
+
+  * a parseable payload whose ``pid`` is not alive, OR
+  * a parseable payload whose ``started_at`` is older than
+    ``stale_threshold``.
+
+An unparseable / empty / non-dict payload is NOT treated as stale —
+it is treated as "writer mid-init, retry without unlink". This
+closes the race where a fresh holder W has flocked the inode but
+not yet flushed its JSON payload to the page cache: a contender R
+that opens the same inode, fails ``flock(LOCK_NB)``, and reads
+0 bytes must NOT unlink W's file (the previous behaviour would
+unlink, recreate, and steal the lock — two processes both
+``_HELD``). Truly corrupted-and-abandoned files remain recoverable
+on the next iteration: the dead holder's kernel-level flock has
+already been released by the kernel on process exit, so the next
+``flock(LOCK_EX | LOCK_NB)`` succeeds and the writer overwrites
+the payload unconditionally.
+
 ``LockStale`` is exported but not raised by ``acquire()`` — callers
 who want to differentiate can re-derive staleness via ``inspect()``
 before calling ``acquire()``.
@@ -110,6 +127,37 @@ def _read_payload(lock_path: Path) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
+def _is_positively_stale(
+    payload: dict | None, stale_threshold: float
+) -> bool:
+    """Return True only on POSITIVE evidence of staleness.
+
+    Conservative classifier used by ``acquire()`` to decide whether
+    to ``unlink`` the lockfile of a flock-holding peer we lost the
+    race to. We must NEVER return True for unparseable / empty /
+    non-dict payloads: those are indistinguishable from "writer
+    holds the flock but has not yet flushed JSON", and unlinking in
+    that window lets two processes both end up _HELD.
+
+    Positive evidence = parseable dict payload whose owning ``pid``
+    is dead, OR whose ``started_at`` is older than ``stale_threshold``.
+    """
+    if not isinstance(payload, dict):
+        return False
+    pid = payload.get("pid")
+    if isinstance(pid, int) and pid > 0 and not _pid_alive(pid):
+        return True
+    sa = payload.get("started_at")
+    if isinstance(sa, str) and sa:
+        try:
+            age = time.time() - _parse_iso(sa)
+        except Exception:
+            return False
+        if age > stale_threshold:
+            return True
+    return False
+
+
 def _is_stale(payload: dict | None, stale_threshold: float) -> bool:
     if not isinstance(payload, dict):
         return True
@@ -197,9 +245,13 @@ def acquire(
                 _HELD[abs_dir] = fd
                 break  # leave the inner try; yield outside the loop
 
-            # Did not get the lock -> peek payload, maybe stale
+            # Did not get the lock -> peek payload. Recovery rule:
+            # only unlink on POSITIVE staleness (dead pid or
+            # parseable+expired started_at). Empty / unparseable
+            # payload means "writer mid-init" — keep retrying
+            # without unlink to avoid the unlink-recreate race.
             payload = _read_payload(lock_path)
-            if _is_stale(payload, stale_threshold):
+            if _is_positively_stale(payload, stale_threshold):
                 try:
                     os.unlink(lock_path)
                     sys.stderr.write(
