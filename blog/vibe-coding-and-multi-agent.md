@@ -47,41 +47,41 @@ Aren't these exactly the problems traditional software engineering already solve
 
 ## My Experiment: Agent-Driven Full SDLC
 
-So I built a project: **Multi-Agent Software Development Framework**.
+So I built a project: **CodeNook — a multi-agent development framework**.
 
 Core idea — if Vibe Coding is "natural language programming," then the entire software development lifecycle should be definable and executable in natural language too.
 
-I defined 5 AI Agent roles using Markdown documents and Skills. Each role corresponds to a real responsibility in software development, and the entire system is Agent-driven.
+Today's incarnation (v0.11) is a two-layer system: a small **kernel** (`skills/codenook-core/`) that knows about routing, dispatch, memory, and gates — and an installable **plugin** (`plugins/development/`) that defines the actual software-engineering pipeline (clarify → design → plan → implement → test → accept → validate → ship).
 
-![Multi-Agent Framework Architecture](images/architecture.png)
+![CodeNook Architecture](images/architecture.png)
 
 ## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                                                             │
-│   🎯 Acceptor          🏗️ Designer         💻 Implementer   │
-│   (Product Manager)    (Architect)         (Developer)      │
-│                                                             │
-│   🔍 Reviewer          🧪 Tester                            │
-│   (Code Review)        (QA)                                 │
-│                                                             │
-│   ┌─────────────────────────────────────────────────────┐   │
-│   │                Infrastructure Layer                  │   │
-│   │                                                     │   │
-│   │  📋 Task Board      🔄 State Machine  📨 Messaging   │   │
-│   │  task-board.json     FSM Engine       inbox.json     │   │
-│   │                                                     │   │
-│   │  🔒 Hook Boundaries 📊 Audit Log     🐛 Issue Track  │   │
-│   │  pre-tool-use       events.db        issues.json     │   │
-│   │                                                     │   │
-│   │  📡 Auto-dispatch   ⏰ Staleness     🔄 Batch Engine │   │
-│   │  auto-dispatch      detection        batch processor │   │
-│   └─────────────────────────────────────────────────────┘   │
-│                                                             │
-│   Built entirely with Markdown + JSON + Shell, zero deps    │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+                       ┌─────────────────────────────┐
+   user turn ────────► │  Main session (Claude /     │
+                       │  Copilot CLI)               │
+                       └──────────────┬──────────────┘
+                                      │
+                                      ▼
+        ┌───────────────────── codenook-core ────────────────────┐
+        │                                                         │
+        │   router-agent  ──►  spawn  ──►  orchestrator-tick      │
+        │        │                                  │             │
+        │        │       ┌──────────────────────────┤             │
+        │        ▼       ▼                          ▼             │
+        │   memory_index  dispatch_subagent   extractor-batch     │
+        │                          │                  │           │
+        └──────────────────────────┼──────────────────┼───────────┘
+                                   ▼                  ▼
+                        ┌───────────────────────────────────────┐
+                        │  .codenook/  (per-workspace runtime)  │
+                        │   plugins/    memory/    tasks/        │
+                        └───────────────────────────────────────┘
+
+       Two layers, one verdict contract, persistent memory,
+       deterministic dispatch — all kernel-only behaviour is
+       audited under tasks/<T-NNN>/audit/.
 ```
 
 ## A Complete Workflow
@@ -96,130 +96,89 @@ You: "Implement login" → Agent codes → you test manually → broken → you 
 → you give up and ship a half-baked product
 ```
 
-### Using Multi-Agent Framework (Structured)
+### Using CodeNook (Structured)
 
 ```
                     User
                      │
-              "Create a login task"
+              "Add JWT login to the auth service"
                      │
                      ▼
-     🎯 Acceptor ── Create task ──→ 📋 T-001: User Login
-     (Define requirements & criteria)    │
-                        Auto-notify ▼
-     🏗️ Designer ◄── 📥 Received    Designing
-     │                          │
-     ├── Output: API design doc        │
-     ├── Output: DB schema design      │
-     ├── Output: Test specifications   │
-     │                        Auto-notify ▼
-     │                             Implementing
-     💻 Implementer ◄── �� Received  │
-     │                          │
-     ├── Read design docs            │
-     ├── TDD: write tests → write code │
-     ├── Complete goals one by one ✅  │
-     │                        Auto-notify ▼
-     │                             Reviewing
-     🔍 Reviewer ◄── 📥 Received    │
-     │                          │
-     ├── Review code quality          │
-     ├── Check security vulnerabilities │
-     ├── Review passed ✅             │
-     │                        Auto-notify ▼
-     │                             Testing
-     🧪 Tester ◄── 📥 Received      │
-     │                          │
-     ├── Run automated tests          │
-     │                          │
-     ├── Bugs found?                  │
-     │   └── YES: Create issues.json
-     │       ┌───────────────────────────────┐
-     │       │  🔄 Fully automated fix-verify loop │
-     │       │                               │
-     │       │  🧪 Tester: reports 3 bugs         │
-     │       │       ↓                       │
-     │       │  💻 Implementer: auto-fix          │
-     │       │       ↓                       │
-     │       │  🧪 Tester: auto-verify            │
-     │       │       ↓                       │
-     │       │  (if failures remain, loop again) ↻│
-     │       │                               │
-     │       │  Until all bugs fixed & verified ✅ │
-     │       └───────────────────────────────┘
-     │                          │
-     ├── All passed ✅               │
-     │                        Auto-notify ▼
-     │                             Accepting
-     🎯 Acceptor ◄── 📥 Received    │
-     │                          │
-     ├── Verify goals one by one      │
-     └── Accepted ✅ ──────→ 🎉 T-001: accepted!
+   router-agent  ──► drafts tasks/T-001/draft-config.yaml
+                     │  (plugin: development, parent: independent,
+                     │   model tier: tier_strong)
+                     ▼
+              user confirms
+                     │
+                     ▼
+   orchestrator-tick (one phase per call)
+                     │
+       ┌─────────────┼─────────────┬─────────────┬───────────────┐
+       ▼             ▼             ▼             ▼               ▼
+   clarifier    designer       planner      implementer      tester
+   (spec)       (ADR)          (TDD plan)   (red→green)      (run + report)
+                     │             │             │               │
+                     ▼             ▼             ▼               ▼
+               extractor-batch after every phase
+               → memory/knowledge/<topic>.md
+               → memory/skills/<name>/
+               → memory/config.yaml entries[]
+                     │
+                     ▼
+              acceptor → validator → reviewer → done ✅
 ```
 
-**You only do two things: create the task + final acceptance.** Design, implementation, review, testing, and bug fixes are all handled automatically by Agents.
+**You only do two things per task: confirm the draft and approve at HITL gates.** Everything between — phase dispatch, sub-agent spawning, verdict reading, post-validation, memory extraction — is the kernel's job.
 
 ## Benefits
 
-### 1. No More Manual Testing Loops
+### 1. Memory accumulates, not chat history
 
-The biggest pain point of traditional Vibe Coding — manual testing and endless rework — is replaced by the Tester Agent. It automatically runs tests, reports bugs, and verifies fixes. **You don't need to sit at your computer watching anymore.**
+Every phase's useful artefacts (decisions, conventions, reusable skills) are extracted by `extractor-batch` into `memory/`. The next task's router-agent reads `memory/knowledge/` as a digest before drafting its config — so a follow-up turn like *"now add refresh-token support"* automatically inherits the original JWT design without you having to re-explain anything.
 
-### 2. Quality Is Process-Driven, Not Luck
+### 2. Task chains, not flat history
 
-With the Designer doing upfront design, the Reviewer doing code review, and the Tester running automated tests, code quality no longer depends on "whether the Agent is having a good day" — it's **guaranteed by process**.
+When you say *"add refresh-token support"*, `parent_suggester` sees the recent JWT-login task and suggests it as parent (Jaccard top-3). If you confirm, `chain_summarize` walks the ancestor chain and injects a compressed narrative into the child's prompt — bounded at 8K tokens via two-pass LLM compression.
 
-### 3. Structured Bug Tracking
+### 3. The kernel can never lie about what happened
 
-Every bug has a structured JSON record (severity, reproduction steps, fix description, verification result) — no more scrolling through chat history asking "was that issue fixed?"
+Every dispatch is logged to `tasks/<T-NNN>/audit/`. Every memory write goes through `memory/history/extraction-log.jsonl`. Every plugin file is read-only (`plugin_readonly` enforces it). Every commit on the repo passes `claude_md_linter`, `secret_scan`, and 851/851 bats. *"Process-driven"* isn't a slogan — it's a set of fcntl locks and atomic writes.
 
-### 4. Enforceable Process Boundaries
+### 4. Plugins are the unit of extension
 
-An Agent saying "I promise to only do this" isn't enough. The framework uses Shell Hooks to **enforce** rules — the Tester can't modify code, the Implementer can't skip review — these are code-level constraints, not AI "self-discipline."
+The kernel knows nothing about software engineering. `plugins/development/` defines the 8 phases, the role profiles, the verdict contract, and the post-validators. Adding a `plugins/writing/` or `plugins/research/` doesn't need a single kernel change — install it through the same 12-gate pipeline and it shows up as a `PLUGINS_INDEX` entry on the next router-agent turn.
 
-### 5. Resumable at Any Point
+### 5. Resumable at any point
 
-All state lives in files (JSON + SQLite), not in AI memory. Even if the CLI crashes, the machine restarts, or you switch sessions, Agents can resume from where they left off.
+All state lives in files (JSON + YAML + Markdown), not in AI memory. Even if the CLI crashes, the machine restarts, or you switch sessions, `session-resume` reads `tasks/<tid>/state.json` and the next `orchestrator-tick` picks up exactly where the previous one stopped.
 
 ## How to Use
 
-### Install (30 Seconds)
-
-In Claude Code / GitHub Copilot, say:
-
-> "Follow the instructions in the cintia09/CodeNook repo to install agents locally."
-
-The AI assistant auto-installs 14 Skills, 5 Agents, and 13 Hooks.
-
-### Start in Any Project
+### Install (30 seconds)
 
 ```bash
-# 1. Initialize — AI auto-analyzes your tech stack and generates custom config
-"Initialize Agent system"
-
-# 2. Create a task
-/agent acceptor
-"Create task: add user login feature"
-
-# 3. Let each role handle it automatically
-/agent designer
-"Process task"                  # Auto-generates design docs + test specs
-
-/agent implementer
-"Process task"                  # Auto TDD implementation
-
-/agent reviewer
-"Process task"                  # Auto code review
-
-/agent tester
-"Process task"                  # Auto testing
-"Monitor implementer fixes"      # Fully automated fix-verify loop
-
-/agent acceptor
-"Process task"                  # Final acceptance
+curl -sL https://raw.githubusercontent.com/cintia09/CodeNook/main/install.sh | bash
 ```
 
-Each step takes just one sentence — Agents handle everything automatically.
+The installer detects Claude Code and/or Copilot CLI and copies the `codenook-core` kernel into the appropriate skills directory.
+
+### Seed a workspace
+
+```bash
+cd ~/code/my-project
+~/.claude/skills/codenook-core/init.sh
+~/.claude/skills/codenook-core/init.sh --refresh-models
+~/.claude/skills/codenook-core/init.sh \
+    --install-plugin ~/.claude/skills/codenook-core/dist/development-*.tar.gz
+```
+
+### Start a turn
+
+In your AI session, just talk:
+
+> "I want to add JWT login to the auth service."
+
+The router-agent spawns, drafts a config, suggests a parent task if one looks relevant, and asks you to confirm. From there, every `orchestrator-tick` advances one phase. You only intervene at HITL gates (`design_signoff`, `pre_test_review`, `acceptance` for the development plugin).
 
 ## Conclusion
 
@@ -229,14 +188,14 @@ Those "seemingly tedious" steps in traditional software engineering — requirem
 
 AI hasn't changed this fact, but AI can change *who* does these things.
 
-Before: humans design, humans code, humans test. Now: Agents design, Agents code, Agents test. Humans only need to define "what to build" and verify "how well it was built."
+Before: humans design, humans code, humans test. Now: agents design, agents code, agents test — but the *process* is enforced by a kernel that can't be talked out of running gates, and the *memory* is enforced by a layer that can't be talked out of writing audit lines. Humans only need to define "what to build" and approve at the gates that matter.
 
-This may be the ultimate form of Vibe Coding — not one person endlessly going back and forth with one Agent, but an **Agent team** where each member has a clear role, collaborating like a real software development team.
+This may be the ultimate form of Vibe Coding — not one person endlessly going back and forth with one Agent, but an **agent team** with a deterministic kernel, a swappable plugin layer, and a memory layer that actually remembers — collaborating like a real software development team.
 
-And the interesting part? This framework itself was built by Agents.
+The framework realising these ideas today is CodeNook v0.11. The kernel is `skills/codenook-core/`. The pipeline is `plugins/development/`. The runtime is `.codenook/`. The design archive — 9 design docs, 117 acceptance tests, 100 PASS / 13 PARTIAL / 4 SKIP — is under [`docs/v6/`](../docs/v6/README.md).
+
+And the interesting part? This framework itself was built by agents.
 
 ---
 
-> 🔗 Project: [github.com/cintia09/CodeNook](https://github.com/cintia09/CodeNook)
-> 
-> Zero dependencies, pure Markdown + JSON, works out of the box.
+> 🔗 Project: [github.com/cintia09/CodeNook](https://github.com/cintia09/CodeNook) · v0.11.1 stable · 851 bats green · M1–M11 shipped

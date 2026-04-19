@@ -11,641 +11,288 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Agents-5-6366f1?style=flat-square" alt="5 Agents">
-  <img src="https://img.shields.io/badge/Skill-1-10b981?style=flat-square" alt="1 Skill">
-  <img src="https://img.shields.io/badge/HITL_Scripts-6-f59e0b?style=flat-square" alt="6 HITL Scripts">
-  <img src="https://img.shields.io/badge/Zero_Dependencies-✓-8b5cf6?style=flat-square" alt="Zero Dependencies">
+  <img src="https://img.shields.io/badge/v0.11.1-stable-10b981?style=flat-square" alt="v0.11.1 stable">
+  <img src="https://img.shields.io/badge/v6-plugin_architecture-6366f1?style=flat-square" alt="v6 plugin architecture">
+  <img src="https://img.shields.io/badge/bats-851%2F851-22c55e?style=flat-square" alt="bats 851/851">
+  <img src="https://img.shields.io/badge/M1–M11-shipped-8b5cf6?style=flat-square" alt="M1-M11 shipped">
 </p>
 
 <p align="center">
-  <strong>5 AI agents, 1 skill, document-driven workflow — zero dependencies, 10 HITL approval gates, DFMEA risk management</strong>
+  <strong>A two-layer framework — <a href="skills/codenook-core/"><code>codenook-core</code></a> kernel plus per-workspace <a href="plugins/development/"><code>plugins/</code></a> — that turns natural-language turns into audited, multi-phase software-engineering work with persistent memory and task chains.</strong>
 </p>
 
 <p align="center">
-  🚀 <strong>v0.11.0 · v6 plugin architecture</strong> — two-layer codebase: <a href="skills/codenook-core/README.md"><code>skills/codenook-core/</code></a> (kernel + builtin skills + <code>init.sh</code>) plus <a href="plugins/"><code>plugins/</code></a> (development / writing / generic) installed per-workspace. Design, milestones, and test plan in <a href="docs/v6/README.md"><code>docs/v6/</code></a>.
-</p>
-
-<p align="center">
-  <a href="#installation">Installation</a> ·
   <a href="#quick-start">Quick Start</a> ·
   <a href="#architecture">Architecture</a> ·
-  <a href="#hitl-multi-adapter-system">HITL</a> ·
-  <a href="#agent-profiles">Agent Profiles</a> ·
-  <a href="docs/v6/README.md">v6 Docs</a> ·
-  <a href="blog/vibe-coding-and-multi-agent.md">Blog</a> ·
-  <a href="https://github.com/cintia09/CodeNook/releases">Changelog</a>
+  <a href="#workflow">Workflow</a> ·
+  <a href="#memory-layer">Memory</a> ·
+  <a href="#task-chains">Chains</a> ·
+  <a href="#extending-write-your-own-plugin">Extending</a> ·
+  <a href="#quality-gates">Gates</a> ·
+  <a href="docs/v6/README.md">v6 Design Docs</a> ·
+  <a href="PIPELINE.md">Pipeline</a>
 </p>
 
 ---
 
-Zero-dependency, orchestrator-driven multi-agent framework for Claude Code and Copilot CLI.
+## What is CodeNook
 
-## Overview
+CodeNook is a zero-runtime-dependency framework for driving software work through Claude Code or Copilot CLI. Every user turn is routed by a **router-agent** into a structured task; tasks are advanced one phase at a time by an **orchestrator-tick** state machine; each phase runs as an isolated sub-agent with a fully-rendered prompt; and after every phase the **extractor-batch** distills useful artefacts back into a workspace **memory layer** that future tasks read.
 
-Five specialized AI agents collaborate through an orchestrator that routes tasks, spawns subagents, and enforces human-in-the-loop gates between every phase.
+The current shipped surface (v0.11.1) is the **v6 plugin architecture** — a kernel (`skills/codenook-core/`) plus an installable **development plugin** (`plugins/development/`) that defines the 8-phase software-engineering pipeline. Other domains (writing, generic, …) ship as additional plugins on the same kernel.
 
-| Role | Emoji | Responsibilities | Tools | Model (default) |
-|------|-------|------------------|-------|-----------------|
-| **Acceptor** | 🎯 | Requirements gathering, goal decomposition, acceptance testing | Read, Bash, Grep, Glob | claude-opus-4.6 |
-| **Designer** | 🏗️ | Architecture design (ADR format), API specs, test specifications | Read, Bash, Grep, Glob, WebFetch | claude-opus-4.6 |
-| **Implementer** | 💻 | TDD development (red-green-refactor), DFMEA risk analysis | Read, Edit, Create, Bash, Grep, Glob | claude-opus-4.6 |
-| **Reviewer** | 🔍 | Code review, OWASP security checklist, severity rating | Read, Bash, Grep, Glob | gpt-5.4 |
-| **Tester** | 🧪 | Test execution, coverage analysis, issue reporting | Read, Bash, Grep, Glob, Edit, Create | claude-opus-4.6 |
+## Why
 
-## Core Features
+Vibe-coding alone produces undebuggable, untested code. Bolting full SDLC onto every chat is too heavy. CodeNook splits the difference:
 
-- **Document-Driven Workflow** — Every agent produces a planning document before executing: Plan → Approve → Act → Report → Approve
-- **1 Skill** — `codenook-init` installs agent system + deploys orchestration engine per-project
-- **Subagent Architecture** — Each agent runs in a separate context window, spawned on demand
-- **10 HITL Gates** — Every phase has a HITL gate; 10-row status routing table with deterministic routing
-- **10 Document Artifacts** — Each task produces requirement, design, implementation, DFMEA, review, test, and acceptance docs stored to `codenook/docs/T-NNN/`
-- **Task Board** — Single JSON file as source of truth; 10 statuses with deterministic routing
-- **Multi-Task Management** — Independent task progress with switch, pause/resume, and task dependencies
-- **Any-Phase Entry** — Start tasks from any phase with `--start-at`; jump between phases via conversation
-- **Smart Skill Provisioning** — Auto-scan global skills, classify into categories, map to agent roles
-- **Per-Phase Configuration** — Models and HITL adapters configurable per-phase (not just per-agent)
-- **Conversation-Driven** — Natural language triggers for all operations (no CLI commands needed)
-- **Verdict-Based Routing** — Review/test/acceptance report verdicts drive the next status transition
-- **Mermaid Diagrams** — Mandatory in all document outputs for visual clarity
-- **Memory Chain** — Each phase writes a snapshot; downstream agents receive upstream context
-- **Knowledge Accumulation** — Agents automatically extract cross-task lessons (code conventions, pitfalls, architecture decisions) indexed by role and topic; accumulated knowledge injected into future agent prompts
-- **DFMEA Risk Management** — Implementer outputs failure-mode analysis (S×O×D → RPN)
-- **Dual-Agent Mode** — Two models work sequentially with iterative cross-examination (up to 3 convergence rounds), blind challenge protocol, and per-phase user confirmation
-- **Build Verification** — Implementer runs production build + unit tests before HITL gate; failures auto-retry with feedback
-- **3-Stage Code Review** — Local code-review agent → Remote formal review (Gerrit/GitHub) → CI pipeline verification
-- **Module + System Testing** — Tester designs module integration tests and system tests for real device/hardware execution
-- **Phase Constitution** — Per-phase quality criteria (Constitutional AI-inspired) for focused cross-examination evaluation
-- **Tool-Based Boundaries** — `tools` / `disallowedTools` in agent frontmatter (no hooks needed)
-- **Zero Dependencies** — Pure Markdown profiles + JSON state files
-- **Claude Code + Copilot CLI** — Primary: `.claude/`, also supports `~/.copilot/skills/`
+- **Conversational** — you talk to the main session in natural language; the router-agent turns that into a draft task config you confirm.
+- **Structured** — once confirmed, work runs through an explicit phase pipeline (analyst → designer → planner → implementer → tester → acceptor → validator → reviewer) with HITL gates where they matter.
+- **Stateful** — knowledge, skills, and config decisions are extracted after every phase and written to `.codenook/memory/`, so the next task starts with everything the previous one learned.
+- **Auditable** — every dispatch, every state mutation, and every memory write is logged under `.codenook/tasks/<T-NNN>/` and `.codenook/memory/history/`.
+- **Composable** — plugins are read-only, signed, version-checked artefacts installed by a 12-gate pipeline. Swap or stack plugins without touching the kernel.
 
-## Installation
+## Architecture
 
-### Option 1: One-Line Install
+CodeNook ships in two layers; the diagram at the top shows their relationship.
+
+### Layer 1 — `skills/codenook-core/` (the kernel)
+
+The kernel knows nothing about software engineering. It contains:
+
+| Subsystem | Key skills |
+|-----------|------------|
+| Routing | `router-agent`, `router-context-scan`, `router-dispatch-build` |
+| Orchestration | `orchestrator-tick`, `dispatch-audit`, `hitl-adapter`, `queue-runner`, `session-resume` |
+| Memory | `extractor-batch`, `knowledge-extractor`, `skill-extractor`, `config-extractor`, `distiller` |
+| Plugin install (12 gates) | `install-orchestrator`, `plugin-format`, `plugin-schema`, `plugin-id-validate`, `plugin-version-check`, `plugin-signature`, `plugin-deps-check`, `plugin-subsystem-claim`, `plugin-shebang-scan`, `plugin-path-normalize`, `sec-audit` |
+| Config & models | `config-resolve`, `config-validate`, `config-mutator`, `model-probe`, `secrets-resolve`, `task-config-set`, `preflight` |
+| Helpers (`_lib/`) | `task_chain`, `parent_suggester`, `chain_summarize`, `memory_layer`, `memory_index`, `llm_call`, `render_prompt`, `token_estimate`, `workspace_overlay`, `claude_md_linter`, `plugin_readonly`, `secret_scan` |
+
+Entry points: `init.sh` (workspace seed + plugin manager) and `install.sh` (12-gate plugin installer).
+
+### Layer 2 — `plugins/development/` (the domain pipeline)
+
+A v6 plugin is a self-contained directory with a manifest (`plugin.yaml`), a phase table (`phases.yaml`), a transition table (`transitions.yaml`), HITL gates, role profiles, dispatch templates, and prompts.
+
+The shipped **development** plugin defines 8 phases:
+
+```
+clarify → design → plan → implement → test → accept → validate → ship
+```
+
+mapped to 8 roles (`clarifier`, `designer`, `planner`, `implementer`, `tester`, `acceptor`, `validator`, `reviewer`) with criteria prompts under `plugins/development/prompts/criteria-*.md` and pytest-based post-validators under `plugins/development/validators/`.
+
+### Per-workspace runtime layout
+
+A workspace's `.codenook/` directory is the only place the kernel writes:
+
+```
+.codenook/
+├── plugins/<plugin>/        # read-only, copied at install (M2 atomic commit)
+├── memory/
+│   ├── knowledge/<topic>.md # workspace-promoted notes (LLM-judged)
+│   ├── skills/<name>/       # extracted reusable skills
+│   ├── config.yaml          # single entries[] decision log
+│   └── history/extraction-log.jsonl
+├── tasks/<T-NNN>/
+│   ├── state.json           # phase, verdict, dual_mode, retry counts
+│   ├── outputs/phase-N-*.md # role outputs (verdict frontmatter)
+│   ├── .router-prompt.md    # rendered router prompt (per turn)
+│   └── audit/               # dispatch + extraction logs
+└── state.json               # workspace-level model catalog + config
+```
+
+`plugin_readonly` and `secret_scan` enforce that nothing outside `tasks/` and `memory/` is mutated by the kernel; `claude_md_linter` keeps `CLAUDE.md` clean of v0.11-prohibited content.
+
+## Quick Start
+
+### 1. Install
 
 ```bash
 curl -sL https://raw.githubusercontent.com/cintia09/CodeNook/main/install.sh | bash
 ```
 
-Installs 1 skill globally for Claude Code and/or Copilot CLI (auto-detected).
+The installer detects Claude Code and/or Copilot CLI and copies the kernel into the appropriate skills directory. The development plugin is then installed per-workspace via `init.sh`.
 
-### Option 2: Manual Install
+### 2. Seed a workspace
 
-Copy the skill directory to your platform's skills folder:
-
-| Platform | Target |
-|----------|--------|
-| Claude Code | `~/.claude/skills/codenook-init/` |
-| Copilot CLI | `~/.copilot/skills/codenook-init/` |
-
-The skill directory contains `SKILL.md`, agent templates, HITL adapter scripts, and the orchestration engine template.
-
-### Verify
+From any project root:
 
 ```bash
-ls ~/.claude/skills/codenook-init/SKILL.md 2>/dev/null && echo "✅ Installed" || echo "❌ Not found"
-# Or for Copilot CLI:
-ls ~/.copilot/skills/codenook-init/SKILL.md 2>/dev/null && echo "✅ Installed" || echo "❌ Not found"
+cd ~/code/my-project
+~/.claude/skills/codenook-core/init.sh                       # creates .codenook/
+~/.claude/skills/codenook-core/init.sh --refresh-models      # probe model catalog
+~/.claude/skills/codenook-core/init.sh \
+    --install-plugin ~/.claude/skills/codenook-core/dist/development-*.tar.gz
 ```
 
-## Quick Start
+This runs the 12-gate install pipeline (`install-orchestrator`) and atomically commits the staged plugin tree into `.codenook/plugins/development/`.
 
-### 1. Initialize the Agent System
+### 3. Start a turn
 
-In any project directory, tell your AI assistant:
+In your AI session:
 
-> "Initialize the agent system"
+> "I want to add JWT login to the auth service."
 
-The `codenook-init` skill walks you through prompts:
+The main session calls `skills/builtin/router-agent/spawn.sh` once. The router-agent:
 
-| Prompt | Options |
-|--------|---------|
-| Install directory | Confirm or change target directory |
-| Platform | Claude Code · Copilot CLI |
-| Agent models | Use defaults · Custom per-agent · **Custom per-phase** |
-| HITL adapter | Local HTML · Terminal · GitHub Issue · Confluence · **Per-phase** |
-| Gitignore | Yes · No |
-| **Skill provisioning** | **Scan & assign · Skip** |
+1. Renders a system prompt with slots `{{MEMORY_INDEX}}`, `{{PLUGINS_INDEX}}`, `{{TASK_CHAIN}}`, `{{USER_TURN}}`.
+2. Runs as a sub-agent that writes `tasks/<T-NNN>/draft-config.yaml` (plugin choice, dual_mode, model tier, parent task suggestion).
+3. Asks you to confirm the draft.
 
-It then generates project-level files:
+On confirm, `spawn.sh --confirm` materialises the plugin + memory overlay into the task prompt and runs the first `orchestrator-tick`. From then on every `tick` advances one phase, dispatches the role sub-agent, runs the post-validator, opens the next HITL gate (if any), and appends to the audit log.
 
-```
-<root>/                          # .claude/
-├── agents/
-│   ├── acceptor.agent.md
-│   ├── designer.agent.md
-│   ├── implementer.agent.md
-│   ├── reviewer.agent.md
-│   └── tester.agent.md
-├── codenook/
-│   ├── docs/                    # Document artifacts per task
-│   │   └── T-NNN/               # 10 docs per task lifecycle
-│   ├── memory/
-│   ├── knowledge/               # Cross-task knowledge base (by-role + by-topic)
-│   ├── reviews/                 # Review reports and verdicts
-│   ├── skills/                  # Project-level skills (auto-provisioned)
-│   ├── task-board.json
-│   ├── config.json
-│   └── hitl-adapters/           # HITL scripts (auto-copied)
-│       ├── terminal.sh
-│       ├── local-html.sh
-│       ├── github-issue.sh
-│       ├── confluence.sh
-│       ├── hitl-verify.sh
-│       └── hitl-server.py
-```
-
-> The orchestration engine is appended to the project-root `CLAUDE.md`.
-
-### 2. Create a Task
-
-```
-"Create task: Implement user authentication"
-"Create task: Fix login --start-at impl_plan"     # Start from implementation
-"Create task: Auth API --depends T-001"            # With dependency
-"Quick fix: typo in README"                        # Lightweight 2-phase
-```
-
-### 3. Run the Task
-
-> "Run task T-001"
-
-The orchestrator drives the task through the pipeline:
-
-```
-created → acceptor(req) → [HITL] → req_approved
-       → designer → [HITL] → design_approved
-       → implementer(plan) → [HITL] → impl_planned
-       → implementer(execute) → [HITL] → impl_done
-       → reviewer(plan) → [HITL] → review_planned
-       → reviewer(execute) → [HITL] → review_done
-       → tester(plan) → [HITL] → test_planned
-       → tester(execute) → [HITL] → test_done
-       → acceptor(accept-plan) → [HITL] → accept_planned
-       → acceptor(accept-exec) → [HITL] → done
-```
-
-### 4. Multi-Task Workflow
-
-```
-"Switch T-002"                    # Focus on task T-002
-"Pause T-001"                     # Pause current work
-"Resume T-001"                    # Continue paused task
-"Jump to test"                    # Skip to test phase (with confirmation)
-"Task board"                      # Show all tasks with status
-```
-
-You approve or provide feedback at each of the 10 HITL gates. That's it.
-
-## Architecture
-
-```
-                         ┌───────────────────┐
-                         │    USER  (You)     │
-                         │  "create task"     │
-                         │  "run task T-001"  │
-                         └────────┬──────────┘
-                                  │
-                                  ▼
-┌────────────────────────────────────────────────────────────────┐
-│                  ORCHESTRATOR  (main session)                   │
-│                                                                │
-│  ┌──────────────┐  ┌────────────┐  ┌──────────┐  ┌──────────┐ │
-│  │ task-board    │  │ config     │  │ memory/  │  │knowledge/│ │
-│  │  .json        │  │  .json     │  │ (phase   │  │ by-role/ │ │
-│  │ (task state   │  │ (models,   │  │ snap-    │  │ by-topic/│ │
-│  │  & artifacts) │  │  hitl,     │  │ shots)   │  │ index.md │ │
-│  │               │  │  dual_mode,│  │          │  │          │ │
-│  │               │  │  knowledge)│  │          │  │          │ │
-│  └──────────────┘  └────────────┘  └──────────┘  └──────────┘ │
-│                                                                │
-│  ┌────────────────────── Phase Flow ────────────────────────┐  │
-│  │                                                          │  │
-│  │   ① Route by status ──→ ② Spawn subagent(s)             │  │
-│  │           │                    │                          │  │
-│  │           │              ┌─────┴─────┐                   │  │
-│  │           │         Single mode  Dual-Agent mode         │  │
-│  │           │              │      ┌────┴─────┐             │  │
-│  │           │              │   Agent A    Agent B           │  │
-│  │           │              │      │     ╳     │             │  │
-│  │           │              │      └──┬──┘  ┌──┘             │  │
-│  │           │              │  analyze divergence            │  │
-│  │           │              │  (Phase Constitution)          │  │
-│  │           │              │  → blind challenges ≤3 rounds  │  │
-│  │           │              │  → synthesize final doc        │  │
-│  │           │              └────────┬──────┘                │  │
-│  │           │                       │                       │  │
-│  │           │              ③ Save document to disk          │  │
-│  │           │                       │                       │  │
-│  │           │   ┌───────────────────┴──────────────────┐   │  │
-│  │           │   │  ④ HITL Gate (adapter.<phase>)        │   │  │
-│  │           │   │  local-html │ terminal │ github-issue │   │  │
-│  │           │   │  confluence │ per-phase overrides     │   │  │
-│  │           │   │  ── approve / request changes ──      │   │  │
-│  │           │   └───────────────────┬──────────────────┘   │  │
-│  │           │                       │                       │  │
-│  │           │              ⑤ Advance status / retry         │  │
-│  │           │              ⑥ Extract knowledge              │  │
-│  │           │                       │                       │  │
-│  │           └──── loop (×10 phases per full cycle) ────────┘  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                                                                │
-│  docs/T-NNN/   requirement-doc → design-doc → implementation   │
-│                → dfmea → review-prep → review-report           │
-│                → test-plan → test-report → acceptance-plan/rpt │
-└──┬──────────┬──────────┬──────────┬──────────┬────────────────┘
-   │          │          │          │          │
-   ▼          ▼          ▼          ▼          ▼
-┌────────┐┌────────┐┌────────┐┌────────┐┌────────┐
-│🏗️ Des- ││💻 Impl-││🔍 Rev- ││🧪 Test-││🎯 Acce-│
-│igner   ││ementer ││iewer   ││er      ││ptor    │
-│        ││        ││        ││        ││        │
-│opus 4.6││opus 4.6││gpt-5.4 ││opus 4.6││opus 4.6│
-│plan+exe││plan+exe││plan+exe││plan+exe││req+acc │
-└────────┘└────────┘└────────┘└────────┘└────────┘
-    Separate context windows — spawned on demand
-```
-
-**Key principle:** The orchestrator is the sole writer of `codenook/task-board.json`. Every agent produces a document before executing — Plan → Approve → Act → Report → Approve. Documents are stored to `codenook/docs/T-NNN/` with Mermaid diagrams mandatory in all outputs.
-
-**Dual-Agent Mode:** When enabled for a phase, the user is asked to confirm before each dual-agent execution. Two models then produce documents sequentially (Agent A first, then Agent B), the orchestrator analyzes divergence using Phase Constitution criteria, challenges each agent on its weaknesses (blind — neither sees the other's work), and synthesizes the final output. Up to 3 convergence rounds before synthesis.
-
-## Task Lifecycle
-
-### Status Routing Table
-
-| # | Status | Handler | On Approve | On Reject |
-|---|--------|---------|------------|-----------|
-| 1 | `created` | → Acceptor (req) | `req_approved` | `created` *(self-retry)* |
-| 2 | `req_approved` | → **[HITL]** → Designer | `design_approved` | `req_approved` *(self-retry)* |
-| 3 | `design_approved` | → **[HITL]** → Implementer (plan) | `impl_planned` | `design_approved` *(self-retry)* |
-| 4 | `impl_planned` | → **[HITL]** → Implementer (execute) | `impl_done` | `impl_planned` *(self-retry)* |
-| 5 | `impl_done` | → **[HITL]** → Reviewer (plan) | `review_planned` | `impl_done` *(self-retry)* |
-| 6 | `review_planned` | → **[HITL]** → Reviewer (execute) | `review_done` | `impl_planned` *(rollback to impl)* |
-| 7 | `review_done` | → **[HITL]** → Tester (plan) | `test_planned` | `review_done` *(self-retry)* |
-| 8 | `test_planned` | → **[HITL]** → Tester (execute) | `test_done` | `impl_planned` *(rollback to impl)* |
-| 9 | `test_done` | → **[HITL]** → Acceptor (accept-plan) | `accept_planned` | `test_done` *(self-retry)* |
-| 10 | `accept_planned` | → **[HITL]** → Acceptor (accept-exec) | `done` | `design_approved` *(rollback to design)* |
-
-- **10 HITL gates** — every phase has a HITL gate; no auto-advancement
-- **Verdict-based routing** — plan phases self-retry on reject; execute phases roll back to the relevant plan phase
-- Subagent errors pause the loop and report to the user
-- See [PIPELINE.md](PIPELINE.md) for the full phase-by-phase workflow reference
-
-### Task Board Schema
-
-```json
-{
-  "version": "0.11.0",
-  "active_task": null,
-  "tasks": [{
-    "id": "T-001",
-    "title": "Implement user authentication",
-    "status": "created",
-    "priority": "P0",
-    "goals": [
-      { "id": "G1", "description": "JWT login endpoint", "status": "pending" }
-    ],
-    "mode": "full",
-    "pipeline": null,
-    "start_at": null,
-    "depends_on": [],
-    "model_override": null,
-    "dual_mode": null,
-    "artifacts": {
-      "requirement_doc": null,
-      "design_doc": null,
-      "implementation_doc": null,
-      "dfmea_doc": null,
-      "review_prep": null,
-      "review_report": null,
-      "test_plan": null,
-      "test_report": null,
-      "acceptance_plan": null,
-      "acceptance_report": null
-    },
-    "retry_counts": {},
-    "total_iterations": 0,
-    "phase_decisions": {},
-    "paused_from": null,
-    "feedback_history": [],
-    "created_at": "2025-01-15T10:00:00Z",
-    "updated_at": "2025-01-15T10:00:00Z"
-  }]
-}
-```
-
-Documents are stored to disk at `codenook/docs/T-NNN/` with filenames matching the artifact keys (e.g., `requirement-doc.md`, `design-doc.md`, `implementation-doc.md`, `dfmea-doc.md`, `review-prep.md`, `review-report.md`, `test-plan.md`, `test-report.md`, `acceptance-plan.md`, `acceptance-report.md`).
-
-### Commands
-
-| Command | Action |
-|---------|--------|
-| `create task <title>` | Add task with status `created` |
-| `show task board` | Display all tasks with status |
-| `run task T-XXX` | Start orchestration loop |
-| `task status T-XXX` | Show detailed status + history |
-| `add goal G3: <desc> to T-XXX` | Add goal to existing task |
-| `delete task T-XXX` | Remove task (with confirmation) |
-| `switch T-XXX` | Set active task |
-| `pause T-XXX` | Pause task (saves current status) |
-| `resume T-XXX` | Resume paused task |
-| `jump to <phase>` | Mid-flow entry on active task |
-| `depends T-002 on T-001` | Add task dependency |
-| `agent status` | Show framework config and state |
-| `set model <model>` | Change default model at runtime |
-| `set hitl <adapter>` | Change HITL adapter at runtime |
-
-### Phase Entry Decisions
-
-When entering each phase, the orchestrator collects mandatory decisions from the user before spawning the sub-agent. These decisions are injected into the agent prompt and persisted in `phase_decisions` for audit.
-
-Examples:
-- **Requirements phase**: Target audience, MVP vs full scope, non-functional priorities
-- **Design phase**: Architecture style, scalability target, tech stack constraints
-- **Implementation phase**: Commit strategy (single/atomic/squash), code style preferences
-- **Test phase**: Test scope (unit/integration/E2E), coverage target, CI integration
-- **Review phase**: Review depth, submission target (Gerrit/GitHub/local)
-- **Acceptance phase**: Demo format, release action (tag/deploy/none)
-
-Decisions can be pre-configured in `config.phase_defaults` to skip repeated questions.
-
-### Skill Provisioning
-
-During `codenook-init`, the framework can auto-provision skills for sub-agents:
-
-1. **Scan** global skill directories (`~/.copilot/skills/`, `~/.claude/skills/`)
-2. **Classify** skills into categories: `diagram`, `workflow`, `content`, `domain`, `media`, `social`
-3. **Map** skills to agent roles based on affinity (e.g., `diagram` → designer, `workflow` → implementer)
-4. **Confirm** the proposed mapping with the user
-5. **Copy** selected skills to `codenook/skills/` for sub-agent injection
-6. **Configure** `agent_mapping` in `config.json`
-
-Skills are injected into sub-agent prompts at runtime via the orchestrator (Step 1b).
-
-## HITL Multi-Adapter System
-
-Every phase transition passes through a human review gate. The adapter is auto-detected or configured in `codenook/config.json`.
-
-### Detection Priority
-
-1. `codenook/config.json` → `hitl.adapter` (explicit setting)
-2. `$SSH_TTY` set → terminal
-3. `$DISPLAY` set or macOS → local-html
-4. `/.dockerenv` exists → terminal
-5. Default → terminal
-
-### 4 Adapters
-
-| Adapter | Environment | Publish | Feedback |
-|---------|-------------|---------|----------|
-| 🌐 **local-html** | Local dev (desktop) | HTTP server + browser UI | Web buttons + text input |
-| 💻 **terminal** | SSH / Docker / CI | Formatted CLI summary | `ask_user()` prompt |
-| 🐙 **github-issue** | GitHub projects | Create/update issue | Poll reactions (👍 = approve) |
-| 📝 **confluence** | Enterprise intranet | Create/update Confluence page | Poll page comments |
-
-Each adapter implements three operations:
+### 4. Inspect
 
 ```bash
-adapter.sh publish      <task_id> <role> <phase> <file>  # Present output for review
-adapter.sh get_feedback <task_id> <role> <phase>         # Block until decision + comments
-adapter.sh stop         <task_id> <role> <phase>         # Clean up (kill server, close page)
+cat .codenook/tasks/T-001/state.json | jq .phase
+cat .codenook/memory/history/extraction-log.jsonl | tail -5
+ls .codenook/memory/knowledge/
 ```
 
-### Feedback Loop
+## Workflow
+
+The end-to-end runtime loop, summarised — the full description with diagrams lives in [`PIPELINE.md`](PIPELINE.md).
 
 ```
-Subagent produces output → Orchestrator publishes via adapter
-→ Human reviews → Approve / Feedback / Reject
-→ Orchestrator records in feedback_history → routes accordingly
+user turn
+   │
+   ▼
+router-agent.spawn  ──► renders prompt with MEMORY_INDEX + PLUGINS_INDEX + TASK_CHAIN
+   │                    drafts tasks/<tid>/draft-config.yaml
+   │                    suggests parent task (Jaccard top-3) or "independent"
+   ▼
+user confirms
+   │
+   ▼
+spawn --confirm  ──► overlays plugins/<p>/ + memory/ into task prompt
+                     materialises tasks/<tid>/state.json, fires first tick
+   │
+   ▼
+orchestrator-tick (loop)
+   ├─ load phase from plugins/<p>/phases.yaml
+   ├─ dispatch_subagent  → role sub-agent runs against criteria-*.md
+   ├─ read_verdict from outputs/phase-N-<role>.md frontmatter
+   ├─ post_validate (e.g. validators/post-implement.sh)
+   ├─ extractor-batch  → knowledge / skill / config extractors
+   │                     (LLM-judged patch-or-create vs MEMORY_INDEX,
+   │                      hash dedup, per-task caps 3/1/5)
+   ├─ open hitl gate (if phases.yaml declares one)
+   └─ advance per transitions.yaml (ok / needs_revision / blocked)
 ```
 
-Multi-round feedback is supported — reject with comments, agent revises, re-publish, review again.
+Every transition writes to `tasks/<tid>/audit/`, every extraction writes to `memory/history/extraction-log.jsonl`, and every model invocation goes through `_lib/llm_call.py` so token + retry policy is uniform.
 
-## Agent Profiles
+## Memory Layer
 
-Each agent is defined in a Markdown file with YAML frontmatter. The `tools` and `disallowedTools` fields enforce role boundaries — **no hooks required**.
+The memory layer is a small, deterministic side-effect surface. There are exactly four artefact kinds:
 
-### Example: Implementer
+| Path | Producer | Shape |
+|------|----------|-------|
+| `memory/knowledge/<topic>.md` | `knowledge-extractor` (after_phase) + `distiller` (promotion) | Markdown note, LLM-compressed, cross-task-relevant |
+| `memory/skills/<name>/` | `skill-extractor` | Reusable skill skeleton (SKILL.md + scripts) |
+| `memory/config.yaml` | `config-extractor` | Single `entries[]` decision log; one entry per locked-in decision |
+| `memory/history/extraction-log.jsonl` | `extractor-batch` | Append-only audit (one JSON line per extraction attempt) |
+
+Three guarantees enforced by `_lib/memory_layer.py`:
+
+1. **Patch-or-create** — every extraction is judged against `memory_index` (a precomputed digest of all current knowledge files); the LLM either patches an existing note or creates a new one. Hash dedup prevents identical content from landing twice.
+2. **Per-task caps** — at most 3 knowledge + 1 skill + 5 config entries per task. Caps are enforced by `extractor-batch` and water-marked at 80% of the prompt budget.
+3. **Workspace promotion gate** — the `distiller` consults `plugin.yaml.knowledge.produces.promote_to_workspace_when` boolean expressions to decide whether a plugin-local note promotes to workspace-level `memory/knowledge/`.
+
+`memory_index` is what the router-agent injects into `{{MEMORY_INDEX}}` on every turn — it is the only thing the next task needs to know about everything the previous tasks learned.
+
+## Task Chains
+
+Tasks form a DAG. When the router-agent prepares a turn it calls `_lib/parent_suggester.py`, which:
+
+1. Tokenises the user turn and every active task's title + last-phase summary.
+2. Computes Jaccard similarity and returns the top-3 candidate parents (plus `independent`).
+3. The router presents the suggestions to the user; the user picks one.
+
+If a parent is chosen, `_lib/chain_summarize.py` walks the ancestor chain, runs a two-pass LLM compression (first pass per-ancestor summary, second pass chain-merge), and stays within an 8K token budget. The result is injected into the child's prompt as `{{TASK_CHAIN}}`. This is how a follow-up turn like *"now add refresh-token support"* automatically gets the original *"add JWT login"* design + decisions without dragging in unrelated history.
+
+## Extending — write your own plugin
+
+A plugin is a directory with the following minimum surface (see `plugins/development/` for the canonical example):
+
+```
+my-plugin/
+├── plugin.yaml              # M2 install manifest (id, version, requires.core_version, declared_subsystems)
+├── config-defaults.yaml     # tier_* model defaults + hitl/concurrency
+├── config-schema.yaml       # M5 config-validate DSL fragment
+├── phases.yaml              # ordered phase list (id, role, produces, gate, allows_fanout, …)
+├── transitions.yaml         # verdict → next-phase routing
+├── entry-questions.yaml     # required state fields per phase
+├── hitl-gates.yaml          # named gates referenced from phases.yaml
+├── roles/<role>.md          # role profiles (one per phase)
+├── manifest-templates/      # phase-N-<role>.md dispatch templates
+├── prompts/                 # criteria-*.md (role-specific quality criteria)
+└── validators/post-*.sh     # optional post-phase validators
+```
+
+Build a tarball with `init.sh --pack-plugin <dir>`, install with `init.sh --install-plugin <tarball>`. The 12-gate install pipeline checks well-formedness (G01), schema (G02), id (G03), semver (G04), optional sha256 sig (G05), `requires.core_version` (G06), subsystem collisions (G07), security (G08 via `sec-audit`), shebang allowlist (G10), and YAML path normalisation (G11). On success the staged tree is atomically committed to `.codenook/plugins/<id>/`.
+
+The verdict contract is the only thing roles must obey:
 
 ```yaml
 ---
-name: implementer
-description: "Developer — implements goals via TDD, writes code and tests, produces DFMEA analysis."
-tools: Read, Edit, Create, Bash, Grep, Glob
-disallowedTools: Agent
+verdict: ok          # or needs_revision / blocked
+summary: <≤200 chars>
 ---
+<human-readable body>
 ```
 
-### Role Boundaries
+`orchestrator-tick.read_verdict` reads only the frontmatter; the body is for humans and downstream phases.
 
-| Role | `tools` | `disallowedTools` | Effect |
-|------|---------|-------------------|--------|
-| 🎯 Acceptor | Read, Bash, Grep, Glob | Edit, Create, Agent | Read-only, no code changes |
-| 🏗️ Designer | Read, Bash, Grep, Glob, WebFetch | Edit, Create, Agent | Read-only + web research |
-| 💻 Implementer | Read, Edit, Create, Bash, Grep, Glob | Agent | Full code access, no sub-spawning |
-| 🔍 Reviewer | Read, Bash, Grep, Glob | Edit, Create, Agent | Read-only, no code changes |
-| 🧪 Tester | Read, Bash, Grep, Glob, Edit, Create | Agent | Can create/edit test files, no sub-spawning |
+## Quality Gates
 
-All agents have `disallowedTools: Agent` — preventing sub-subagent spawning. Only the orchestrator can spawn subagents.
+Every commit on this repo runs:
 
-### Profile Structure
+| Gate | Command | What it checks |
+|------|---------|----------------|
+| Bats sweep | `bats skills/codenook-core/tests/` | 851 assertions across 101 test files (M1–M11) |
+| `claude_md_linter` | `python3 skills/codenook-core/_lib/claude_md_linter.py --check-claude-md CLAUDE.md` | CLAUDE.md is free of forbidden surface |
+| `plugin_readonly` | `python3 skills/codenook-core/_lib/plugin_readonly.py --target . --json` | Kernel never mutates `plugins/` outside install |
+| `secret_scan` | `python3 skills/codenook-core/_lib/secret_scan.py <files>` | No keys / tokens / connection strings |
+| Greenfield grep | repo-wide grep for legacy version phrasing on user-facing docs | Top-level docs stay current with the shipped surface |
 
-Each `.agent.md` file contains:
+The kernel ships with bats fixtures for every gate failure mode under `skills/codenook-core/tests/fixtures/plugins/`, so changes to the install pipeline can be regression-tested deterministically.
 
-| Section | Purpose |
-|---------|---------|
-| **Identity** | Role description and behavioral contract |
-| **Input Contract** | What the orchestrator provides |
-| **Workflow** | Step-by-step execution process |
-| **Output Contract** | Structured artifact format |
-| **Quality Gates** | Completion checklist |
-| **Constraints** | Hard rules (TDD, security, English-only, etc.) |
+## Roadmap
 
-## Memory
+v0.11.1 is the **specification-consolidation milestone** — M1–M11 are shipped, 851/851 bats green, 100 of 117 acceptance tests PASS / 13 PARTIAL / 4 SKIP. The deferred surface for v0.12 is small and well-scoped:
 
-Each phase writes a memory snapshot to `codenook/memory/<task_id>-<role>-memory.md`. The orchestrator manages the memory chain — each agent receives all upstream memories:
+- **A1-6** — `session-resume` schema v2 (replace 10 M1-compat keys, rewrite `m1-session-resume.bats` end-to-end).
+- **MEDIUM-04** — snapshot `fcntl.flock` to close the multi-process snapshot TOCTOU window.
+- **AT-REL-1, AT-LLM-2.1, AT-COMPAT-1, AT-COMPAT-3** — four acceptance tests deferred pending real-LLM and multi-host fixtures.
 
-```
-designer memory                                    → implementer
-designer + implementer memory                      → reviewer
-designer + implementer + reviewer memory           → tester
-all memories                                       → acceptor
-```
+Tracked in [`docs/v6/v011-release-report.md`](docs/v6/v011-release-report.md) and [`docs/v6/v0111-cleanup-report.md`](docs/v6/v0111-cleanup-report.md).
 
-Memory snapshots include: input summary, key decisions, artifacts produced, issues & risks, and context for the next agent.
+## Documentation
 
-## Configuration
-
-After initialization, `codenook/config.json` lives under `.claude/codenook/`:
-
-```json
-{
-  "version": "0.11.0",
-  "platform": "<claude-code|copilot-cli>",
-  "models": {
-    "acceptor":    "claude-opus-4.6",
-    "designer":    "claude-opus-4.6",
-    "implementer": "claude-opus-4.6",
-    "reviewer":    "gpt-5.4",
-    "tester":      "claude-opus-4.6",
-    "phase_overrides": {
-      "design":         "claude-opus-4.6",
-      "review_execute": "gpt-5.4"
-    }
-  },
-  "hitl": {
-    "enabled": true,
-    "adapter": "local-html",
-    "port": 8765,
-    "auto_open_browser": true,
-    "phase_overrides": {
-      "impl_plan":      "terminal",
-      "design":         "confluence"
-    }
-  },
-  "skills": {
-    "auto_load": true,
-    "agent_mapping": {}
-  },
-  "dual_mode": {
-    "enabled": false,
-    "phases": ["all"],
-    "models": {
-      "agent_a": "claude-opus-4.6",
-      "agent_b": "gpt-5.4",
-      "synthesizer": null
-    },
-    "phase_models": {}
-  },
-  "knowledge": {
-    "enabled": true,
-    "auto_extract": true,
-    "max_items_per_role": 100,
-    "max_items_per_topic": 50,
-    "max_chars": 8000,
-    "confidence_threshold": "MEDIUM"
-  },
-  "phase_defaults": {},
-  "preferences": {
-    "autoGitignore": true,
-    "coding_conventions": null,
-    "review_checklist": null,
-    "phase_entry_decisions": {}
-  },
-  "reviewer_agent_type": "code-review"
-}
-```
-
-| Field | Description |
-|-------|-------------|
-| `platform` | `claude-code` or `copilot-cli` |
-| `models.*` | AI model per agent role (fallback for phases) |
-| `models.phase_overrides.*` | AI model per phase (takes priority over agent model) |
-| `hitl.enabled` | Enable/disable HITL gates |
-| `hitl.adapter` | Global default: `local-html` · `terminal` · `github-issue` · `confluence` |
-| `hitl.phase_overrides.*` | HITL adapter per phase (takes priority over global) |
-| `skills.auto_load` | Enable skill injection into sub-agent prompts |
-| `skills.agent_mapping` | Per-agent skill assignments (`{}` = all skills for all agents) |
-| `dual_mode.enabled` | Enable dual-agent cross-examination mode |
-| `dual_mode.phases` | Which phases use dual mode (`["all"]` or specific phase names) |
-| `dual_mode.models` | Model pairing: `agent_a`, `agent_b` for cross-examination, `synthesizer` for merging (null = platform default) |
-| `knowledge.enabled` | Enable knowledge extraction after each task |
-| `knowledge.auto_extract` | Auto-extract knowledge items from agent outputs |
-| `knowledge.max_items_per_role` | Max knowledge items per agent role (default: 100) |
-| `knowledge.max_items_per_topic` | Max knowledge items per topic (default: 50) |
-| `knowledge.max_chars` | Max chars of knowledge injected into agent prompt (default: 8000) |
-| `knowledge.confidence_threshold` | Minimum confidence for extracted items (`LOW`/`MEDIUM`/`HIGH`) |
-| `phase_defaults` | Default configuration per phase |
-| `preferences` | Coding conventions, review checklist, phase entry decisions |
-| `reviewer_agent_type` | Agent type for reviewer execute phase (default: `code-review`) |
-
-**Model resolution order:** task override → phase override → agent model → platform default
-
-**HITL resolution order:** phase override → global adapter → environment auto-detect
-
-### Runtime Configuration (via conversation)
-
-You can change configuration at any time through natural language:
-
-```
-"设置 design 阶段用 claude-opus-4.6"     # Set per-phase model
-"reviewer 换成 gpt-5.4"                # Change agent model
-"design 阶段用 confluence 审批"         # Change per-phase HITL adapter
-"关闭 HITL"                            # Disable all HITL gates
-"查看配置"                             # Show current config
-```
-
-### Platform Directories
-
-| Platform | Root | Agents | CodeNook Dir | Skills (global) | Skills (project) |
-|----------|------|--------|--------------|-----------------|------------------|
-| Claude Code | `.claude/` | `.claude/agents/` | `.claude/codenook/` | `~/.claude/skills/` | `.claude/codenook/skills/` |
-| Copilot CLI | `.claude/` | `.claude/agents/` | `.claude/codenook/` | `~/.copilot/skills/` | `.claude/codenook/skills/` |
-
-## Error Handling
-
-| Scenario | Action |
-|----------|--------|
-| Subagent timeout | Report to user; offer retry or skip |
-| Subagent crash | Report error; offer retry with different model |
-| HITL no response (10 min) | Reminder; 30 min → save state and pause |
-| `codenook/task-board.json` corrupt | Recover from `.bak`; report if unrecoverable |
-| Memory file missing | Warn and continue with reduced context |
-
-The orchestrator backs up `codenook/task-board.json` to `codenook/task-board.json.bak` before every write. On restart, it reads the task board and resumes from the current status — no in-memory state needed.
-
-## Historical Evolution (v3.x → v4.x → v6)
-
-CodeNook's current architecture (v0.10/v0.11) is the v6 plugin-architecture redesign — a two-layer codebase where `skills/codenook-core/` provides the kernel + builtin skills + workspace `init.sh`, and `plugins/` (development, writing, generic) ship per-workspace pipelines. See [`docs/v6/`](docs/v6/README.md) for the full design, milestones, and test plan.
-
-The legacy v4.9.5 stable agent system (still installed by the root `install.sh` for backwards compatibility) added build verification, 3-stage code review, module/system device testing, and preflight checks on top of v4.9's dual-agent cross-examination, Phase Constitution, and knowledge accumulation. Key changes across the lineage:
-
-| v3.x | v4.0–4.2 | v4.9+ |
-|------|----------|------|
-| 20 global skills | 1 global skill + project-level agents & engine | *(same)* |
-| 13 shell hooks | `tools` / `disallowedTools` in frontmatter | *(same)* |
-| Session-level role switching | Subagent delegation via orchestrator | + Multi-task switch/pause/resume |
-| 11-state FSM | 10-status task-board routing | + `paused` status, `active_task`, `depends_on` |
-| File-based messaging | Orchestrator context passing | + Project skill injection into sub-agents |
-| `agent-hitl-gate` skill | Multi-adapter HITL (4 adapters) | + Per-phase HITL adapter selection |
-| Per-agent models only | *(same)* | + Per-phase model overrides |
-| — | — | Mid-flow entry (`--start-at` any phase) |
-| — | — | Smart skill provisioning (auto-scan + classify + map) |
-| — | — | Natural language conversation triggers |
-| — | — | Enhanced task board with progress indicators |
-| — | — | Dual-agent parallel mode with cross-examination |
-| — | — | Phase Constitution (per-phase quality criteria) |
-| — | — | Knowledge accumulation across tasks |
-| — | — | Build verification (production build + UT before HITL) |
-| — | — | 3-stage code review (local → remote → CI) |
-| — | — | Module + system testing on real devices |
-| — | — | Preflight checks for creation-time questions |
-
-**Migration steps:**
-
-**From v3.x:**
-1. Remove old global skills, hooks, and rules from `~/.claude/` or `~/.copilot/`
-2. Install v0.11.0 (`curl` one-liner or manual copy)
-3. In your project, run "initialize agent system" to generate new files
-4. Migrate existing tasks manually if needed
-
-**From v4.0–4.3:**
-1. Update the skill (`curl` one-liner or re-copy skill directory)
-2. Re-run "initialize agent system" — existing tasks are preserved, schema is upgraded
-3. New fields (`active_task`, `depends_on`, `start_at`, `phase_overrides`, `skills`) get defaults
-4. Existing per-agent model config continues to work (phase overrides are optional)
+| Doc | Purpose |
+|-----|---------|
+| [`PIPELINE.md`](PIPELINE.md) | End-to-end runtime pipeline reference |
+| [`docs/v6/README.md`](docs/v6/README.md) | Index of the 9 v6 design docs + acceptance + execution reports |
+| [`docs/v6/architecture-v6.md`](docs/v6/architecture-v6.md) | Plugin architecture design (42 ratified decisions) |
+| [`docs/v6/router-agent-v6.md`](docs/v6/router-agent-v6.md) | Router-agent specification |
+| [`docs/v6/memory-and-extraction-v6.md`](docs/v6/memory-and-extraction-v6.md) | Memory layer + extraction policy |
+| [`docs/v6/task-chains-v6.md`](docs/v6/task-chains-v6.md) | Parent suggestion + chain summarisation |
+| [`docs/v6/requirements-v0.10.md`](docs/v6/requirements-v0.10.md) | ~70 FR / NFR (1162 lines) |
+| [`docs/v6/acceptance-v0.10.md`](docs/v6/acceptance-v0.10.md) | 117 acceptance tests |
+| [`docs/v6/acceptance-execution-report-v0.10.md`](docs/v6/acceptance-execution-report-v0.10.md) | 100 PASS / 13 PARTIAL / 4 SKIP |
+| [`blog/vibe-coding-and-multi-agent.md`](blog/vibe-coding-and-multi-agent.md) | Background essay |
+| [`CHANGELOG.md`](CHANGELOG.md) | Release notes |
 
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feat/my-feature`)
-3. Commit changes (`git commit -m 'feat: add my feature'`)
-4. Push to the branch (`git push origin feat/my-feature`)
-5. Open a Pull Request
-
-Please follow the existing code style and include tests for new features.
+3. Run `bats skills/codenook-core/tests/` and the four quality gates above before committing
+4. Commit changes (English commit messages, include the `Co-authored-by` trailer if the work was AI-paired)
+5. Open a Pull Request against `main`
 
 ## License
 
-MIT
+MIT — see [`LICENSE`](LICENSE).
