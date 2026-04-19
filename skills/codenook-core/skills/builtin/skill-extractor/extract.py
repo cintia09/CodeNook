@@ -131,7 +131,14 @@ def _read_task_context(workspace: Path, task_id: str, input_path: Path | None) -
                 pass
         notes_dir = task_dir / "notes"
         if notes_dir.is_dir():
-            for p in sorted(notes_dir.glob("*.md")):
+            # M9.4 R2-01: include .md, .txt, and .log alongside notes/*.md
+            # so plain-text task notes and rotated logs participate in the
+            # extractor's repeat-pattern detection.
+            for p in sorted(notes_dir.glob("*")):
+                if not p.is_file():
+                    continue
+                if p.suffix.lower() not in {".md", ".txt", ".log"}:
+                    continue
                 try:
                     chunks.append(p.read_text(encoding="utf-8"))
                 except OSError:

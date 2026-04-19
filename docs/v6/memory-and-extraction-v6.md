@@ -661,7 +661,8 @@ def upsert_config_entry(workspace_root, *, entry: ConfigEntry, rationale: str) -
     """同 key 命中则按 §4.2 合并；否则 append。"""
 def match_entries_for_task(workspace_root, task_brief: str) -> list[ConfigEntry]:
     """走 LLM 判断 applies_when 命中；router-agent 在选择阶段调用。"""
-def promote_config_entry(workspace_root, key: str) -> None: ...
+def promote_config_entry(workspace_root, key: str) -> None:
+    """将匹配 *key* 的 entry 标记为 promoted（M9.1 R2-01 显式归档至接口表）。"""
 
 # ---- 通用 ----
 def find_similar(
