@@ -430,9 +430,14 @@ def cmd_confirm(args: argparse.Namespace) -> int:
         })
         return 4
 
-    state["status"] = "in_progress"
+    state["status"] = "pending"
     state.setdefault("config_overrides", {})
 
+    # Two-phase write (M10.3 MEDIUM-03): persist the seeded state with
+    # status=pending FIRST so that if set_parent below raises, the
+    # state.json on disk reflects the un-committed status. cmd_confirm
+    # only flips status=in_progress after parent attachment succeeds
+    # (or is no-op).
     atomic_write_json(str(state_path), state)
 
     # M10.3 — apply user-confirmed parent_id (if any) AFTER the state
@@ -456,6 +461,17 @@ def cmd_confirm(args: argparse.Namespace) -> int:
                 "errors": [f"{type(e).__name__}: {e}"],
             })
             return 4
+
+    # Phase 2 of MEDIUM-03: now that parent attachment (if any) has
+    # succeeded, re-load + flip to in_progress. Reading the file back
+    # picks up parent_id/chain_root that set_parent wrote.
+    try:
+        with open(state_path, "r", encoding="utf-8") as f:
+            state = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        pass  # leave the in-memory state and proceed
+    state["status"] = "in_progress"
+    atomic_write_json(str(state_path), state)
 
     if (task_dir / "router-context.md").exists():
         rc.update_frontmatter(

@@ -144,3 +144,29 @@ load helpers/m10_chain
   attached=$(tc_audit_count "$ws" chain_attached)
   [ "$attached" -ge 2 ] || { echo "expected ≥2 chain_attached audits, got $attached"; return 1; }
 }
+
+# ---------------------------------------------------------------- TC-M10.7-03 (MEDIUM-03 lock-in)
+
+@test "[m10.7] TC-M10.7-03 cmd_confirm two-phase: bad parent_id leaves status=pending" {
+  ws=$(m10_seed_workspace)
+  # Prepare T-NEW (creates router-context.md etc).
+  run m10_router_render T-NEW "$ws" --user-turn "two-phase write probe"
+  [ "$status" -eq 0 ] || { echo "prepare failed: $output"; return 1; }
+
+  # Seed draft pointing at a non-existent parent (TaskNotFoundError path).
+  seed_draft_config "$ws" T-NEW development "two-phase write probe" T-DOES-NOT-EXIST
+
+  run m10_router_render T-NEW "$ws" --confirm
+  # cmd_confirm exits 4 on parent_attach_failed.
+  [ "$status" -eq 4 ] || { echo "confirm exit=$status out=$output"; return 1; }
+  echo "$output" | grep -q 'parent_attach_failed' \
+    || { echo "missing parent_attach_failed code: $output"; return 1; }
+
+  # Two-phase contract: state.json status MUST remain pending.
+  st=$(tc_state_field "$ws" T-NEW status)
+  [ "$st" = "pending" ] || { echo "status=$st want pending"; cat "$ws/.codenook/tasks/T-NEW/state.json"; return 1; }
+
+  # parent_id never persisted (set_parent never reached the write).
+  pid=$(tc_state_field "$ws" T-NEW parent_id)
+  [ "$pid" = "null" ] || { echo "parent_id=$pid leaked"; return 1; }
+}
