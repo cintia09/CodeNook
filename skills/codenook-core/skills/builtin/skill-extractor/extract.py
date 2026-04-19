@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
-"""knowledge-extractor — M9.3.
+"""skill-extractor — M9.4.
 
-Reads task context (either ``--input <file>`` or the workspace task dir),
-asks the LLM to propose ``knowledge`` candidates, then runs each through
-the patch-or-create decision flow (secret-scan → hash dedup → similarity
-→ LLM judge → write).
+Detects repeated script / CLI invocations (≥3 within the same phase log)
+and proposes reusable ``skill`` candidates. Each candidate runs through
+the shared patch-or-create decision flow:
 
-Best-effort: any unexpected failure is logged via ``append_audit`` with
-``status=failed`` and the process exits 0 (FR-EXT-5 / AC-EXT-4). The one
-exception is secret-blocked candidates — TC-M9.3-12 requires a non-zero
-exit code so the dispatcher can surface "this body was rejected".
+    secret-scan → hash dedup → similarity → LLM judge → write/patch
 
-CLI (M9.0 handoff contract):
+Per-task cap = 1 (FR-EXT-CAP for skills). Best-effort: failures audit
+``status=failed`` and exit 0; secret-blocked candidates exit non-zero so
+the dispatcher surfaces the rejection (parity with M9.3).
+
+CLI (M9.0 handoff contract, identical to knowledge-extractor):
     extract.py --task-id <id> --workspace <ws> --phase <phase> --reason <r>
                [--input <file>]
 
-Audit-log schema (TC-M9.3-09 strict keys):
+Audit-log schema (8 keys, locked by TC-M9.4-04):
     {asset_type, candidate_hash, existing_path, outcome, reason,
      source_task, timestamp, verdict}
-
+``asset_type`` is always ``"skill"``.
 ``outcome`` ∈ {created, merged, replaced, dedup, blocked_secret, failed,
-              dropped_by_cap}.
-``verdict`` ∈ {create, merge, replace, dedup, blocked, failed, dropped}.
+              dropped_by_cap, below_threshold}.
+``verdict`` ∈ {create, merge, replace, dedup, blocked, failed, dropped, noop}.
 """
 
 from __future__ import annotations
@@ -29,7 +29,6 @@ from __future__ import annotations
 import argparse
 import datetime as _dt
 import json
-import os
 import re
 import sys
 import traceback
@@ -48,32 +47,39 @@ from secret_scan import scan_secrets as _scan_secrets  # noqa: E402
 
 # ---------------------------------------------------------------- constants
 
-PER_TASK_CAP = 3
+PER_TASK_CAP = 1
+MIN_REPEAT_THRESHOLD = 3  # FR-EXT-S — ≥3 invocations to propose anything.
 MAX_SUMMARY = ml.MAX_SUMMARY_CHARS  # 200
 MAX_TAGS = ml.MAX_TAGS  # 8
 INPUT_BODY_TRUNC = 4096
 
-# Slug regex matching memory_layer._TOPIC_RE (must start alphanum).
+# Skill names share memory_layer's flat-name validation: must start
+# alphanum and contain only [A-Za-z0-9_.-]. Same regex is fine.
 _SLUG_RE = re.compile(r"[^A-Za-z0-9_.\-]+")
+
+# Pre-filter: shell/CLI invocation pattern. Captures the first arg
+# (script name or subcommand) so we can group / count repeats.
+_INVOCATION_RE = re.compile(
+    r"\b(?:bash|sh|zsh|python3?|node|npm|yarn|pnpm|make|cargo|go|\./)\s+(\S+)"
+)
 
 
 def _now_iso() -> str:
     return _dt.datetime.now(tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _slugify(text: str, fallback: str = "knowledge") -> str:
+def _slugify(text: str, fallback: str = "skill") -> str:
     s = _SLUG_RE.sub("-", (text or "").strip().lower()).strip("-")
     if not s:
         s = fallback
     if not re.match(r"^[A-Za-z0-9]", s):
-        s = "k-" + s
+        s = "s-" + s
     return s[: ml.MAX_TOPIC_CHARS]
 
 
 def _audit(
     workspace: Path,
     *,
-    asset_type: str = "knowledge",
     outcome: str,
     verdict: str,
     reason: str = "",
@@ -82,10 +88,9 @@ def _audit(
     existing_path: str | None = None,
     extra: dict | None = None,
 ) -> None:
-    """Thin pass-through to the shared canonical audit writer."""
     _audit_canonical(
         workspace,
-        asset_type=asset_type,
+        asset_type="skill",
         outcome=outcome,
         verdict=verdict,
         reason=reason,
@@ -113,7 +118,7 @@ def _read_task_context(workspace: Path, task_id: str, input_path: Path | None) -
         if log.is_file():
             try:
                 lines = log.read_text(encoding="utf-8").splitlines()
-                chunks.append("\n".join(lines[-100:]))
+                chunks.append("\n".join(lines[-200:]))
             except OSError:
                 pass
         notes_dir = task_dir / "notes"
@@ -126,31 +131,58 @@ def _read_task_context(workspace: Path, task_id: str, input_path: Path | None) -
     return ("\n\n".join(chunks))[:INPUT_BODY_TRUNC]
 
 
+# --------------------------------------------------------- detection gate
+
+
+def _count_repeats(text: str) -> dict[str, int]:
+    """Return ``{first-arg-token: count}`` for shell/CLI invocations."""
+    counts: dict[str, int] = {}
+    for m in _INVOCATION_RE.finditer(text or ""):
+        key = m.group(1).strip()
+        if not key:
+            continue
+        counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def _meets_threshold(text: str) -> tuple[bool, dict[str, int]]:
+    counts = _count_repeats(text)
+    qualifying = {k: v for k, v in counts.items() if v >= MIN_REPEAT_THRESHOLD}
+    return (bool(qualifying), qualifying)
+
+
 # ------------------------------------------------------------ LLM helpers
 
 
-def _build_extract_prompt(task_id: str, phase: str, reason: str, body: str) -> str:
+def _build_extract_prompt(
+    task_id: str, phase: str, reason: str, body: str, qualifying: dict[str, int]
+) -> str:
+    repeats = "\n".join(f"- `{k}` invoked {v} times" for k, v in qualifying.items())
     return (
-        "You are CodeNook's knowledge extractor.\n"
+        "You are CodeNook's skill extractor.\n"
         f"Task: {task_id}  Phase: {phase}  Reason: {reason}\n\n"
-        "Read the task notes below and propose up to 5 reusable knowledge\n"
-        "entries. Respond with strict JSON of the form:\n"
-        '  {"candidates":[{"title":..,"summary":..,"tags":[..],"body":..}, ...]}\n'
-        "Constraints: summary ≤ 200 chars, tags ≤ 8, no secrets, no PII.\n\n"
-        "## Task notes\n"
+        "Only propose a skill if you observe a repeated script / CLI\n"
+        f"pattern invoked at least {MIN_REPEAT_THRESHOLD} times within the\n"
+        "phase. Detected repeats:\n"
+        f"{repeats}\n\n"
+        "Respond with strict JSON of the form:\n"
+        '  {"candidates":[{"name":..,"title":..,"summary":..,"tags":[..],"body":..}]}\n'
+        "Constraints: name ≤ 64 alphanum/-_./ only, summary ≤ 200 chars,\n"
+        "tags ≤ 8, no secrets, no PII. Per-task cap = 1.\n\n"
+        "## Phase log (truncated)\n"
         f"{body}\n"
     )
 
 
 def _build_decide_prompt(existing: dict, candidate: dict) -> str:
     return (
-        "Decide how to merge a new knowledge candidate into existing memory.\n"
+        "Decide how to merge a new skill candidate into existing memory.\n"
         "Default preference: merge.\n\n"
         "## Existing\n"
-        f"title: {existing.get('title','')}\n"
+        f"name: {existing.get('name') or existing.get('title','')}\n"
         f"tags: {existing.get('tags',[])}\n\n"
         "## New candidate\n"
-        f"title: {candidate.get('title','')}\n"
+        f"name: {candidate.get('name','')}\n"
         f"tags: {candidate.get('tags',[])}\n\n"
         '## Output JSON\n{ "action": "merge"|"replace"|"create",'
         ' "rationale": "<≤200 chars>" }'
@@ -161,7 +193,6 @@ def _parse_json_payload(raw: str) -> dict:
     raw = (raw or "").strip()
     if not raw:
         raise ValueError("empty LLM response")
-    # Tolerate fenced code blocks.
     if raw.startswith("```"):
         first_nl = raw.find("\n")
         last_fence = raw.rfind("```")
@@ -185,7 +216,7 @@ def _rank_and_cap(
     candidates: list[dict], workspace: Path
 ) -> tuple[list[dict], list[dict]]:
     universe: set[str] = set()
-    for meta in ml.scan_knowledge(workspace):
+    for meta in ml.scan_skills(workspace):
         for t in meta.get("tags") or []:
             if isinstance(t, str):
                 universe.add(t)
@@ -200,7 +231,6 @@ def _rank_and_cap(
 
 
 def _normalize_candidate(cand: dict) -> tuple[dict, bool]:
-    """Truncate summary/tags. Returns (normalized, was_truncated)."""
     truncated = False
     summary = str(cand.get("summary") or "")
     if len(summary) > MAX_SUMMARY:
@@ -213,12 +243,12 @@ def _normalize_candidate(cand: dict) -> tuple[dict, bool]:
         truncated = True
     body = str(cand.get("body") or "")
     title = str(cand.get("title") or "untitled")
-    topic = str(cand.get("topic") or "") or _slugify(title)
-    topic = _slugify(topic, fallback="knowledge")
+    name = str(cand.get("name") or "") or _slugify(title)
+    name = _slugify(name, fallback="skill")
     return (
         {
+            "name": name,
             "title": title,
-            "topic": topic,
             "summary": summary,
             "tags": tags,
             "body": body,
@@ -230,20 +260,26 @@ def _normalize_candidate(cand: dict) -> tuple[dict, bool]:
 # -------------------------------------------------------- decision flow
 
 
+class _SecretBlocked(Exception):
+    """Bubble up so main() exits non-zero on secret-blocked candidates."""
+
+
+def _existing_skill_name_from_path(path: str) -> str:
+    return Path(path).parent.name
+
+
 def _process_candidate(
     workspace: Path, task_id: str, cand: dict
 ) -> tuple[str, str, str | None]:
-    """Process one candidate. Returns (outcome, verdict, written_or_target_path)."""
     body = cand["body"]
-    topic = cand["topic"]
+    name = cand["name"]
     title = cand["title"]
     summary = cand["summary"]
     tags = cand["tags"]
 
-    # Step 1: secret-scan (fail-close).
+    # Step 1: secret scan.
     hit, rule_id = _scan_secrets(body)
     if hit:
-        # Redact body in the audit reason field (NFR-SECURITY).
         _ = _redact(body)
         _audit(
             workspace,
@@ -257,11 +293,10 @@ def _process_candidate(
 
     candidate_hash = memory_index.get_hash(body)
 
-    # Step 2: hash dedup — short-circuit before any LLM judge call.
-    if ml.has_hash(workspace, "knowledge", candidate_hash):
-        # Find which existing path matches (best-effort for the audit record).
+    # Step 2: hash dedup.
+    if ml.has_hash(workspace, "skill", candidate_hash):
         existing_path = None
-        for meta in ml.scan_knowledge(workspace):
+        for meta in ml.scan_skills(workspace):
             if meta.get("dedup_hash") == candidate_hash:
                 existing_path = meta.get("path")
                 break
@@ -277,7 +312,7 @@ def _process_candidate(
         return "dedup", "dedup", existing_path
 
     # Step 3: similarity search.
-    similar = ml.find_similar(workspace, "knowledge", title, tags)
+    similar = ml.find_similar(workspace, "skill", title, tags)
 
     # Step 4: LLM judge (only if similar found).
     if similar:
@@ -293,14 +328,17 @@ def _process_candidate(
         action = verdict_obj.get("action", "create")
         rationale = str(verdict_obj.get("rationale", ""))[:200]
         existing_path = existing.get("path")
+        existing_name = (
+            _existing_skill_name_from_path(existing_path) if existing_path else None
+        )
     else:
         action = "create"
         rationale = "no similar found"
         existing_path = None
+        existing_name = None
 
     # Step 5: execute.
-    if action == "merge" and existing_path:
-        existing_topic = Path(existing_path).stem
+    if action == "merge" and existing_name:
 
         def _mutate(doc: dict) -> dict:
             fm = dict(doc.get("frontmatter") or {})
@@ -317,8 +355,8 @@ def _process_candidate(
             new_body = (doc.get("body") or "") + "\n\n" + body
             return {"frontmatter": fm, "body": new_body[:8192]}
 
-        ml.patch_knowledge(
-            workspace, topic=existing_topic, mutator=_mutate, rationale=rationale
+        ml.patch_skill(
+            workspace, name=existing_name, mutator=_mutate, rationale=rationale
         )
         _audit(
             workspace,
@@ -331,9 +369,9 @@ def _process_candidate(
         )
         return "merged", "merge", existing_path
 
-    if action == "replace" and existing_path:
-        existing_topic = Path(existing_path).stem
+    if action == "replace" and existing_name:
         new_fm = {
+            "name": existing_name,
             "title": title,
             "summary": summary,
             "tags": tags,
@@ -341,15 +379,14 @@ def _process_candidate(
             "source_task": task_id,
             "created_from_task": task_id,
             "created_at": _now_iso(),
-            "hash": candidate_hash,
-            "topic": existing_topic,
         }
-        ml.replace_knowledge(
+        ml.write_skill(
             workspace,
-            topic=existing_topic,
+            name=existing_name,
             frontmatter=new_fm,
             body=body,
-            rationale=rationale,
+            status="candidate",
+            created_from_task=task_id,
         )
         _audit(
             workspace,
@@ -362,32 +399,29 @@ def _process_candidate(
         )
         return "replaced", "replace", existing_path
 
-    # action == "create" (or fallback). If a same-named topic already
-    # exists, append a unix-ts suffix to keep both copies (FR-LAY-3).
-    target_topic = topic
-    target_path = ml._knowledge_path(workspace, target_topic)
+    # Default: create. If a same-named skill dir already exists, append
+    # a unix-ts suffix to avoid clobbering.
+    target_name = name
     suffixed = False
-    if target_path.exists():
-        target_topic = f"{topic}-{int(_dt.datetime.now().timestamp())}"
-        target_topic = target_topic[: ml.MAX_TOPIC_CHARS]
+    if (ml.memory_root(workspace) / "skills" / target_name / "SKILL.md").exists():
+        target_name = f"{name}-{int(_dt.datetime.now().timestamp())}"
+        target_name = target_name[: ml.MAX_TOPIC_CHARS]
         suffixed = True
-    written = ml.write_knowledge(
+    new_fm = {
+        "name": target_name,
+        "title": title,
+        "summary": summary,
+        "tags": tags,
+        "status": "candidate",
+        "source_task": task_id,
+        "created_from_task": task_id,
+        "created_at": _now_iso(),
+    }
+    written = ml.write_skill(
         workspace,
-        topic=target_topic,
-        summary=summary,
-        tags=tags,
+        name=target_name,
+        frontmatter=new_fm,
         body=body,
-        frontmatter={
-            "title": title,
-            "summary": summary,
-            "tags": tags,
-            "status": "candidate",
-            "source_task": task_id,
-            "created_from_task": task_id,
-            "created_at": _now_iso(),
-            "hash": candidate_hash,
-            "topic": target_topic,
-        },
         status="candidate",
         created_from_task=task_id,
     )
@@ -403,15 +437,11 @@ def _process_candidate(
     return "created", "create", str(written)
 
 
-class _SecretBlocked(Exception):
-    """Internal signal — bubble up so main() exits non-zero per TC-M9.3-12."""
-
-
 # -------------------------------------------------------------------- main
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
-    p = argparse.ArgumentParser(prog="knowledge-extractor")
+    p = argparse.ArgumentParser(prog="skill-extractor")
     p.add_argument("--task-id", required=True)
     p.add_argument("--workspace", required=True)
     p.add_argument("--phase", default="")
@@ -428,7 +458,6 @@ def main(argv: list[str]) -> int:
     reason = args.reason
     input_path = Path(args.input).resolve() if args.input else None
 
-    # Memory skeleton must exist (M9.1 init) — best-effort if missing.
     if not ml.has_memory(workspace):
         try:
             ml.init_memory_skeleton(workspace)
@@ -441,7 +470,7 @@ def main(argv: list[str]) -> int:
         {
             "ts": _now_iso(),
             "event": "extract_started",
-            "asset_type": "knowledge",
+            "asset_type": "skill",
             "task_id": task_id,
             "phase": phase,
             "reason": reason,
@@ -451,7 +480,23 @@ def main(argv: list[str]) -> int:
     secret_blocked = False
     try:
         body_in = _read_task_context(workspace, task_id, input_path)
-        prompt = _build_extract_prompt(task_id, phase, reason, body_in)
+
+        # Detection gate: bail out before any LLM call when no script
+        # invocation passes the ≥3 threshold (FR-EXT-S, TC-M9.4-02).
+        meets, qualifying = _meets_threshold(body_in)
+        if not meets:
+            all_counts = _count_repeats(body_in)
+            max_count = max(all_counts.values()) if all_counts else 0
+            _audit(
+                workspace,
+                outcome="below_threshold",
+                verdict="noop",
+                reason=f"max_count={max_count}",
+                source_task=task_id,
+            )
+            return 0
+
+        prompt = _build_extract_prompt(task_id, phase, reason, body_in, qualifying)
         try:
             raw = call_llm(prompt, call_name="extract")
         except Exception as e:
@@ -461,7 +506,7 @@ def main(argv: list[str]) -> int:
                 {
                     "ts": _now_iso(),
                     "event": "extract_failed",
-                    "asset_type": "knowledge",
+                    "asset_type": "skill",
                     "task_id": task_id,
                     "status": "failed",
                     "reason": str(e)[:200],
@@ -481,7 +526,7 @@ def main(argv: list[str]) -> int:
                 {
                     "ts": _now_iso(),
                     "event": "extract_failed",
-                    "asset_type": "knowledge",
+                    "asset_type": "skill",
                     "task_id": task_id,
                     "status": "failed",
                     "reason": f"parse: {e}"[:200],
@@ -500,9 +545,9 @@ def main(argv: list[str]) -> int:
                     {
                         "ts": _now_iso(),
                         "event": "candidate_truncated",
-                        "asset_type": "knowledge",
+                        "asset_type": "skill",
                         "task_id": task_id,
-                        "topic": n["topic"],
+                        "name": n["name"],
                         "truncated": True,
                     },
                 )
@@ -515,7 +560,7 @@ def main(argv: list[str]) -> int:
                 {
                     "ts": _now_iso(),
                     "event": "cap_truncated",
-                    "asset_type": "knowledge",
+                    "asset_type": "skill",
                     "task_id": task_id,
                     "dropped_by_cap": len(dropped),
                 },
@@ -526,8 +571,6 @@ def main(argv: list[str]) -> int:
                 _process_candidate(workspace, task_id, cand)
             except _SecretBlocked:
                 secret_blocked = True
-                # Continue processing other candidates so they still
-                # get a fair audit; we'll exit non-zero at the end.
                 continue
             except Exception as e:
                 print(
@@ -548,7 +591,7 @@ def main(argv: list[str]) -> int:
             {
                 "ts": _now_iso(),
                 "event": "extract_failed",
-                "asset_type": "knowledge",
+                "asset_type": "skill",
                 "task_id": task_id,
                 "status": "failed",
                 "reason": str(e)[:200],
