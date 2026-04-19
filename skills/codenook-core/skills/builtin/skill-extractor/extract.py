@@ -60,7 +60,11 @@ _SLUG_RE = re.compile(r"[^A-Za-z0-9_.\-]+")
 # Pre-filter: shell/CLI invocation pattern. Captures the first arg
 # (script name or subcommand) so we can group / count repeats.
 _INVOCATION_RE = re.compile(
-    r"\b(?:bash|sh|zsh|python3?|node|npm|yarn|pnpm|make|cargo|go|\./)\s+(\S+)"
+    r"(?:^|\s)(?:"
+    r"(?:bash|sh|zsh|python3?|node|npm|yarn|pnpm|make|cargo|go)\s+(\S+)"
+    r"|"
+    r"(\./\S+)"
+    r")"
 )
 
 
@@ -138,7 +142,10 @@ def _count_repeats(text: str) -> dict[str, int]:
     """Return ``{first-arg-token: count}`` for shell/CLI invocations."""
     counts: dict[str, int] = {}
     for m in _INVOCATION_RE.finditer(text or ""):
-        key = m.group(1).strip()
+        raw = (m.group(1) or m.group(2) or "").strip()
+        if not raw:
+            continue
+        key = raw[2:] if raw.startswith("./") else raw
         if not key:
             continue
         counts[key] = counts.get(key, 0) + 1

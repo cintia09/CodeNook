@@ -192,3 +192,22 @@ mock_dir_with() {
   [ -z "$(ls -A "$ws/.codenook/memory/skills" 2>/dev/null)" ] \
     || { echo "expected no skill dir"; ls "$ws/.codenook/memory/skills"; return 1; }
 }
+
+# ------------------------------------------------------------------ TC-M9.4-01b
+
+@test "[m9.4] TC-M9.4-01b dotslash invocations meet threshold" {
+  ws=$(m9_seed_workspace); m9_init_memory "$ws"
+  extract='{"candidates":[{"name":"foo-runner","title":"Foo Runner","summary":"Run the foo build script.","tags":["build"],"body":"# Foo Runner\n\nRun: ./scripts/foo.sh build\n"}]}'
+  mock=$(mock_dir_with "$ws" "$extract")
+
+  run env CN_LLM_MOCK_DIR="$mock" bash "$EXTRACT_SH" \
+        --task-id t1 --workspace "$ws" --phase complete --reason after_phase \
+        --input "$FX/phase-log-dotslash.txt"
+  [ "$status" -eq 0 ] || { echo "out=$output"; return 1; }
+
+  shopt -s nullglob
+  dirs=("$ws/.codenook/memory/skills"/*/)
+  shopt -u nullglob
+  [ "${#dirs[@]}" -eq 1 ] || { echo "expected 1 skill dir, got ${#dirs[@]}: ${dirs[*]}"; return 1; }
+  [ -f "${dirs[0]}SKILL.md" ] || { echo "no SKILL.md in ${dirs[0]}"; return 1; }
+}

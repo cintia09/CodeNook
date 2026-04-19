@@ -1,0 +1,13 @@
+# Phase log: dotslash invocations
+
+Iteration 1:
+  $ ./scripts/foo.sh build
+  ok
+
+Iteration 2:
+  $ ./scripts/foo.sh build
+  ok
+
+Iteration 3:
+  $ ./scripts/foo.sh build
+  ok
