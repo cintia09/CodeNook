@@ -102,7 +102,10 @@ def main() -> int:
 
     # Audit — must succeed; surface as exit 1 if it doesn't.
     try:
-        res = subprocess.run(
+        import sys as _sys; from pathlib import Path as _P
+        _sys.path.insert(0, str(_P(__file__).resolve().parent.parent / "_lib"))
+        from sh_run import sh_run as _sh_run
+        res = _sh_run(
             [emit_sh, "--role", role, "--payload", out, "--workspace", str(ws)],
             capture_output=True, text=True, check=False,
         )

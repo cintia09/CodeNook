@@ -28,6 +28,10 @@ import json
 import os
 import re
 import subprocess
+import sys as _early_sys
+from pathlib import Path as _early_Path
+_early_sys.path.insert(0, str(_early_Path(__file__).resolve().parent.parent / "_lib"))
+from sh_run import sh_run as _sh_run  # noqa: E402
 import sys
 from pathlib import Path
 
@@ -235,7 +239,7 @@ def render_manifest(state: dict, phase: dict) -> str:
 def append_dispatch_log(workspace: Path, role: str, payload: str) -> None:
     audit_sh = Path(__file__).resolve().parent.parent / "dispatch-audit" / "emit.sh"
     if audit_sh.is_file():
-        subprocess.run(
+        _sh_run(
             [str(audit_sh), "--role", role, "--payload", payload,
              "--workspace", str(workspace)],
             check=False, capture_output=True,
@@ -273,8 +277,8 @@ def run_post_validate(workspace: Path, plugin: str, script_rel: str,
         if last is not None:
             last["_warning"] = f"post_validate script missing: {script_rel}"
         return
-    subprocess.run([str(sp), state["task_id"]], cwd=str(workspace),
-                   check=False, capture_output=True)
+    _sh_run([str(sp), state["task_id"]], cwd=str(workspace),
+            check=False, capture_output=True)
 
 
 # ── HITL ────────────────────────────────────────────────────────────────
@@ -785,7 +789,7 @@ def _legacy_tick(workspace: Path, state_file: Path, dry_run: bool,
         return 1
 
     preflight = os.path.join(core_root, "skills/builtin/preflight/preflight.sh")
-    res = subprocess.run(
+    res = _sh_run(
         [preflight, "--task", task, "--workspace", str(workspace), "--json"],
         capture_output=True, text=True,
     )
@@ -815,8 +819,8 @@ def _legacy_tick(workspace: Path, state_file: Path, dry_run: bool,
 
     audit = os.path.join(core_root, "skills/builtin/dispatch-audit/emit.sh")
     if os.path.exists(audit):
-        subprocess.run([audit, "--role", "executor", "--payload", payload,
-                        "--workspace", str(workspace)], check=False)
+        _sh_run([audit, "--role", "executor", "--payload", payload,
+                 "--workspace", str(workspace)], check=False)
 
     if dispatch_cmd:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json",
@@ -826,7 +830,7 @@ def _legacy_tick(workspace: Path, state_file: Path, dry_run: bool,
             env = os.environ.copy()
             env["CODENOOK_DISPATCH_PAYLOAD"] = payload
             env["CODENOOK_DISPATCH_SUMMARY"] = sf
-            r = subprocess.run([dispatch_cmd], env=env, capture_output=True, text=True)
+            r = _sh_run([dispatch_cmd], env=env, capture_output=True, text=True)
             ok = r.returncode == 0
         finally:
             if os.path.exists(sf):

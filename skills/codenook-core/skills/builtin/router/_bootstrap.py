@@ -74,7 +74,10 @@ def main() -> int:
         return fail("router model unresolved (decision #44 violated)",
                     [str(resolver)])
     try:
-        res = subprocess.run(
+        import sys as _sys; from pathlib import Path as _P
+        _sys.path.insert(0, str(_P(__file__).resolve().parent.parent / "_lib"))
+        from sh_run import sh_run as _sh_run
+        res = _sh_run(
             [str(resolver),
              "--plugin", "__router__",
              "--workspace", str(ws),

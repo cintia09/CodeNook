@@ -34,6 +34,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "_lib"))
 from atomic import atomic_write_json  # noqa: E402
+from sh_run import sh_run as _sh_run  # noqa: E402
 
 GATE_SEQ = [
     ("G01", "plugin-format",          "format-check.sh",     False),
@@ -125,7 +126,7 @@ def run_gate(skill_sh: Path, staged: Path, workspace: Path,
     env = os.environ.copy()
     if extra_env:
         env.update(extra_env)
-    proc = subprocess.run(cmd, env=env, capture_output=True, text=True)
+    proc = _sh_run(cmd, env=env, capture_output=True, text=True)
     try:
         out = json.loads(proc.stdout.strip().splitlines()[-1])
     except (ValueError, IndexError):
@@ -136,7 +137,7 @@ def run_gate(skill_sh: Path, staged: Path, workspace: Path,
 
 def run_sec_audit(builtin_dir: Path, staged: Path) -> dict:
     audit_sh = builtin_dir / "sec-audit" / "audit.sh"
-    proc = subprocess.run(
+    proc = _sh_run(
         [str(audit_sh), "--workspace", str(staged), "--json"],
         capture_output=True, text=True,
     )

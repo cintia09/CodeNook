@@ -55,7 +55,13 @@ TRIGGER_KEYS="$HISTORY_DIR/.trigger-keys"
 LOG="$HISTORY_DIR/extraction-log.jsonl"
 
 ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
-sha() { printf '%s' "$1" | shasum -a 256 | awk '{print $1}'; }
+sha() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    printf '%s' "$1" | sha256sum | awk '{print $1}'
+  else
+    printf '%s' "$1" | shasum -a 256 | awk '{print $1}'
+  fi
+}
 
 KEY="$(sha "${TASK_ID}|${PHASE}|${REASON}")"
 

@@ -286,15 +286,18 @@ def acquire(
     finally:
         try:
             try:
-                os.unlink(lock_path)
-            except FileNotFoundError:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            except OSError:
                 pass
-            fcntl.flock(fd, fcntl.LOCK_UN)
-        finally:
             try:
                 os.close(fd)
             except OSError:
                 pass
+            try:
+                os.unlink(lock_path)
+            except (FileNotFoundError, PermissionError, OSError):
+                pass
+        finally:
             _HELD.pop(abs_dir, None)
 
 
