@@ -59,8 +59,9 @@ assert not os.path.exists(target)
 ml.write_knowledge('$ws', topic='alpha', summary='s', tags=['x'], body='hello')
 assert os.path.exists(target), 'final missing'
 assert calls, 'os.replace never called'
-src, dst = calls[-1]
-assert str(dst) == target, ('dst', dst)
+matches = [c for c in calls if str(c[1]) == target]
+assert matches, ('no replace targeted final', calls)
+src, dst = matches[-1]
 assert os.path.basename(str(src)).startswith('.tmp.'), ('tmp prefix', src)
 print('OK')
 "

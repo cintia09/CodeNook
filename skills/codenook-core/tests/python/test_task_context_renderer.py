@@ -3,35 +3,48 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import yaml
+
 import memory_layer as ml
 
 
 def _make_knowledge(ws: Path, tid: str, topic: str, summary: str, body: str = "") -> None:
     ml.init_task_extracted_skeleton(ws, tid)
-    ml.write_knowledge_to_task(
-        ws, tid,
-        topic=topic,
-        summary=summary,
-        body=body or f"Body of {topic}.",
+    target = ml._task_knowledge_path(ws, tid, topic)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fm = {"topic": topic, "summary": summary, "tags": []}
+    target.write_text(
+        ml._render_frontmatter_doc(fm, body or f"Body of {topic}."),
+        encoding="utf-8",
     )
 
 
 def _make_skill(ws: Path, tid: str, name: str, summary: str, body: str = "") -> None:
     ml.init_task_extracted_skeleton(ws, tid)
-    ml.write_skill_to_task(
-        ws, tid,
-        name=name,
-        frontmatter={"summary": summary, "name": name},
-        body=body or f"Body of skill {name}.",
+    target = ml._task_skill_md(ws, tid, name)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fm = {"name": name, "summary": summary}
+    target.write_text(
+        ml._render_frontmatter_doc(fm, body or f"Body of skill {name}."),
+        encoding="utf-8",
     )
 
 
 def _make_config(ws: Path, tid: str, key: str, value: str) -> None:
     ml.init_task_extracted_skeleton(ws, tid)
-    ml.upsert_config_to_task(
-        ws, tid,
-        entry={"key": key, "value": value, "applies_when": "always", "summary": "test"},
+    cfg = ml._task_config_path(ws, tid)
+    try:
+        data = yaml.safe_load(cfg.read_text(encoding="utf-8")) or {}
+    except OSError:
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    data.setdefault("version", 1)
+    entries = data.setdefault("entries", [])
+    entries.append(
+        {"key": key, "value": value, "applies_when": "always", "summary": "test"}
     )
+    cfg.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
 
 def test_empty_extracted_dir_returns_empty(workspace: Path):

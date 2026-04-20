@@ -156,6 +156,10 @@ def _delete_knowledge(ws: Path, meta: dict[str, Any]) -> None:
     if p.is_file():
         p.unlink()
     memory_index.invalidate(ws, p)
+    try:
+        memory_index.export_index_yaml(ws)
+    except Exception:
+        pass
 
 
 def _delete_skill(ws: Path, meta: dict[str, Any]) -> None:
@@ -169,6 +173,10 @@ def _delete_skill(ws: Path, meta: dict[str, Any]) -> None:
         except OSError:
             pass
     memory_index.invalidate(ws, p)
+    try:
+        memory_index.export_index_yaml(ws)
+    except Exception:
+        pass
 
 
 def _delete_config_entries(ws: Path, drops: list[dict[str, Any]]) -> None:

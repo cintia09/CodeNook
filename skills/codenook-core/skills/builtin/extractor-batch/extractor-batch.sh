@@ -97,10 +97,11 @@ if [ -f "$TRIGGER_KEYS" ] && grep -qxF "$KEY" "$TRIGGER_KEYS"; then
 fi
 printf '%s\n' "$KEY" >> "$TRIGGER_KEYS"
 
-# ── Route classification (M10: task-relevance routing) ────────────────────
-# One combined LLM call BEFORE dispatching extractors.  Best-effort; on any
-# failure ROUTE_FALLBACK stays "true" and all extractors fall back to
-# writing to memory/ (cross_task behaviour, same as the pre-routing default).
+# ── Route classification (legacy: single-valued cross_task) ──────────────
+# Historically the router returned per-artefact ``task_specific`` vs
+# ``cross_task``; the per-task destination has been removed and every
+# artefact now lands in memory/.  The LLM call is retained for audit
+# parity (mocks, .route-*.json) and is slated for removal in a follow-up.
 ROUTE_KNOWLEDGE="cross_task"
 ROUTE_SKILL="cross_task"
 ROUTE_CONFIG="cross_task"

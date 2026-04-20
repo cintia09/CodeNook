@@ -1,19 +1,20 @@
-"""extraction_router.py — single combined LLM call that classifies the three
-extractor artefacts (knowledge, skill, config) as either ``task_specific``
-(write to tasks/<T>/extracted/) or ``cross_task`` (write to memory/).
+"""extraction_router.py — single combined LLM call that ratifies the route
+for the three extractor artefacts (knowledge, skill, config).
 
-Called synchronously from extractor-batch.sh BEFORE the extractors are
-dispatched.  Returns immediately with a fallback dict on any LLM error so
-the dispatch path is never blocked.
+After the ``task_specific`` destination was removed, the only valid route
+is ``cross_task`` (write to ``memory/``). The LLM call is retained so the
+external contract (mocks, audit log, env-var passthrough) is unchanged,
+but any unknown response is coerced to ``cross_task``. The call itself is
+slated for removal in a follow-up refactor.
 
 Public API::
 
     route_artefacts(workspace, task_id, phase, *, task_title="",
                     phase_summary="") -> tuple[dict, bool]
     # Returns (routes, route_fallback)
-    # routes: {"knowledge": "task_specific"|"cross_task",
-    #           "skill":     "task_specific"|"cross_task",
-    #           "config":    "task_specific"|"cross_task"}
+    # routes: {"knowledge": "cross_task",
+    #           "skill":     "cross_task",
+    #           "config":    "cross_task"}
     # route_fallback: True when the LLM call failed or the JSON was unparseable.
 
 CLI (invoked by extractor-batch.sh)::
@@ -43,7 +44,7 @@ sys.path.insert(0, str(_HERE))
 
 from llm_call import call_llm  # noqa: E402
 
-VALID_ROUTES = frozenset({"task_specific", "cross_task"})
+VALID_ROUTES = frozenset({"cross_task"})
 ARTEFACT_TYPES = ("knowledge", "skill", "config")
 FALLBACK_ROUTES: dict[str, str] = {t: "cross_task" for t in ARTEFACT_TYPES}
 CALL_NAME = "extraction_route"
@@ -94,21 +95,20 @@ def _build_route_prompt(
         f"Task: {task_id}  Phase: {phase}  Reason: {reason}\n"
         f"Task summary: {task_summary or '(none)'}\n"
         f"Memory state: {memory_digest}\n\n"
-        "Classify each extractor artefact (knowledge note, skill skeleton,\n"
-        "config entry) produced during this phase as:\n"
-        "  'task_specific' — artefact is only relevant to this specific task\n"
-        "                    (e.g. one-off notes, task-scoped config)\n"
-        "  'cross_task'    — artefact is reusable across tasks\n"
-        "                    (e.g. a general algorithm, a shared config value)\n\n"
+        "All extractor artefacts are written to the workspace memory layer\n"
+        "(``cross_task``).  The per-task destination has been removed.\n\n"
         "Respond with ONLY strict JSON — no prose, no fences:\n"
-        '{"knowledge":"task_specific"|"cross_task",'
-        '"skill":"task_specific"|"cross_task",'
-        '"config":"task_specific"|"cross_task"}\n'
+        '{"knowledge":"cross_task","skill":"cross_task","config":"cross_task"}\n'
     )
 
 
 def _parse_routes(raw: str) -> dict[str, str]:
-    """Parse and validate the LLM response. Raises on bad shape."""
+    """Parse the LLM response. Any unknown value is coerced to ``cross_task``.
+
+    Raises ``json.JSONDecodeError`` / ``ValueError`` only on a non-object
+    payload — individual route values are never rejected now that
+    ``cross_task`` is the only valid destination.
+    """
     raw = (raw or "").strip()
     if raw.startswith("```"):
         first_nl = raw.find("\n")
@@ -121,9 +121,7 @@ def _parse_routes(raw: str) -> dict[str, str]:
     routes: dict[str, str] = {}
     for t in ARTEFACT_TYPES:
         val = data.get(t, "cross_task")
-        if val not in VALID_ROUTES:
-            raise ValueError(f"invalid route for {t!r}: {val!r}")
-        routes[t] = val
+        routes[t] = val if val in VALID_ROUTES else "cross_task"
     return routes
 
 

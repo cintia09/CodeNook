@@ -232,3 +232,100 @@ def invalidate(workspace_root: Path | str, path: Path | str) -> None:
             changed = True
     if changed:
         _write_snapshot(workspace_root, snapshot)
+
+
+# ---------------------------------------------------------- index.yaml export
+
+
+INDEX_YAML_NAME = "index.yaml"
+INDEX_YAML_VERSION = 1
+
+
+def _rel_to_workspace(workspace_root: Path | str, path: str) -> str:
+    ws = Path(workspace_root).resolve()
+    try:
+        return str(Path(path).resolve().relative_to(ws))
+    except (ValueError, OSError):
+        return path
+
+
+def export_index_yaml(workspace_root: Path | str) -> Path:
+    """Write a human-readable summary of memory/{skills,knowledge}/.
+
+    Schema::
+
+        version: 1
+        generated_at: <iso8601>
+        skills:
+          - name: <str>
+            summary: <str>
+            tags: [<str>...]
+            status: <str>
+            path: .codenook/memory/skills/<name>/SKILL.md
+        knowledge:
+          - topic: <str>
+            summary: <str>
+            tags: [<str>...]
+            status: <str>
+            path: .codenook/memory/knowledge/<topic>.md
+
+    Derived from :func:`build_index`; the YAML is a 2nd output of the
+    same scan. Atomic write via tempfile + os.replace.
+    """
+    import datetime as _dt
+    import tempfile
+
+    mem = _memory_dir(workspace_root)
+    mem.mkdir(parents=True, exist_ok=True)
+    index = build_index(workspace_root)
+
+    skills_out: list[dict[str, Any]] = []
+    for meta in index.get("skills", []):
+        ap = meta.get("path", "")
+        skills_out.append(
+            {
+                "name": meta.get("name") or Path(ap).parent.name,
+                "summary": meta.get("summary", ""),
+                "tags": list(meta.get("tags") or []),
+                "status": meta.get("status", ""),
+                "path": _rel_to_workspace(workspace_root, ap),
+            }
+        )
+
+    knowledge_out: list[dict[str, Any]] = []
+    for meta in index.get("knowledge", []):
+        ap = meta.get("path", "")
+        knowledge_out.append(
+            {
+                "topic": meta.get("topic") or Path(ap).stem,
+                "summary": meta.get("summary", ""),
+                "tags": list(meta.get("tags") or []),
+                "status": meta.get("status", ""),
+                "path": _rel_to_workspace(workspace_root, ap),
+            }
+        )
+
+    payload = {
+        "version": INDEX_YAML_VERSION,
+        "generated_at": _dt.datetime.now(tz=_dt.timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        ),
+        "skills": skills_out,
+        "knowledge": knowledge_out,
+    }
+
+    target = mem / INDEX_YAML_NAME
+    fd, tmp = tempfile.mkstemp(dir=str(mem), prefix=".tmp-index.", suffix=".yaml")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            yaml.safe_dump(payload, f, sort_keys=False, allow_unicode=True)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, target)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+    return target

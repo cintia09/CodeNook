@@ -46,6 +46,14 @@ import yaml
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import memory_index  # noqa: E402
 
+
+def _refresh_index_yaml(workspace_root: Path | str) -> None:
+    """Best-effort refresh of memory/index.yaml. Never raises."""
+    try:
+        memory_index.export_index_yaml(workspace_root)
+    except Exception:
+        pass
+
 # ---------------------------------------------------------------- constants
 
 CODENOOK_DIRNAME = ".codenook"
@@ -311,6 +319,7 @@ def write_knowledge(
     rendered = _render_frontmatter_doc(fm, body)
     _atomic_write_text(target, rendered, workspace_root=workspace_root)
     memory_index.invalidate(workspace_root, target)
+    _refresh_index_yaml(workspace_root)
     return target
 
 
@@ -350,6 +359,7 @@ def patch_knowledge(
         except OSError:
             pass
     memory_index.invalidate(workspace_root, target)
+    _refresh_index_yaml(workspace_root)
     append_audit(
         workspace_root,
         {
@@ -381,6 +391,7 @@ def replace_knowledge(
     target = _knowledge_path(workspace_root, topic)
     _atomic_write_text(target, _render_frontmatter_doc(fm, body), workspace_root=workspace_root)
     memory_index.invalidate(workspace_root, target)
+    _refresh_index_yaml(workspace_root)
     append_audit(
         workspace_root,
         {
@@ -402,6 +413,7 @@ def _set_status(workspace_root: Path | str, path: Path | str, status: str) -> No
     rendered = _render_frontmatter_doc(doc["frontmatter"], doc["body"])
     _atomic_write_text(p, rendered, workspace_root=workspace_root)
     memory_index.invalidate(workspace_root, p)
+    _refresh_index_yaml(workspace_root)
 
 
 def promote_knowledge(workspace_root: Path | str, path: Path | str) -> None:
@@ -451,6 +463,7 @@ def write_skill(
     target.parent.mkdir(parents=True, exist_ok=True)
     _atomic_write_text(target, _render_frontmatter_doc(fm, body), workspace_root=workspace_root)
     memory_index.invalidate(workspace_root, target)
+    _refresh_index_yaml(workspace_root)
     return target
 
 
@@ -480,6 +493,7 @@ def patch_skill(
         except OSError:
             pass
     memory_index.invalidate(workspace_root, target)
+    _refresh_index_yaml(workspace_root)
     append_audit(
         workspace_root,
         {
@@ -500,6 +514,7 @@ def promote_skill(workspace_root: Path | str, name: str) -> None:
     doc["frontmatter"]["status"] = "promoted"
     _atomic_write_text(p, _render_frontmatter_doc(doc["frontmatter"], doc["body"]), workspace_root=workspace_root)
     memory_index.invalidate(workspace_root, p)
+    _refresh_index_yaml(workspace_root)
 
 
 # ----------------------------------------------------------------- config
@@ -1140,164 +1155,6 @@ def find_similar_in_task(
                 }
             )
     return out
-
-
-def write_knowledge_to_task(
-    workspace_root: Path | str,
-    task_id: str,
-    *,
-    topic: str,
-    summary: str = "",
-    tags: list[str] | None = None,
-    body: str = "",
-    frontmatter: dict[str, Any] | None = None,
-    status: str = "candidate",
-    created_from_task: str = "",
-) -> Path:
-    """Write a knowledge entry to the per-task extracted bucket.
-
-    Mirrors ``write_knowledge`` but targets the task-extracted path.
-    Does NOT run the plugin-readonly guard (task dirs are always writable).
-    """
-    if not has_task_extracted(workspace_root, task_id):
-        init_task_extracted_skeleton(workspace_root, task_id)
-    fm = dict(frontmatter) if frontmatter else {}
-    fm.setdefault("topic", topic)
-    if summary or "summary" not in fm:
-        fm["summary"] = summary or fm.get("summary", "")
-    if tags is not None or "tags" not in fm:
-        fm["tags"] = list(tags) if tags is not None else fm.get("tags", [])
-    fm.setdefault("status", status)
-    fm.setdefault("created_from_task", created_from_task or task_id)
-    fm.setdefault("created_at", _now_iso())
-    fm["dedup_hash"] = memory_index.get_hash(body)
-    _validate_frontmatter(fm)
-    target = _task_knowledge_path(workspace_root, task_id, topic)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    fd_int, tmp = tempfile.mkstemp(dir=str(target.parent), prefix=".tmp.", suffix=".tmp")
-    try:
-        with os.fdopen(fd_int, "w", encoding="utf-8") as f:
-            f.write(_render_frontmatter_doc(fm, body))
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, target)
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
-    return target
-
-
-def write_skill_to_task(
-    workspace_root: Path | str,
-    task_id: str,
-    *,
-    name: str,
-    frontmatter: dict[str, Any],
-    body: str,
-    status: str = "candidate",
-    created_from_task: str = "",
-) -> Path:
-    """Write a skill entry to the per-task extracted bucket."""
-    if not has_task_extracted(workspace_root, task_id):
-        init_task_extracted_skeleton(workspace_root, task_id)
-    fm = dict(frontmatter)
-    fm.setdefault("name", name)
-    fm.setdefault("status", status)
-    fm.setdefault("created_from_task", created_from_task or task_id)
-    fm.setdefault("created_at", _now_iso())
-    fm["dedup_hash"] = memory_index.get_hash(body)
-    target = _task_skill_md(workspace_root, task_id, name)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    fd_int, tmp = tempfile.mkstemp(dir=str(target.parent), prefix=".tmp.", suffix=".tmp")
-    try:
-        with os.fdopen(fd_int, "w", encoding="utf-8") as f:
-            f.write(_render_frontmatter_doc(fm, body))
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, target)
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
-    return target
-
-
-def upsert_config_to_task(
-    workspace_root: Path | str,
-    task_id: str,
-    *,
-    entry: dict[str, Any],
-    rationale: str = "",
-) -> dict[str, Any]:
-    """Insert or merge a config entry into the per-task extracted bucket."""
-    if "key" not in entry:
-        raise ValueError("entry.key is required")
-    if not has_task_extracted(workspace_root, task_id):
-        init_task_extracted_skeleton(workspace_root, task_id)
-    cfg_path = _task_config_path(workspace_root, task_id)
-    lock_path = cfg_path.with_suffix(cfg_path.suffix + ".lock")
-    fd_lock = _flock_acquire(lock_path)
-    try:
-        try:
-            raw = cfg_path.read_text(encoding="utf-8")
-            data = yaml.safe_load(raw) or {}
-        except OSError:
-            data = {}
-        if not isinstance(data, dict):
-            data = {}
-        data.setdefault("version", 1)
-        data.setdefault("entries", [])
-        out_entries: list[dict[str, Any]] = []
-        merged = False
-        for e in data["entries"]:
-            if e.get("key") == entry["key"]:
-                if merged:
-                    raise ConfigSchemaError(
-                        f"duplicate key in task config: {entry['key']!r}"
-                    )
-                e = {**e, **entry, "last_used_at": _now_iso()}
-                merged = True
-            out_entries.append(e)
-        if not merged:
-            new_entry = {
-                "applies_when": "always",
-                "summary": "",
-                "status": "candidate",
-                "created_from_task": task_id,
-                "created_at": _now_iso(),
-                "last_used_at": None,
-                **entry,
-            }
-            out_entries.append(new_entry)
-        data["entries"] = out_entries
-        rendered = yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
-        fd_int, tmp = tempfile.mkstemp(
-            dir=str(cfg_path.parent), prefix=".tmp.", suffix=".tmp"
-        )
-        try:
-            with os.fdopen(fd_int, "w", encoding="utf-8") as f:
-                f.write(rendered)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(tmp, cfg_path)
-        except BaseException:
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
-            raise
-    finally:
-        _flock_release(fd_lock)
-        try:
-            lock_path.unlink()
-        except OSError:
-            pass
-    return next(e for e in out_entries if e.get("key") == entry["key"])
 
 
 def build_task_context(workspace_root: Path | str, task_id: str) -> str:

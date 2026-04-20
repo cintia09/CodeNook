@@ -238,16 +238,10 @@ def _rank_and_cap(
     route: str = "cross_task",
 ) -> tuple[list[dict], list[dict]]:
     universe: set[str] = set()
-    if route == "task_specific" and task_id:
-        for meta in ml.scan_task_skills(workspace, task_id):
-            for t in meta.get("tags") or []:
-                if isinstance(t, str):
-                    universe.add(t)
-    else:
-        for meta in ml.scan_skills(workspace):
-            for t in meta.get("tags") or []:
-                if isinstance(t, str):
-                    universe.add(t)
+    for meta in ml.scan_skills(workspace):
+        for t in meta.get("tags") or []:
+            if isinstance(t, str):
+                universe.add(t)
     scored = [(idx, _density(c, universe), c) for idx, c in enumerate(candidates)]
     scored.sort(key=lambda x: (-x[1], x[0]))
     kept = [c for _, _, c in scored[:PER_TASK_CAP]]
@@ -299,7 +293,6 @@ def _existing_skill_name_from_path(path: str) -> str:
 def _process_candidate(
     workspace: Path, task_id: str, cand: dict, route: str = "cross_task"
 ) -> tuple[str, str, str | None]:
-    is_task_route = route == "task_specific"
     body = cand["body"]
     name = cand["name"]
     title = cand["title"]
@@ -324,18 +317,10 @@ def _process_candidate(
     candidate_hash = memory_index.get_hash(body)
 
     # Step 2: hash dedup.
-    if is_task_route:
-        exists = ml.has_hash_in_task(workspace, task_id, "skill", candidate_hash)
-    else:
-        exists = ml.has_hash(workspace, "skill", candidate_hash)
+    exists = ml.has_hash(workspace, "skill", candidate_hash)
     if exists:
         existing_path = None
-        scan_iter = (
-            ml.scan_task_skills(workspace, task_id)
-            if is_task_route
-            else ml.scan_skills(workspace)
-        )
-        for meta in scan_iter:
+        for meta in ml.scan_skills(workspace):
             if meta.get("dedup_hash") == candidate_hash:
                 existing_path = meta.get("path")
                 break
@@ -352,10 +337,7 @@ def _process_candidate(
         return "dedup", "dedup", existing_path
 
     # Step 3: similarity search.
-    if is_task_route:
-        similar = ml.find_similar_in_task(workspace, task_id, "skill", title, tags)
-    else:
-        similar = ml.find_similar(workspace, "skill", title, tags)
+    similar = ml.find_similar(workspace, "skill", title, tags)
 
     # Step 4: LLM judge (only if similar found).
     if similar:
@@ -382,12 +364,9 @@ def _process_candidate(
 
     # Step 5: execute.
     if action == "merge" and existing_name:
-        if is_task_route:
-            try:
-                existing_text = Path(existing_path).read_text(encoding="utf-8")
-                fm, existing_body = ml._parse_frontmatter_doc(existing_text)
-            except Exception:
-                fm, existing_body = {"name": existing_name}, ""
+        def _mutate(doc: dict) -> dict:
+            fm = dict(doc.get("frontmatter") or {})
+            fm["status"] = fm.get("status", "candidate")
             existing_tags = list(fm.get("tags") or [])
             for t in tags:
                 if t not in existing_tags:
@@ -397,35 +376,12 @@ def _process_candidate(
             if task_id and task_id not in related:
                 related.append(task_id)
             fm["related_tasks"] = related
-            new_body = ((existing_body or "") + "\n\n" + body)[:8192]
-            written = ml.write_skill_to_task(
-                workspace,
-                task_id,
-                name=existing_name,
-                frontmatter=fm,
-                body=new_body,
-                created_from_task=task_id,
-            )
-            existing_path = str(written)
-        else:
-            def _mutate(doc: dict) -> dict:
-                fm = dict(doc.get("frontmatter") or {})
-                fm["status"] = fm.get("status", "candidate")
-                existing_tags = list(fm.get("tags") or [])
-                for t in tags:
-                    if t not in existing_tags:
-                        existing_tags.append(t)
-                fm["tags"] = existing_tags[:MAX_TAGS]
-                related = list(fm.get("related_tasks") or [])
-                if task_id and task_id not in related:
-                    related.append(task_id)
-                fm["related_tasks"] = related
-                new_body = (doc.get("body") or "") + "\n\n" + body
-                return {"frontmatter": fm, "body": new_body[:8192]}
+            new_body = (doc.get("body") or "") + "\n\n" + body
+            return {"frontmatter": fm, "body": new_body[:8192]}
 
-            ml.patch_skill(
-                workspace, name=existing_name, mutator=_mutate, rationale=rationale
-            )
+        ml.patch_skill(
+            workspace, name=existing_name, mutator=_mutate, rationale=rationale
+        )
         _audit(
             workspace,
             outcome="merged",
@@ -449,25 +405,14 @@ def _process_candidate(
             "created_from_task": task_id,
             "created_at": _now_iso(),
         }
-        if is_task_route:
-            written = ml.write_skill_to_task(
-                workspace,
-                task_id,
-                name=existing_name,
-                frontmatter=new_fm,
-                body=body,
-                created_from_task=task_id,
-            )
-            existing_path = str(written)
-        else:
-            ml.write_skill(
-                workspace,
-                name=existing_name,
-                frontmatter=new_fm,
-                body=body,
-                status="candidate",
-                created_from_task=task_id,
-            )
+        ml.write_skill(
+            workspace,
+            name=existing_name,
+            frontmatter=new_fm,
+            body=body,
+            status="candidate",
+            created_from_task=task_id,
+        )
         _audit(
             workspace,
             outcome="replaced",
@@ -484,10 +429,7 @@ def _process_candidate(
     # a unix-ts suffix to avoid clobbering.
     target_name = name
     suffixed = False
-    if is_task_route:
-        target_skill_md = ml._task_skill_md(workspace, task_id, target_name)
-    else:
-        target_skill_md = ml.memory_root(workspace) / "skills" / target_name / "SKILL.md"
+    target_skill_md = ml.memory_root(workspace) / "skills" / target_name / "SKILL.md"
     if target_skill_md.exists():
         target_name = f"{name}-{int(_dt.datetime.now().timestamp())}"
         target_name = target_name[: ml.MAX_TOPIC_CHARS]
@@ -502,25 +444,14 @@ def _process_candidate(
         "created_from_task": task_id,
         "created_at": _now_iso(),
     }
-    if is_task_route:
-        written = ml.write_skill_to_task(
-            workspace,
-            task_id,
-            name=target_name,
-            frontmatter=new_fm,
-            body=body,
-            status="candidate",
-            created_from_task=task_id,
-        )
-    else:
-        written = ml.write_skill(
-            workspace,
-            name=target_name,
-            frontmatter=new_fm,
-            body=body,
-            status="candidate",
-            created_from_task=task_id,
-        )
+    written = ml.write_skill(
+        workspace,
+        name=target_name,
+        frontmatter=new_fm,
+        body=body,
+        status="candidate",
+        created_from_task=task_id,
+    )
     _audit(
         workspace,
         outcome="created",
@@ -556,7 +487,7 @@ def main(argv: list[str]) -> int:
     input_path = Path(args.input).resolve() if args.input else None
 
     route = os.environ.get("CN_EXTRACTION_ROUTE_SKILL", "cross_task").strip()
-    if route not in ("task_specific", "cross_task"):
+    if route != "cross_task":
         route = "cross_task"
 
     if not ml.has_memory(workspace):

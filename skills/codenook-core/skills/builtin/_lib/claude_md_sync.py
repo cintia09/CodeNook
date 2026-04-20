@@ -88,17 +88,14 @@ intent, picks the best-matching plugin, and creates the task with
   `state.json`, read the manifest and look at the match fields
   (which use-cases / keywords / examples). Rank against the
   user's request and pick one. If two tie or none fits, ask.
-- `.codenook/memory/knowledge/*.md` — workspace-shared knowledge
-  distilled from prior tasks. May influence scope, defaults, or
-  warnings to surface to the user. Skim file names; read on demand.
-- `.codenook/memory/skills/<name>/SKILL.md` — workspace-shared
-  procedural skills (recipes, conventions, ad-hoc tools). Same
-  layout as a regular skill folder: each subdirectory's `SKILL.md`
-  declares the skill's name + use_case + how to invoke. Skim the
-  subdirectory names and `SKILL.md` headings; read full body on
-  demand. These are first-class skill candidates — rank them next
-  to plugin `available_skills:` entries when the user's request
-  matches.
+- `.codenook/memory/index.yaml` — generated inventory of every
+  knowledge entry and workspace-shared skill in this workspace
+  (topic / name, summary, tags, status, path). Read this first
+  to discover what's available; then `view` the specific entries
+  by their `path` only when you actually need their full body.
+  Treat skill entries as first-class skill candidates — rank
+  them next to plugin `available_skills:` entries when the
+  user's request matches.
 - `.codenook/memory/history/` and `.codenook/memory/_pending/` —
   prior task summaries and draft notes. Useful when the user
   references "last time" or wants to continue earlier work.
@@ -115,7 +112,8 @@ artifact interpretation, not orientation reads.
 # 1. Pick a plugin. Read `.codenook/state.json` `installed_plugins`
 #    for the authoritative id list, then read each
 #    `.codenook/plugins/<id>/plugin.yaml`. Skim
-#    `.codenook/memory/{{knowledge,skills}}/`. Rank candidates
+#    `.codenook/memory/index.yaml` for the available memory
+#    entries. Rank candidates
 #    against the user request, choose the best fit. If two tie or
 #    none fits well, ask the user which one.
 #

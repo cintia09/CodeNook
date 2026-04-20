@@ -279,7 +279,6 @@ def _process_candidate(
     existing_entries: list[dict],
     route: str = "cross_task",
 ) -> tuple[str, str]:
-    is_task_route = route == "task_specific"
     key = cand["key"]
     blob = _candidate_text_blob(cand)
 
@@ -334,14 +333,9 @@ def _process_candidate(
     }
 
     def _do_upsert(rationale_str: str) -> None:
-        if is_task_route:
-            ml.upsert_config_to_task(
-                workspace, task_id, entry=entry_payload, rationale=rationale_str
-            )
-        else:
-            ml.upsert_config_entry(
-                workspace, entry=entry_payload, rationale=rationale_str
-            )
+        ml.upsert_config_entry(
+            workspace, entry=entry_payload, rationale=rationale_str
+        )
 
     if action == "replace":
         _do_upsert(rationale or "replace")
@@ -353,10 +347,7 @@ def _process_candidate(
         _do_upsert(rationale or "create")
         outcome, verdict = "created", "create"
 
-    if is_task_route:
-        dest_path = str(ml._task_config_path(workspace, task_id))
-    else:
-        dest_path = "config.yaml"
+    dest_path = "config.yaml"
 
     _audit(
         workspace,
@@ -393,7 +384,7 @@ def main(argv: list[str]) -> int:
     input_path = Path(args.input).resolve() if args.input else None
 
     route = os.environ.get("CN_EXTRACTION_ROUTE_CONFIG", "cross_task").strip()
-    if route not in ("task_specific", "cross_task"):
+    if route != "cross_task":
         route = "cross_task"
 
     if not ml.has_memory(workspace):
@@ -434,10 +425,7 @@ def main(argv: list[str]) -> int:
         # Read existing entries early — fails fast on duplicate-key schema
         # violations (TC-M9.5-02) without ever touching the file.
         try:
-            if route == "task_specific":
-                existing_entries = ml.read_task_config_entries(workspace, task_id)
-            else:
-                existing_entries = ml.read_config_entries(workspace)
+            existing_entries = ml.read_config_entries(workspace)
         except Exception as e:
             ml.append_audit(
                 workspace,
@@ -539,10 +527,7 @@ def main(argv: list[str]) -> int:
                 # Refresh existing_entries view after each upsert so a
                 # later candidate with the same key sees the prior write.
                 try:
-                    if route == "task_specific":
-                        existing_entries = ml.read_task_config_entries(workspace, task_id)
-                    else:
-                        existing_entries = ml.read_config_entries(workspace)
+                    existing_entries = ml.read_config_entries(workspace)
                 except Exception:
                     pass
             except _SecretBlocked:

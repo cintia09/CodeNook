@@ -271,16 +271,10 @@ def _rank_and_cap(
     route: str = "cross_task",
 ) -> tuple[list[dict], list[dict]]:
     universe: set[str] = set()
-    if route == "task_specific" and task_id:
-        for meta in ml.scan_task_knowledge(workspace, task_id):
-            for t in meta.get("tags") or []:
-                if isinstance(t, str):
-                    universe.add(t)
-    else:
-        for meta in ml.scan_knowledge(workspace):
-            for t in meta.get("tags") or []:
-                if isinstance(t, str):
-                    universe.add(t)
+    for meta in ml.scan_knowledge(workspace):
+        for t in meta.get("tags") or []:
+            if isinstance(t, str):
+                universe.add(t)
     scored = [(idx, _density(c, universe), c) for idx, c in enumerate(candidates)]
     scored.sort(key=lambda x: (-x[1], x[0]))
     kept = [c for _, _, c in scored[:PER_TASK_CAP]]
@@ -326,7 +320,6 @@ def _process_candidate(
     workspace: Path, task_id: str, cand: dict, route: str = "cross_task"
 ) -> tuple[str, str, str | None]:
     """Process one candidate. Returns (outcome, verdict, written_or_target_path)."""
-    is_task_route = route == "task_specific"
     body = cand["body"]
     topic = cand["topic"]
     title = cand["title"]
@@ -352,18 +345,10 @@ def _process_candidate(
     candidate_hash = memory_index.get_hash(body)
 
     # Step 2: hash dedup — short-circuit before any LLM judge call.
-    if is_task_route:
-        exists = ml.has_hash_in_task(workspace, task_id, "knowledge", candidate_hash)
-    else:
-        exists = ml.has_hash(workspace, "knowledge", candidate_hash)
+    exists = ml.has_hash(workspace, "knowledge", candidate_hash)
     if exists:
         existing_path = None
-        scan_iter = (
-            ml.scan_task_knowledge(workspace, task_id)
-            if is_task_route
-            else ml.scan_knowledge(workspace)
-        )
-        for meta in scan_iter:
+        for meta in ml.scan_knowledge(workspace):
             if meta.get("dedup_hash") == candidate_hash:
                 existing_path = meta.get("path")
                 break
@@ -380,10 +365,7 @@ def _process_candidate(
         return "dedup", "dedup", existing_path
 
     # Step 3: similarity search.
-    if is_task_route:
-        similar = ml.find_similar_in_task(workspace, task_id, "knowledge", title, tags)
-    else:
-        similar = ml.find_similar(workspace, "knowledge", title, tags)
+    similar = ml.find_similar(workspace, "knowledge", title, tags)
 
     # Step 4: LLM judge (only if similar found).
     if similar:
@@ -408,13 +390,9 @@ def _process_candidate(
     if action == "merge" and existing_path:
         existing_topic = Path(existing_path).stem
 
-        if is_task_route:
-            # Read existing, append body, rewrite.
-            try:
-                existing_text = Path(existing_path).read_text(encoding="utf-8")
-                fm, existing_body = ml._parse_frontmatter_doc(existing_text)
-            except Exception:
-                fm, existing_body = {}, ""
+        def _mutate(doc: dict) -> dict:
+            fm = dict(doc.get("frontmatter") or {})
+            fm["status"] = fm.get("status", "candidate")
             existing_tags = list(fm.get("tags") or [])
             for t in tags:
                 if t not in existing_tags:
@@ -424,37 +402,12 @@ def _process_candidate(
             if task_id and task_id not in related:
                 related.append(task_id)
             fm["related_tasks"] = related
-            new_body = ((existing_body or "") + "\n\n" + body)[:8192]
-            written = ml.write_knowledge_to_task(
-                workspace,
-                task_id,
-                topic=existing_topic,
-                summary=fm.get("summary", summary),
-                tags=fm["tags"],
-                body=new_body,
-                frontmatter=fm,
-                created_from_task=task_id,
-            )
-            existing_path = str(written)
-        else:
-            def _mutate(doc: dict) -> dict:
-                fm = dict(doc.get("frontmatter") or {})
-                fm["status"] = fm.get("status", "candidate")
-                existing_tags = list(fm.get("tags") or [])
-                for t in tags:
-                    if t not in existing_tags:
-                        existing_tags.append(t)
-                fm["tags"] = existing_tags[:MAX_TAGS]
-                related = list(fm.get("related_tasks") or [])
-                if task_id and task_id not in related:
-                    related.append(task_id)
-                fm["related_tasks"] = related
-                new_body = (doc.get("body") or "") + "\n\n" + body
-                return {"frontmatter": fm, "body": new_body[:8192]}
+            new_body = (doc.get("body") or "") + "\n\n" + body
+            return {"frontmatter": fm, "body": new_body[:8192]}
 
-            ml.patch_knowledge(
-                workspace, topic=existing_topic, mutator=_mutate, rationale=rationale
-            )
+        ml.patch_knowledge(
+            workspace, topic=existing_topic, mutator=_mutate, rationale=rationale
+        )
         _audit(
             workspace,
             outcome="merged",
@@ -480,26 +433,13 @@ def _process_candidate(
             "hash": candidate_hash,
             "topic": existing_topic,
         }
-        if is_task_route:
-            written = ml.write_knowledge_to_task(
-                workspace,
-                task_id,
-                topic=existing_topic,
-                summary=summary,
-                tags=tags,
-                body=body,
-                frontmatter=new_fm,
-                created_from_task=task_id,
-            )
-            existing_path = str(written)
-        else:
-            ml.replace_knowledge(
-                workspace,
-                topic=existing_topic,
-                frontmatter=new_fm,
-                body=body,
-                rationale=rationale,
-            )
+        ml.replace_knowledge(
+            workspace,
+            topic=existing_topic,
+            frontmatter=new_fm,
+            body=body,
+            rationale=rationale,
+        )
         _audit(
             workspace,
             outcome="replaced",
@@ -515,10 +455,7 @@ def _process_candidate(
     # action == "create" (or fallback). If a same-named topic already
     # exists, append a unix-ts suffix to keep both copies (FR-LAY-3).
     target_topic = topic
-    if is_task_route:
-        target_path = ml._task_knowledge_path(workspace, task_id, target_topic)
-    else:
-        target_path = ml._knowledge_path(workspace, target_topic)
+    target_path = ml._knowledge_path(workspace, target_topic)
     suffixed = False
     if target_path.exists():
         target_topic = f"{topic}-{int(_dt.datetime.now().timestamp())}"
@@ -535,29 +472,16 @@ def _process_candidate(
         "hash": candidate_hash,
         "topic": target_topic,
     }
-    if is_task_route:
-        written = ml.write_knowledge_to_task(
-            workspace,
-            task_id,
-            topic=target_topic,
-            summary=summary,
-            tags=tags,
-            body=body,
-            frontmatter=new_fm,
-            status="candidate",
-            created_from_task=task_id,
-        )
-    else:
-        written = ml.write_knowledge(
-            workspace,
-            topic=target_topic,
-            summary=summary,
-            tags=tags,
-            body=body,
-            frontmatter=new_fm,
-            status="candidate",
-            created_from_task=task_id,
-        )
+    written = ml.write_knowledge(
+        workspace,
+        topic=target_topic,
+        summary=summary,
+        tags=tags,
+        body=body,
+        frontmatter=new_fm,
+        status="candidate",
+        created_from_task=task_id,
+    )
     _audit(
         workspace,
         outcome="created",
@@ -597,7 +521,7 @@ def main(argv: list[str]) -> int:
     input_path = Path(args.input).resolve() if args.input else None
 
     route = os.environ.get("CN_EXTRACTION_ROUTE_KNOWLEDGE", "cross_task").strip()
-    if route not in ("task_specific", "cross_task"):
+    if route != "cross_task":
         route = "cross_task"
 
     # Memory skeleton must exist (M9.1 init) — best-effort if missing.
