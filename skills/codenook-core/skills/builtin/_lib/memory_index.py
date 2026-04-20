@@ -102,6 +102,7 @@ def _write_snapshot(workspace_root: Path | str, snapshot: dict[str, Any]) -> Non
     fd, tmp = tempfile.mkstemp(
         dir=str(p.parent), prefix=".tmp-snap.", suffix=".json"
     )
+    lock_path = p.with_name(p.name + ".lock")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(json.dumps(snapshot, ensure_ascii=False))
@@ -109,7 +110,6 @@ def _write_snapshot(workspace_root: Path | str, snapshot: dict[str, Any]) -> Non
             os.fsync(f.fileno())
         # Serialize the rename across threads/processes so concurrent
         # writers do not race os.replace targeting the same path.
-        lock_path = p.with_name(p.name + ".lock")
         lock_fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o600)
         try:
             fcntl.flock(lock_fd, fcntl.LOCK_EX)
@@ -117,6 +117,15 @@ def _write_snapshot(workspace_root: Path | str, snapshot: dict[str, Any]) -> Non
         finally:
             fcntl.flock(lock_fd, fcntl.LOCK_UN)
             os.close(lock_fd)
+            # DR-011: unlink the lock-file after release. Other writers
+            # racing the same window will simply re-create it via
+            # O_CREAT; flock semantics on the inode protect correctness.
+            try:
+                os.unlink(lock_path)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                pass
     except BaseException:
         try:
             os.unlink(tmp)
