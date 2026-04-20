@@ -91,7 +91,9 @@ if [ ! -d "$WORKSPACE" ]; then
 fi
 WORKSPACE="$(cd "$WORKSPACE" && pwd)"
 
-KERNEL_INSTALL="$SELF_DIR/skills/codenook-core/install.sh"
+SOURCE_CORE="$SELF_DIR/skills/codenook-core"
+WS_CORE="$WORKSPACE/.codenook/codenook-core"
+KERNEL_INSTALL="$WS_CORE/install.sh"   # resolved post-bootstrap (see below)
 PLUGIN_SRC="$SELF_DIR/plugins/$PLUGIN_ID"
 
 # ── check-only mode ──────────────────────────────────────────────────────
@@ -119,11 +121,28 @@ if [ "$CHECK_ONLY" -eq 1 ]; then
 fi
 
 # ── pre-flight ───────────────────────────────────────────────────────────
-if [ ! -x "$KERNEL_INSTALL" ]; then
-  err "kernel installer not found or not executable: $KERNEL_INSTALL"; exit 2
+if [ ! -d "$SOURCE_CORE" ]; then
+  err "source codenook-core/ not found: $SOURCE_CORE"; exit 2
 fi
 if [ ! -d "$PLUGIN_SRC" ]; then
   err "plugin source not found: $PLUGIN_SRC"; exit 2
+fi
+
+# ── self-contained kernel bootstrap ──────────────────────────────────────
+# Copy <SOURCE_CORE>/* into <workspace>/.codenook/codenook-core/ so the
+# workspace owns its own kernel and is independent of this source repo.
+# The builtin/init/init.sh implements VERSION-compare + atomic swap and
+# is itself part of the kernel we are about to copy, so we shell out to
+# the *source* copy here (a single rsync-equivalent step).
+SOURCE_INIT="$SOURCE_CORE/skills/builtin/init/init.sh"
+if [ ! -x "$SOURCE_INIT" ]; then
+  err "source init.sh not executable: $SOURCE_INIT"; exit 2
+fi
+"$SOURCE_INIT" "$WORKSPACE"
+info "Kernel staged at $WS_CORE (self-contained)"
+
+if [ ! -x "$KERNEL_INSTALL" ]; then
+  err "kernel installer missing after bootstrap: $KERNEL_INSTALL"; exit 2
 fi
 
 # Read incoming plugin version from plugin.yaml (best-effort).
@@ -203,7 +222,7 @@ if [ "$IDEMPOTENT_RUN" -eq 1 ] && [ -z "$DRY_RUN" ]; then
   # E2E-019: still upgrade state.json to the v0.11.3 schema (kernel_version,
   # kernel_dir, files_sha256, schema_version, bin) so the wrapper resolves.
   CN_WS="$WORKSPACE" CN_PLUGIN="$PLUGIN_ID" CN_VER="$NEW_VERSION" \
-  CN_KV="$VERSION" CN_KDIR="$SELF_DIR/skills/codenook-core/skills/builtin" \
+  CN_KV="$VERSION" CN_KDIR="$WS_CORE/skills/builtin" \
   CN_PSRC="$PLUGIN_SRC" \
   python3 - <<'PY'
 import os, sys
@@ -239,19 +258,19 @@ if [ -n "$DRY_RUN" ]; then
 fi
 
 if [ "$AUGMENT_CLAUDE" -eq 1 ]; then
-  python3 "$SELF_DIR/skills/codenook-core/skills/builtin/_lib/claude_md_sync.py" \
+  python3 "$WS_CORE/skills/builtin/_lib/claude_md_sync.py" \
     --workspace "$WORKSPACE" \
     --version "$VERSION" \
     --plugin "$PLUGIN_ID"
   info "CLAUDE.md bootloader block synced (idempotent)"
 
-  # E2E-017: warn (don't fail) if the user's own CLAUDE.md content outside
+  # Warn (don't fail) if the user's own CLAUDE.md content outside
   # the codenook marker block contains legacy v4.x role tokens.
-  python3 "$SELF_DIR/skills/codenook-core/skills/builtin/_lib/claude_md_linter.py" \
+  python3 "$WS_CORE/skills/builtin/_lib/claude_md_linter.py" \
     --marker-only --json "$WORKSPACE/CLAUDE.md" >/dev/null 2>&1 || true
   outside_hits="$(
     {
-      python3 "$SELF_DIR/skills/codenook-core/skills/builtin/_lib/claude_md_linter.py" \
+      python3 "$WS_CORE/skills/builtin/_lib/claude_md_linter.py" \
         --outside-marker-only --json "$WORKSPACE/CLAUDE.md" 2>/dev/null || true
     } | python3 -c "import json,sys
 try:
@@ -269,9 +288,9 @@ except Exception:
   fi
 fi
 
-# ── E2E-003 / E2E-018: seed schemas, memory skeleton, bin wrapper ────────
-TPL_DIR="$SELF_DIR/skills/codenook-core/templates"
-SCHEMAS_SRC="$SELF_DIR/skills/codenook-core/schemas"
+# ── seed schemas, memory skeleton, bin wrapper ──────────────────────────
+TPL_DIR="$WS_CORE/templates"
+SCHEMAS_SRC="$WS_CORE/schemas"
 
 mkdir -p "$WORKSPACE/.codenook/schemas"
 for f in task-state.schema.json hitl-entry.schema.json queue-entry.schema.json \

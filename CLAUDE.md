@@ -2,7 +2,7 @@
 
 > This file is read by the **main session** (the conductor) on entry to
 > the repository. It documents the protocol the main session must
-> follow when handling user task requests in CodeNook v6.
+> follow when handling user task requests.
 >
 > The main session is a **pure protocol conductor**: it relays
 > messages, drives an opaque tick loop, and brokers HITL gates. It is
@@ -11,10 +11,17 @@
 > `orchestrator-tick`.
 >
 > Canonical layering reference: `docs/router-agent.md` §2.
+>
+> **Path convention.** Once installed, the kernel is self-contained at
+> `<ws>/.codenook/codenook-core/`. All command paths below use that
+> location, so they work in any installed workspace regardless of
+> where this source repository lives. Inside the source repository
+> itself (this file's location), the equivalent path is
+> `skills/codenook-core/` — same tree, same scripts.
 
 ---
 
-## v6 task lifecycle protocol (domain-agnostic)
+## Task lifecycle protocol (domain-agnostic)
 
 The protocol below is the only path the main session takes when the
 user expresses task intent. Each numbered section is a verbatim
@@ -33,7 +40,7 @@ When a user message reads as a request to start new work:
 * DO invoke the router-agent spawn entry once:
 
   ```bash
-  skills/codenook-core/skills/builtin/router-agent/spawn.sh \
+  <ws>/.codenook/codenook-core/skills/builtin/router-agent/spawn.sh \
       --workspace <ws> \
       --task-id <new-T-NNN>
   ```
@@ -95,7 +102,7 @@ metronome. Loop:
 1. Invoke
 
    ```bash
-   skills/codenook-core/skills/builtin/orchestrator-tick/tick.sh \
+   <ws>/.codenook/codenook-core/skills/builtin/orchestrator-tick/tick.sh \
        --task <T-NNN> --workspace <ws> --json
    ```
 
@@ -128,7 +135,7 @@ When the tick returns `waiting`, scan
 * Invoke
 
   ```bash
-  skills/codenook-core/skills/builtin/hitl-adapter/terminal.sh decide \
+  <ws>/.codenook/codenook-core/skills/builtin/hitl-adapter/terminal.sh decide \
       --id <hitl-entry-id> --decision <answer>
   ```
 
@@ -188,7 +195,7 @@ cat plugins/development/roles/implementer.md
 
 ---
 
-## 上下文水位监控 (M9.2)
+## 上下文水位监控
 
 主会话需要周期性自评估上下文使用率（启发式：本地估算 token，CJK 1:1，
 ASCII 1:4）。当估算 ≥ 80% model window 水位时（water-mark），按以下协议
@@ -196,7 +203,7 @@ ASCII 1:4）。当估算 ≥ 80% model window 水位时（water-mark），按以
 
 1. **停止新功能工作**——不再启动新的 sub-agent / 不再展开新文件读。
 2. **沉淀当前任务知识**——对每个 active task ID 调用一次：
-   `bash skills/codenook-core/skills/builtin/extractor-batch/extractor-batch.sh \
+   `bash <ws>/.codenook/codenook-core/skills/builtin/extractor-batch/extractor-batch.sh \
        --task-id <T-NNN> --reason context-pressure --workspace <ws>`
    该命令在子进程异步派发 knowledge / skill / config 三类 extractor，
    wall-clock ≤ 200ms 返回，不阻塞主会话。
@@ -214,7 +221,8 @@ ASCII 1:4）。当估算 ≥ 80% model window 水位时（water-mark），按以
 ## Linter
 
 The rules above are enforced by
-`skills/codenook-core/skills/builtin/_lib/claude_md_linter.py`. The
-bats suite runs the linter against this file on every test run; any
-new domain-aware token added to the protocol section will fail the
-build.
+`<ws>/.codenook/codenook-core/skills/builtin/_lib/claude_md_linter.py`
+(or `skills/codenook-core/skills/builtin/_lib/claude_md_linter.py` when
+viewed from inside the source repository). The bats suite runs the
+linter against this file on every test run; any new domain-aware token
+added to the protocol section will fail the build.
