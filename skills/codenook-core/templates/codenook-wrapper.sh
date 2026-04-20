@@ -316,7 +316,119 @@ cmd_tick() {
     esac
   done
   [ -n "$task" ] || { echo "codenook tick: --task required" >&2; exit 2; }
-  exec "$TICK_SH" --task "$task" --workspace "$CODENOOK_WORKSPACE" $json_flag
+
+  # Run the tick. tick.sh writes the result to stdout (JSON when --json) and
+  # mutates state.json + outputs/<phase>-<role>.dispatched if it dispatched a
+  # phase agent. Capture stdout so we can augment it with envelope fields.
+  local _tick_out
+  _tick_out="$("$TICK_SH" --task "$task" --workspace "$CODENOOK_WORKSPACE" $json_flag)"
+  local _tick_rc=$?
+
+  # When --json mode + tick dispatched (or is awaiting) a phase agent,
+  # render the manifest template into prompts/phase-<id>-<role>.md and emit
+  # an envelope-shaped JSON identical to router's: prompt_path + reply_path.
+  # Skip envelope augmentation on non-json output, error rc, or when there
+  # is no in-flight agent.
+  if [ -n "$json_flag" ] && [ "$_tick_rc" -eq 0 ]; then
+    local _envelope
+    _envelope="$(CN_TASK="$task" CN_WS="$CODENOOK_WORKSPACE" CN_TICK_OUT="$_tick_out" python3 - <<'PY'
+import json, os, re, sys
+from pathlib import Path
+
+ws = Path(os.environ["CN_WS"])
+task = os.environ["CN_TASK"]
+tick_out = os.environ["CN_TICK_OUT"].strip()
+try:
+    summary = json.loads(tick_out) if tick_out else {}
+except Exception:
+    print(tick_out)
+    sys.exit(0)
+
+state_p = ws / ".codenook" / "tasks" / task / "state.json"
+if not state_p.is_file():
+    print(tick_out)
+    sys.exit(0)
+state = json.loads(state_p.read_text(encoding="utf-8"))
+ifa = state.get("in_flight_agent") or {}
+plugin = state.get("plugin") or ""
+phase = state.get("phase") or ""
+role = ifa.get("role") or ""
+expected = ifa.get("expected_output") or ""
+if not (plugin and phase and role and expected):
+    print(tick_out)
+    sys.exit(0)
+
+# Resolve phase index for the manifest filename. phases.yaml lists phases
+# in order; look up by id. Fall back to phase string.
+phase_idx = None
+phases_yaml = ws / ".codenook" / "plugins" / plugin / "phases.yaml"
+if phases_yaml.is_file():
+    txt = phases_yaml.read_text(encoding="utf-8")
+    seq = []
+    for line in txt.splitlines():
+        m = re.match(r"\s*-\s*id:\s*(\S+)", line)
+        if m: seq.append(m.group(1))
+    if phase in seq: phase_idx = seq.index(phase) + 1
+if phase_idx is None:
+    m = re.match(r"^(\d+)", str(phase))
+    phase_idx = int(m.group(1)) if m else 1
+
+mt_dir = ws / ".codenook" / "plugins" / plugin / "manifest-templates"
+candidates = [
+    mt_dir / f"phase-{phase_idx}-{role}.md",
+    mt_dir / f"phase-{phase}-{role}.md",
+]
+template = next((p for p in candidates if p.is_file()), None)
+
+prompts_dir = ws / ".codenook" / "tasks" / task / "prompts"
+prompts_dir.mkdir(parents=True, exist_ok=True)
+prompt_p = prompts_dir / f"phase-{phase_idx}-{role}.md"
+if template is not None:
+    body = template.read_text(encoding="utf-8")
+    subs = {
+        "task_id":  task,
+        "iteration": str(state.get("iteration", 0)),
+        "target_dir": state.get("target_dir", "src/"),
+        "prior_summary_path": "",
+        "criteria_path": "",
+    }
+    for k, v in subs.items():
+        body = body.replace("{" + k + "}", v)
+    prompt_p.write_text(body, encoding="utf-8")
+elif not prompt_p.is_file():
+    prompt_p.write_text(
+        f"# {role} dispatch (no manifest template found)\n\n"
+        f"Task: {task}\nPhase: {phase}\nRole: {role}\n"
+        f"Read `.codenook/plugins/{plugin}/roles/{role}.md` for your operating contract.\n"
+        f"Write your output to `{expected}` per that contract.\n",
+        encoding="utf-8")
+
+reply_rel = expected if expected.startswith(".codenook") else f".codenook/tasks/{task}/{expected}"
+prompt_rel = f".codenook/tasks/{task}/prompts/{prompt_p.name}"
+system_rel = f".codenook/plugins/{plugin}/roles/{role}.md"
+
+summary["envelope"] = {
+    "action": "phase_prompt",
+    "task_id": task,
+    "plugin": plugin,
+    "phase": phase,
+    "role": role,
+    "system_prompt_path": system_rel,
+    "prompt_path": prompt_rel,
+    "reply_path": reply_rel,
+}
+print(json.dumps(summary, ensure_ascii=False))
+PY
+)"
+    if [ -n "$_envelope" ]; then
+      echo "$_envelope"
+      return 0
+    fi
+  fi
+
+  # Default: pass through tick.sh output unchanged.
+  printf '%s\n' "$_tick_out"
+  return $_tick_rc
 }
 
 cmd_decide() {

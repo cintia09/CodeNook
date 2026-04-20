@@ -2,7 +2,68 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.13.13] - Bootloader: router-agent demoted to optional; default flow is task new → tick
+## [0.13.14] - Unify dispatch envelope across `tick` and `router`
+
+### Added
+
+- **`cmd_tick` in `codenook-wrapper.sh`** — after running `tick.sh`,
+  when invoked with `--json` and a phase agent has been dispatched,
+  the wrapper now augments the tick output JSON with an **`envelope`**
+  object identical in shape to the one `cmd_router` already emits:
+
+  ```json
+  {"envelope": {
+     "action": "phase_prompt",
+     "task_id": "T-001", "plugin": "development",
+     "phase": "clarify", "role": "clarifier",
+     "system_prompt_path": ".codenook/plugins/.../roles/clarifier.md",
+     "prompt_path":        ".codenook/tasks/T-001/prompts/phase-1-clarifier.md",
+     "reply_path":         ".codenook/tasks/T-001/outputs/phase-1-clarifier.md"
+  }}
+  ```
+
+  The wrapper also renders
+  `plugins/<plugin>/manifest-templates/phase-N-role.md` into the
+  task's `prompts/` directory (substituting `{task_id}`, `{iteration}`,
+  `{target_dir}`, …) so `prompt_path` always points at a real file
+  the conductor can pass to its sub-agent. When a manifest template
+  is missing, a minimal stub prompt is written instead.
+
+- **`render_block` in `claude_md_sync.py`** — bootloader now teaches
+  **one** unified dispatch protocol covering both router and phase
+  agents. Whenever `tick --json` (or `router`) returns a JSON payload
+  with an `envelope` field containing `prompt_path` / `reply_path`,
+  the conductor performs the same round-trip: read the prompt, dispatch
+  a sub-agent with `system_prompt_path` as system prompt and
+  `prompt_path` as the user message, sub-agent writes `reply_path`,
+  conductor re-ticks.
+
+### Why
+
+Before this change, `tick.sh` only wrote a 5-field
+`outputs/<phase>-<role>.dispatched` marker and set
+`state.in_flight_agent.expected_output`, leaving the conductor stranded:
+the bootloader explicitly forbids reading `plugins/*/roles/`, so the
+conductor had no legal way to know what prompt to give the dispatched
+sub-agent. The result was an infinite `awaiting <role>` loop the user
+saw in v0.13.13 — task created, ticked, then stuck because nothing
+ever ran the dispatched agent.
+
+By renderizing the manifest template and surfacing the same envelope
+shape as router, phases now dispatch via the same protocol the
+conductor already learned for router. No new bootloader concept.
+
+### Compatibility
+
+- The `.dispatched` marker is still written for back-compat; nothing
+  reads it but external observers / tests may.
+- Tick output shape is unchanged when `--json` is not passed or when
+  no agent was dispatched on this tick — the `envelope` field is
+  additive.
+- The `CN_ROUTER_DRIVE=1` headless escape hatch from v0.13.12 is
+  unchanged.
+
+
 
 ### Changed
 

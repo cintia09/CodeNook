@@ -73,12 +73,6 @@ are expected on `PATH` already.
 The wrapper allocates the next `T-NNN` for you. **Do not** scan
 `.codenook/tasks/` and increment ids by hand.
 
-The default flow is **just two calls** — create the task, then drive
-the tick loop. The router-agent dialog is **optional** and only
-useful when there are multiple installed plugins to choose between
-or you genuinely need an LLM-mediated drafting conversation. For
-single-plugin workspaces, skip it.
-
 ```bash
 # 1. Create the task. --summary carries the user's request verbatim;
 #    --accept-defaults fills dual_mode/priority/target_dir with sane
@@ -93,10 +87,59 @@ single-plugin workspaces, skip it.
 <codenook> tick --task <T-NNN> --json
 ```
 
-Loop step 2 on `status: advanced`. Stop on `done` / `blocked` and
-report verbatim. On `waiting`, scan `.codenook/hitl-queue/*.json`
-for entries with `decision == null`, relay each `prompt` field
-verbatim to the user, capture the answer, then:
+### The dispatch envelope (used by both `tick` and `router`)
+
+When `tick --json` returns and CodeNook has dispatched a phase agent
+(clarifier, designer, implementer, tester, reviewer, …), the JSON
+includes an **`envelope`** object with the fields you need to do the
+LLM round-trip yourself:
+
+```json
+{{"status": "advanced",
+ "next_action": "dispatched clarifier",
+ "dispatched_agent_id": "ag_T-001_clarify_1",
+ "envelope": {{
+   "action": "phase_prompt",
+   "task_id": "T-001", "plugin": "development",
+   "phase": "clarify", "role": "clarifier",
+   "system_prompt_path": ".codenook/plugins/development/roles/clarifier.md",
+   "prompt_path":        ".codenook/tasks/T-001/prompts/phase-1-clarifier.md",
+   "reply_path":         ".codenook/tasks/T-001/outputs/phase-1-clarifier.md"
+ }}}}
+```
+
+`router` returns the same envelope shape (with `action: prompt`)
+pointing at `.router-prompt.md` / `router-reply.md`. Same protocol
+for both:
+
+1. **Read `system_prompt_path`** (when present, role profile) and
+   **`prompt_path`** (always present, the per-call instructions).
+2. **Dispatch a sub-agent** via your host's sub-agent / Task facility.
+   Use `system_prompt_path`'s contents as the system prompt and
+   `prompt_path`'s contents as the user message. The sub-agent must
+   write its complete response to the file at `reply_path`
+   (overwriting any prior content, including required frontmatter).
+3. **Loop back to `tick`** — the next tick consumes `reply_path`
+   and either advances to the next phase (returning a new envelope)
+   or reports `done` / `blocked`.
+
+If your host has no sub-agent facility, you may process the prompt
+in your own context, but you **must** write the response to
+`reply_path` before re-ticking — `tick.sh` only consults the file.
+
+When `tick --json` returns **without** an `envelope` field, just
+inspect `status`:
+
+- `advanced` — phase done, transition fired; loop on `tick` again.
+- `waiting` — sub-agent still expected; either dispatch it (per the
+  envelope from the prior tick) or wait for an external signal.
+- `done` / `blocked` — terminal; report `next_action` /
+  `message_for_user` verbatim.
+
+On `waiting` you may also need to clear an HITL gate. Scan
+`.codenook/hitl-queue/*.json` for entries with `decision == null`,
+relay each `prompt` field verbatim to the user, capture the answer,
+then:
 
 ```bash
 <codenook> decide --task <T-NNN> --phase <phase> \
@@ -117,31 +160,12 @@ common case (one plugin, clear request).
 <codenook> router --task <T-NNN> --user-turn "<verbatim user text>"
 ```
 
-`router` prints a **single-line JSON envelope** on stdout, of the form:
-
-```json
-{{"action": "prompt", "task_id": "T-001",
- "prompt_path": ".codenook/tasks/T-001/.router-prompt.md",
- "context_path": ".codenook/tasks/T-001/router-context.md",
- "reply_path":   ".codenook/tasks/T-001/router-reply.md"}}
-```
-
-This envelope is **not** the reply — it tells you where to find the
-prompt and where to put the response. To complete the round-trip:
-
-1. **Read `prompt_path`** — it contains the full router-agent system
-   prompt (role definition, plugin catalogue, draft state, etc).
-2. **Dispatch a sub-agent** using your host's sub-agent / Task
-   facility. Use `prompt_path`'s contents as the **system prompt**
-   for that sub-agent and an **empty** user message. The sub-agent
-   must write its complete response to the file at `reply_path`
-   (overwriting any prior content).
-3. **Read `reply_path`** and relay the contents **verbatim** to the
-   user. Do not paraphrase, summarise, or annotate.
-
-If your host has no sub-agent facility, you may process the prompt
-in your own context, but you **must** still write the response to
-`reply_path` before relaying — downstream tooling reads it.
+`router` prints a single-line JSON envelope on stdout with
+`prompt_path` / `reply_path` (no `system_prompt_path` — router-agent
+has no separate role file). Follow the **same dispatch protocol**
+as for tick envelopes above: read `prompt_path`, dispatch sub-agent,
+sub-agent writes `reply_path`, then call `router` again with the
+user's next reply (or `tick` if router signalled handoff).
 
 > Headless / batch alternative: set `CN_ROUTER_DRIVE=1` before calling
 > `router` and the wrapper will run `host_driver.py` in-process. This
