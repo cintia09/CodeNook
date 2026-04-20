@@ -288,6 +288,58 @@ def hitl_required(state: dict, phase: dict, cfg: dict) -> bool:
     return bool(cfg.get("hitl_required", {}).get(phase.get("id")))
 
 
+def _render_hitl_prompt(workspace: Path, state: dict, phase: dict,
+                        gate: str, verdict: str | None,
+                        context_path: str) -> str:
+    """Render a human-readable approval prompt the conductor can relay
+    verbatim. Pulls the gate description from hitl-gates.yaml and adds
+    a short context summary so the human reviewer has enough to decide
+    without the conductor having to read plugin internals."""
+    plugin = state.get("plugin", "")
+    role = phase.get("role", "?")
+    phase_id = phase.get("id", "?")
+    title = state.get("title", "")
+    summary = state.get("summary", "")
+    desc = ""
+    gates_yaml = workspace / ".codenook" / "plugins" / plugin / "hitl-gates.yaml"
+    if gates_yaml.is_file():
+        try:
+            doc = read_yaml(gates_yaml) or {}
+            entry = ((doc.get("gates") or {}).get(gate) or {})
+            desc = (entry.get("description") or "").strip()
+        except Exception:
+            desc = ""
+    parts = [
+        f"# Approval requested: {gate}",
+        "",
+        f"Task **{state.get('task_id','?')}** — {title}".rstrip(" —"),
+        f"Plugin: `{plugin}`  Phase: `{phase_id}` (role `{role}`)  "
+        f"Verdict at gate: `{verdict or 'n/a'}`",
+        "",
+    ]
+    if desc:
+        parts.extend([f"**Why this gate:** {desc}", ""])
+    if summary:
+        parts.extend([f"**Original request:** {summary}", ""])
+    parts.extend([
+        f"**Review the role's output before deciding:**",
+        f"- `{context_path}`",
+        "",
+        "**Decide one of:**",
+        "- `approve` — accept and continue to the next phase.",
+        "- `needs_changes` — send the role back for another iteration.",
+        "- `reject` — block the task; cannot continue without operator action.",
+        "",
+        "Submit via:",
+        "```",
+        f"<codenook> decide --task {state.get('task_id','?')} "
+        f"--phase {phase_id} --decision <approve|needs_changes|reject> "
+        "[--comment \"...\"]",
+        "```",
+    ])
+    return "\n".join(parts) + "\n"
+
+
 def write_hitl_entry(workspace: Path, state: dict, phase: dict,
                      verdict: str | None = None) -> Path:
     gate = phase.get("gate") or phase.get("id")
@@ -295,18 +347,21 @@ def write_hitl_entry(workspace: Path, state: dict, phase: dict,
     qdir.mkdir(parents=True, exist_ok=True)
     entry_id = f"{state['task_id']}-{gate}"
     path = qdir / f"{entry_id}.json"
+    context_path = f".codenook/tasks/{state['task_id']}/{phase.get('produces','')}"
+    prompt = _render_hitl_prompt(workspace, state, phase, gate, verdict, context_path)
     entry = {
         "id": entry_id,
         "task_id": state["task_id"],
         "plugin": state["plugin"],
         "gate": gate,
         "created_at": now_iso(),
-        "context_path": f".codenook/tasks/{state['task_id']}/{phase.get('produces','')}",
+        "context_path": context_path,
         "decision": None,
         "decided_at": None,
         "reviewer": None,
         "comment": None,
         "verdict_at_gate": verdict,
+        "prompt": prompt,
     }
     atomic_write_json_validated(str(path), entry, HITL_ENTRY_SCHEMA)
     return path

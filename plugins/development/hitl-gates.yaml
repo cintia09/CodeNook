@@ -15,6 +15,14 @@
 #   description         — human-readable purpose, surfaced in the queue UI
 
 gates:
+  requirements_signoff:
+    trigger: clarify
+    required_reviewers: [human]
+    description: >
+      Approve the clarified requirements (goals, acceptance criteria,
+      non-goals, ambiguities) before any design work starts. Catches
+      misunderstood scope at the cheapest possible point in the pipeline.
+
   design_signoff:
     trigger: design
     required_reviewers: [human]

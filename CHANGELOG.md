@@ -2,7 +2,50 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.13.14] - Unify dispatch envelope across `tick` and `router`
+## [0.13.15] - HITL queue prompt + clarify requirements_signoff gate
+
+### Fixed
+
+- **Windows GBK locale crash** — `codenook decide`, `tick`, and other
+  wrapper subcommands silently failed (rc=1, no useful stderr) when
+  any plugin YAML / Markdown file contained non-ASCII characters
+  (em-dash, CJK), because Python's `open()` defaulted to the system
+  cp936 codec. The wrapper now exports `PYTHONUTF8=1` and
+  `PYTHONIOENCODING=utf-8` at the top, which is inherited by every
+  child Python process (tick.sh, spawn.sh, hitl-adapter, host_driver,
+  etc.). No script-level changes required.
+
+### Added
+
+- **`hitl-queue/<task>-<gate>.json`** entries now include a fully
+  rendered **`prompt`** field. `_tick.write_hitl_entry` calls a new
+  `_render_hitl_prompt` helper that combines the gate `description`
+  from `hitl-gates.yaml`, the task title/summary/role/phase from
+  `state.json`, the role's output `context_path`, and the standard
+  `decide` invocation snippet into a Markdown approval prompt.
+
+  Schema: added optional `prompt` property to
+  `schemas/hitl-entry.schema.json` (kept off the `required` list so
+  pre-0.13.15 fixtures stay valid).
+
+  Bootloader rule "show the entry's `prompt` field verbatim" now
+  matches reality. Conductor no longer has to read role output files
+  and synthesize an approval question — that violated the
+  zero-domain-budget protocol.
+
+- **`plugins/development`** — added `requirements_signoff` HITL gate
+  on the `clarify` phase. The clarifier writes the requirements spec
+  (goals, acceptance criteria, non-goals, ambiguities) and the task
+  pauses for human approval before any design work begins. Catches
+  misunderstood scope at the cheapest point in the pipeline.
+
+  `phases.yaml`: `gate: requirements_signoff` added to the `clarify`
+  entry (no other phase changes).
+
+  `hitl-gates.yaml`: new `requirements_signoff` gate definition,
+  reviewer = human, description explains the rationale.
+
+
 
 ### Added
 

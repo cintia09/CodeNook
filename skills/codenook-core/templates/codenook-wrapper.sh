@@ -25,6 +25,14 @@
 
 set -euo pipefail
 
+# Force UTF-8 mode for every Python child process. CodeNook YAML / Markdown
+# files routinely contain non-ASCII characters (em-dashes, CJK), and on
+# Windows hosts where the system locale is GBK / cp936 the default
+# `open()` codec crashes with UnicodeDecodeError. PYTHONUTF8=1 is honoured
+# by Python 3.7+ and is inherited by tick.sh, spawn.sh, hitl-adapter, etc.
+export PYTHONUTF8=1
+export PYTHONIOENCODING=utf-8
+
 # --- ensure `python3` is callable -------------------------------------------
 # On Windows the .cmd shim prepends a Python install dir to PATH, but the
 # executable there is usually `python.exe` (not `python3.exe`). We synthesize

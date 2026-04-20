@@ -16,6 +16,7 @@
     "decided_at": {"type": ["string", "null"]},
     "reviewer": {"type": ["string", "null"]},
     "comment": {"type": ["string", "null"]},
-    "verdict_at_gate": {"type": ["string", "null"]}
+    "verdict_at_gate": {"type": ["string", "null"]},
+    "prompt": {"type": ["string", "null"]}
   }
 }

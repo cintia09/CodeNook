@@ -23,6 +23,7 @@ phases:
   - id: clarify
     role: clarifier
     produces: outputs/phase-1-clarifier.md
+    gate: requirements_signoff
 
   - id: design
     role: designer

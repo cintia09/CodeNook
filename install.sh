@@ -66,7 +66,7 @@ PYSHIM
   fi
 fi
 
-VERSION="0.13.14"
+VERSION="0.13.15"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_PLUGIN="development"
 
