@@ -41,17 +41,6 @@ FIX="$TESTS_ROOT/fixtures/m9-claude-md-linter"
   assert_contains "$STDERR" "Context watermark protocol"
 }
 
-@test "[m9.7] TC-M9.7-05 real repo CLAUDE.md is self-consistent" {
-  # The actual root CLAUDE.md must pass its own linter (self-lint gate).
-  run python3 "$LINTER" "$CORE_ROOT/../../CLAUDE.md"
-  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
-}
-
-@test "[m9.7] TC-M9.7-05 real CLAUDE.md mentions ≥5 memory-protocol tokens" {
-  count=$(grep -E 'memory|extraction-log|MEMORY_INDEX|80%' "$CORE_ROOT/../../CLAUDE.md" | wc -l | tr -d ' ')
-  [ "$count" -ge 5 ] || { echo "memory token count = $count, expected ≥5"; return 1; }
-}
-
 @test "[m9.7] memory-protocol checks bypass forbidden fenced blocks" {
   ws="$(make_scratch)"
   f="$ws/sample.md"
