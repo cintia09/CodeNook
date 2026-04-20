@@ -5,4 +5,4 @@
 ## Protocol
 
 Plain protocol prose, no domain tokens. But this CLAUDE.md is missing
-the required 上下文水位监控 section entirely.
+the required Context watermark protocol section entirely.

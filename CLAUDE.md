@@ -195,26 +195,32 @@ cat plugins/development/roles/implementer.md
 
 ---
 
-## 上下文水位监控
+## Context watermark protocol
 
-主会话需要周期性自评估上下文使用率（启发式：本地估算 token，CJK 1:1，
-ASCII 1:4）。当估算 ≥ 80% model window 水位时（water-mark），按以下协议
-处理，避免上下文溢出导致丢失任务知识：
+The main session must periodically self-estimate context usage (heuristic:
+local token estimate, CJK 1:1, ASCII 1:4). When the estimate reaches the
+80% model window watermark, follow this protocol to avoid losing task
+knowledge to context overflow:
 
-1. **停止新功能工作**——不再启动新的 sub-agent / 不再展开新文件读。
-2. **沉淀当前任务知识**——对每个 active task ID 调用一次：
+1. **Stop new feature work** — do not spawn new sub-agents and do not
+   open new files for reading.
+2. **Sediment current task knowledge** — for each active task ID, call:
    `bash <ws>/.codenook/codenook-core/skills/builtin/extractor-batch/extractor-batch.sh \
        --task-id <T-NNN> --reason context-pressure --workspace <ws>`
-   该命令在子进程异步派发 knowledge / skill / config 三类 extractor，
-   wall-clock ≤ 200ms 返回，不阻塞主会话。
-3. **压缩或重置自身**——根据返回 JSON 的 `enqueued_jobs` 数量决定是否
-   触发 `/clear` 或 `/compact`，必要时 resume 已记录在 memory 中的工作。
+   This command asynchronously dispatches knowledge / skill / config
+   extractors in a subprocess, returns within ≤ 200ms wall-clock, and
+   does not block the main session.
+3. **Compact or reset** — based on the `enqueued_jobs` count in the
+   returned JSON, decide whether to trigger `/clear` or `/compact`, and
+   resume from work already recorded in memory if needed.
 
-主会话**不允许**直接扫描 `.codenook/memory/` 下任何文件；只能依赖
-`extractor-batch.sh --reason context-pressure` 的退出 JSON 当字符串转给
-用户。完整水位触发协议（路径 A / 路径 B、幂等键、`MEMORY_INDEX` 注入、
-`extraction-log.jsonl` 审计语义、context-pressure 事件类型）见
-`docs/memory-and-extraction.md` §5 / §8。
+The main session is **not allowed** to scan any file under
+`.codenook/memory/` directly; it can only rely on the exit JSON from
+`extractor-batch.sh --reason context-pressure` and forward it as a
+string to the user. The full watermark protocol (path A / path B,
+idempotency keys, `MEMORY_INDEX` injection, `extraction-log.jsonl`
+audit semantics, context-pressure event type) is documented in
+`docs/memory-and-extraction.md` §5 / §8.
 
 ---
 

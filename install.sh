@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CodeNook v0.11.4 — top-level installer.
+# CodeNook v0.13.2 — top-level installer.
 #
 # Usage:
 #   bash install.sh                       # install into $PWD
@@ -8,6 +8,7 @@
 #   bash install.sh --upgrade [<path>]    # allow re-install of existing plugin
 #   bash install.sh --plugin <id> [<path>]  # plugin id under plugins/ (default: development)
 #   bash install.sh --no-claude-md [<path>] # skip CLAUDE.md augmentation
+#   bash install.sh --yes [<path>]          # auto-confirm CLAUDE.md write (CI)
 #   bash install.sh --check [<path>]      # report install state of a workspace
 #   bash install.sh --help                # show this help
 #
@@ -29,7 +30,7 @@
 
 set -euo pipefail
 
-VERSION="0.13.1"
+VERSION="0.13.2"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_PLUGIN="development"
 
@@ -48,6 +49,7 @@ Usage:
   bash install.sh --upgrade [<workspace_path>]        allow re-install
   bash install.sh --plugin <id> [<workspace_path>]    plugin id (default: ${DEFAULT_PLUGIN})
   bash install.sh --no-claude-md [<workspace_path>]   skip CLAUDE.md augmentation
+  bash install.sh --yes [<workspace_path>]            auto-confirm CLAUDE.md write (CI/non-interactive)
   bash install.sh --check [<workspace_path>]          report install state
   bash install.sh --help                              show this help
 
@@ -62,6 +64,7 @@ DRY_RUN=""
 UPGRADE=""
 CHECK_ONLY=0
 AUGMENT_CLAUDE=1
+AUTO_YES=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -70,6 +73,7 @@ while [ $# -gt 0 ]; do
     --upgrade) UPGRADE="--upgrade"; shift ;;
     --plugin)  PLUGIN_ID="${2:-}"; shift 2 ;;
     --no-claude-md) AUGMENT_CLAUDE=0; shift ;;
+    --yes|-y) AUTO_YES=1; shift ;;
     --check)   CHECK_ONLY=1; shift ;;
     --) shift; if [ $# -gt 0 ]; then WORKSPACE="$1"; shift; fi ;;
     -*) err "unknown option: $1"; usage >&2; exit 2 ;;
@@ -259,21 +263,53 @@ if [ -n "$DRY_RUN" ]; then
 fi
 
 if [ "$AUGMENT_CLAUDE" -eq 1 ]; then
-  python3 "$WS_CORE/skills/builtin/_lib/claude_md_sync.py" \
-    --workspace "$WORKSPACE" \
-    --version "$VERSION" \
-    --plugin "$PLUGIN_ID"
-  info "CLAUDE.md bootloader block synced (idempotent)"
+  # Determine the action that will be taken so the prompt is informative.
+  CLAUDE_FILE="$WORKSPACE/CLAUDE.md"
+  if [ ! -f "$CLAUDE_FILE" ]; then
+    CLAUDE_ACTION="create new CLAUDE.md with codenook bootloader stub"
+  elif grep -q "codenook:begin" "$CLAUDE_FILE" 2>/dev/null; then
+    CLAUDE_ACTION="replace existing codenook block in CLAUDE.md (idempotent; user content outside markers untouched)"
+  else
+    CLAUDE_ACTION="append codenook block to your existing CLAUDE.md (your content is preserved above the markers)"
+  fi
 
-  # Warn (don't fail) if the user's own CLAUDE.md content outside
-  # the codenook marker block contains legacy v4.x role tokens.
-  python3 "$WS_CORE/skills/builtin/_lib/claude_md_linter.py" \
-    --marker-only --json "$WORKSPACE/CLAUDE.md" >/dev/null 2>&1 || true
-  outside_hits="$(
-    {
-      python3 "$WS_CORE/skills/builtin/_lib/claude_md_linter.py" \
-        --outside-marker-only --json "$WORKSPACE/CLAUDE.md" 2>/dev/null || true
-    } | python3 -c "import json,sys
+  PROCEED=1
+  if [ "$AUTO_YES" -ne 1 ]; then
+    if [ -t 0 ] && [ -t 1 ]; then
+      echo ""
+      echo "  About to: ${CLAUDE_ACTION}"
+      echo "  Target  : ${CLAUDE_FILE}"
+      printf "  Proceed? [y/N] "
+      read -r reply || reply=""
+      case "$reply" in
+        y|Y|yes|YES) PROCEED=1 ;;
+        *) PROCEED=0 ;;
+      esac
+    fi
+    # Non-interactive (no TTY): proceed silently. CI / piped installs keep
+    # their pre-v0.13.2 behaviour. Pass --yes explicitly to suppress the
+    # prompt in an interactive shell.
+  fi
+
+  if [ "$PROCEED" -ne 1 ]; then
+    warn "skipped CLAUDE.md augmentation (user declined)"
+    warn "  re-run with --yes to confirm, or --no-claude-md to suppress this prompt"
+  else
+    python3 "$WS_CORE/skills/builtin/_lib/claude_md_sync.py" \
+      --workspace "$WORKSPACE" \
+      --version "$VERSION" \
+      --plugin "$PLUGIN_ID"
+    info "CLAUDE.md bootloader block synced (idempotent)"
+
+    # Warn (don't fail) if the user's own CLAUDE.md content outside
+    # the codenook marker block contains legacy v4.x role tokens.
+    python3 "$WS_CORE/skills/builtin/_lib/claude_md_linter.py" \
+      --marker-only --json "$WORKSPACE/CLAUDE.md" >/dev/null 2>&1 || true
+    outside_hits="$(
+      {
+        python3 "$WS_CORE/skills/builtin/_lib/claude_md_linter.py" \
+          --outside-marker-only --json "$WORKSPACE/CLAUDE.md" 2>/dev/null || true
+      } | python3 -c "import json,sys
 try:
   d=json.load(sys.stdin)
   toks=sorted({f.get('token','') for f in (d.get('errors',[])+d.get('warnings',[])) if f.get('token')})
@@ -281,11 +317,12 @@ try:
 except Exception:
   pass
 " || true
-  )"
-  if [ -n "$outside_hits" ]; then
-    warn "legacy v4.x tokens in CLAUDE.md outside codenook block: ${outside_hits}"
-    warn "  they're harmless but consider cleanup; rerun with"
-    warn "  \`bash install.sh --migrate-claude-md\` (planned v0.12)"
+    )"
+    if [ -n "$outside_hits" ]; then
+      warn "legacy v4.x tokens in CLAUDE.md outside codenook block: ${outside_hits}"
+      warn "  they're harmless but consider cleanup; rerun with"
+      warn "  \`bash install.sh --migrate-claude-md\` (planned v0.12)"
+    fi
   fi
 fi
 

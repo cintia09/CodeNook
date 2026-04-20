@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.2] - 2026-04-20 · English CLAUDE.md + interactive install confirm
+
+Two small but user-visible changes.
+
+### Changed
+- Repository `CLAUDE.md`: the previously Chinese `## 上下文水位监控` section
+  is now `## Context watermark protocol`, fully translated to English.
+  The full ≥80% watermark protocol contract (extractor-batch async dispatch,
+  no direct memory scans, JSON envelope hand-off) is unchanged.
+- `claude_md_linter._REQUIRED_HEADINGS_FOR_CLAUDE_MD` updated to the new
+  English heading; matching bats fixtures (`good-memory-protocol.md`,
+  `bad-no-memory-protocol.md`) and `m9-claude-md-linter.bats` assertion
+  translated in lock-step. `docs/memory-and-extraction.md` literal
+  reference updated.
+
+### Added
+- `install.sh` now **prompts before writing CLAUDE.md** by default, telling
+  the user exactly which action will be taken (create stub / append block
+  to existing file / replace existing block). Safe by construction: user
+  content outside `<!-- codenook:begin --> ... <!-- codenook:end -->` is
+  still never touched.
+- New `--yes` / `-y` flag on `install.sh` for explicit auto-confirm.
+  When stdin/stdout aren't a TTY (CI, piped installs), behaviour matches
+  pre-v0.13.2 — proceeds silently. The prompt only appears when both stdin
+  and stdout are interactive terminals, so existing automation is unaffected.
+- `--no-claude-md` continues to skip the augmentation entirely (no prompt).
+
+### Migration
+None — pure forward-compatible. Interactive users will see a one-line
+y/N prompt before any CLAUDE.md write; CI and pipelines are unchanged.
+
 ## [0.13.1] - 2026-04-20 · E2E-P round-2 fixes forward-ported
 
 The 9 E2E-P findings from `docs/e2e-report-v0.11.3-parallel.md` (originally

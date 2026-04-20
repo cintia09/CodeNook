@@ -16,8 +16,8 @@ M9.7 extension (`docs/memory-and-extraction.md` §2.1, §5.4):
   ``grep -r .codenook/memory``, ``cat .codenook/memory/...``) are
   rejected (NFR-LAYER / TC-M9.7-06).
 * **Required memory-protocol section** — when the linted file is named
-  ``CLAUDE.md`` it must contain the ``## 上下文水位监控`` heading (the
-  M9.2 contract; AC-DOC-3 / TC-M9.7-05).
+  ``CLAUDE.md`` it must contain the ``## Context watermark protocol``
+  heading (the M9.2 contract; AC-DOC-3 / TC-M9.7-05).
 
 Allowed-context exceptions:
 
@@ -111,7 +111,7 @@ _M97_RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
 
 # Required heading (substring match on level-2 headings) when the file
 # basename is CLAUDE.md (TC-M9.7-05).
-_REQUIRED_HEADINGS_FOR_CLAUDE_MD: tuple[str, ...] = ("上下文水位监控",)
+_REQUIRED_HEADINGS_FOR_CLAUDE_MD: tuple[str, ...] = ("Context watermark protocol",)
 
 
 def _word_iter(line: str, token: str):

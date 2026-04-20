@@ -116,7 +116,7 @@ CodeNook v6 在 M9 之后，workspace 内运行时可见的两层资产：
      TC-M9.7-04）。
    - 拦截扫 memory shell 命令：`grep|cat|ls|find|rg|head|tail|awk|sed`
      紧邻 `.codenook/memory`（NFR-LAYER / TC-M9.7-06）。
-   - 校验 `CLAUDE.md` 自身必须含 `## 上下文水位监控` 章节（M9.2 契约，
+   - 校验 `CLAUDE.md` 自身必须含 `## Context watermark protocol` 章节（M9.2 契约，
      AC-DOC-3 / TC-M9.7-05）。CLI 自动启用：当目标路径解析到仓库根
      `CLAUDE.md`（即同级存在 `.git/` 或 `skills/codenook-core/`），或
      显式带 `--check-claude-md` flag 时生效；其余 fixtures 不受影响。

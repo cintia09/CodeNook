@@ -38,7 +38,7 @@ FIX="$TESTS_ROOT/fixtures/m9-claude-md-linter"
   cp "$FIX/bad-no-memory-protocol.md" "$ws/CLAUDE.md"
   run_with_stderr "python3 '$LINTER' --check-claude-md '$ws/CLAUDE.md'"
   [ "$status" -eq 1 ] || { echo "stdout: $output"; echo "stderr: $STDERR"; return 1; }
-  assert_contains "$STDERR" "上下文水位监控"
+  assert_contains "$STDERR" "Context watermark protocol"
 }
 
 @test "[m9.7] TC-M9.7-05 real repo CLAUDE.md is self-consistent" {

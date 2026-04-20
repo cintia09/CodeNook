@@ -6,7 +6,7 @@
 
 The main session relays router replies verbatim and drives the tick loop.
 
-## 上下文水位监控 (M9.2)
+## Context watermark protocol (M9.2)
 
 When estimated context usage reaches 80% of the model window, the main
 session must stop new work and call extractor-batch with
