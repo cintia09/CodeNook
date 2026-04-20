@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.18] - re-promote router-agent as default + idempotent --upgrade
+
+### Changed
+
+- **Bootloader (`CLAUDE.md`)** now instructs the conductor to drive
+  the default `task new` → `router` (drafting dialog) → `tick`
+  loop. The single-call `task new --accept-defaults` shortcut is
+  demoted to "single-plugin shortcut" with an explicit warning that
+  it silently picks `installed_plugins[0]` in multi-plugin
+  workspaces (which is almost always wrong). Restores the original
+  intent of v6 — router-agent is the only component that actually
+  ranks plugins by `applies_to` / `keywords` against user intent.
+
+### Fixed
+
+- `install.sh --upgrade` against an existing same-version install no
+  longer trips G04 ("would downgrade or no-op"). The idempotent
+  re-install path now applies regardless of whether `--upgrade` was
+  passed explicitly. This unblocks kernel-only releases that don't
+  bump per-plugin versions.
+
+### Why
+
+v0.13.13 demoted router-agent on the assumption that "single-plugin
+workspaces are the common case". With multi-plugin install becoming
+default in v0.13.16, that assumption no longer holds: silently
+defaulting to plugin index 0 misroutes writing / generic tasks to
+the development clarifier. Reverting to router-default makes
+plugin selection explicit and LLM-mediated again.
+
 ## [0.13.17] - fix stale workspace knowledge / skills paths in role profiles
 
 ### Fixed

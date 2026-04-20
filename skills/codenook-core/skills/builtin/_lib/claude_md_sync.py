@@ -73,19 +73,61 @@ are expected on `PATH` already.
 The wrapper allocates the next `T-NNN` for you. **Do not** scan
 `.codenook/tasks/` and increment ids by hand.
 
+The default flow is **router-agent first** — it disambiguates which
+plugin (and roles) the user's request maps to, captures iterative
+drafting, and then hands off to the tick loop. This is required
+when more than one plugin is installed; for single-plugin workspaces
+see "shortcut" at the end of this section.
+
 ```bash
-# 1. Create the task. --summary carries the user's request verbatim;
-#    --accept-defaults fills dual_mode/priority/target_dir with sane
-#    defaults so no entry-question gate fires. Returns the new T-NNN
-#    on stdout.
+# 1. Create the task scaffold (returns the new T-NNN on stdout).
+#    Do NOT pass --accept-defaults here; let router-agent fill in
+#    plugin / scope / dual_mode through the drafting dialog.
+<codenook> task new --title "<short title>"
+
+# 2. Hand the user's request to router-agent. It returns a JSON
+#    envelope with prompt_path / reply_path; dispatch a sub-agent
+#    per the dispatch protocol below.
+<codenook> router --task <T-NNN> --user-turn "<verbatim user text>"
+
+# 3. Each user follow-up is another router call with the user's
+#    exact words (continue the drafting dialog).
+<codenook> router --task <T-NNN> --user-turn "<verbatim user reply>"
+
+# 4. When the router-reply.md frontmatter signals handoff
+#    (awaiting: handoff or status: confirmed), drive the tick loop:
+<codenook> tick --task <T-NNN> --json
+```
+
+Loop step 4 on `status: advanced`. Stop on `done` / `blocked` and
+report verbatim. On `waiting`, scan `.codenook/hitl-queue/*.json`
+for entries with `decision == null`, relay each `prompt` field
+verbatim to the user, capture the answer, then:
+
+```bash
+<codenook> decide --task <T-NNN> --phase <phase> \
+                  --decision <approve|reject|needs_changes> \
+                  [--comment "..."]
+```
+
+Resume the tick loop when all gates resolve.
+
+#### Single-plugin shortcut (skip router-agent)
+
+If `state.installed_plugins` has exactly one entry AND the user's
+request needs no drafting clarification, you may skip router-agent
+and go straight to tick:
+
+```bash
 <codenook> task new --title "<short title>" \
                     --summary "<verbatim user request>" \
                     --accept-defaults
-
-# 2. Drive the tick loop. Each call advances at most one phase and
-#    returns a JSON envelope with the new status.
 <codenook> tick --task <T-NNN> --json
 ```
+
+For multi-plugin workspaces this shortcut silently picks
+`installed_plugins[0]` which is almost always wrong — use the
+default router-driven flow instead.
 
 ### The dispatch envelope (used by both `tick` and `router`)
 
@@ -148,33 +190,6 @@ then:
 ```
 
 Resume the tick loop when all gates resolve.
-
-### Optional: router-agent drafting dialog (advanced)
-
-Only invoke `router` when you actually need an LLM-mediated drafting
-conversation — e.g. multiple installed plugins to disambiguate, or
-the user wants to iterate on scope before committing. Skip it for the
-common case (one plugin, clear request).
-
-```bash
-<codenook> router --task <T-NNN> --user-turn "<verbatim user text>"
-```
-
-`router` prints a single-line JSON envelope on stdout with
-`prompt_path` / `reply_path` (no `system_prompt_path` — router-agent
-has no separate role file). Follow the **same dispatch protocol**
-as for tick envelopes above: read `prompt_path`, dispatch sub-agent,
-sub-agent writes `reply_path`, then call `router` again with the
-user's next reply (or `tick` if router signalled handoff).
-
-> Headless / batch alternative: set `CN_ROUTER_DRIVE=1` before calling
-> `router` and the wrapper will run `host_driver.py` in-process. This
-> uses `_lib/llm_call.py` (mock by default; set `CN_LLM_MODE=real` to
-> shell out to the `claude` CLI). Off by default — interactive
-> conductors should drive the dispatch themselves per the steps above.
-
-When the router-agent reply signals handoff, return to the tick loop
-above (`<codenook> tick --task <T-NNN> --json`) — same loop semantics.
 
 ### Direct kernel-script form (advanced, bash environments only)
 

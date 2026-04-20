@@ -75,7 +75,7 @@ PYSHIM
   fi
 fi
 
-VERSION="0.13.17"
+VERSION="0.13.18"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_PLUGIN="all"   # "all" → install every plugins/<id>/ subdir
 
@@ -295,8 +295,10 @@ except Exception:
 fi
 
 IDEMPOTENT_RUN=0
-if [ -n "$EXISTING_VERSION" ] && [ "$EXISTING_VERSION" = "$NEW_VERSION" ] && [ -z "$UPGRADE" ]; then
-  # Same version on disk → automatic upgrade (idempotent path).
+if [ -n "$EXISTING_VERSION" ] && [ "$EXISTING_VERSION" = "$NEW_VERSION" ]; then
+  # Same version on disk → automatic upgrade (idempotent path), even when
+  # --upgrade was passed explicitly (kernel-only releases re-trigger plugin
+  # install at unchanged version; G04 would otherwise reject it).
   UPGRADE="--upgrade"
   IDEMPOTENT_RUN=1
 elif [ -n "$EXISTING_VERSION" ] && [ "$EXISTING_VERSION" != "$NEW_VERSION" ] && [ -z "$UPGRADE" ]; then
