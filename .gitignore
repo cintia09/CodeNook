@@ -48,3 +48,4 @@ __pycache__/
 # markdown-to-html auto-backup files
 *.bak-*
 .scratch/
+.e2e-scratch/
