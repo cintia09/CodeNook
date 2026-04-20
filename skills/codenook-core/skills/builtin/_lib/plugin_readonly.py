@@ -20,7 +20,7 @@ Two complementary defences:
    ``scanned_files`` and ``writes_to_plugins`` (list of
    ``{file, line, snippet, kind}``) when ``--json`` is set.
 
-See ``docs/v6/memory-and-extraction-v6.md`` §2.1 / §9 for the
+See ``docs/memory-and-extraction.md`` §2.1 / §9 for the
 canonical layering rule (FR-RO-1, FR-RO-2, AC-RO-1, AC-RO-2).
 """
 from __future__ import annotations
@@ -120,33 +120,39 @@ def assert_writable_path(
     caller).
     """
     p = Path(path).resolve()
-    if workspace_root is not None:
-        ws = Path(workspace_root).resolve()
-        try:
-            rel_parts = p.relative_to(ws).parts
-        except ValueError:
-            return
-        bad = _has_plugins_segment(rel_parts)
-    else:
-        bad = _has_plugins_segment(p.parts)
+    # DR-001: when the caller does not pass a workspace_root, fall back to
+    # CWD as the implicit workspace. Scanning every absolute-path segment
+    # for the literal name ``plugins`` over-blocks any contributor whose
+    # filesystem happens to contain a ``plugins/`` directory anywhere in
+    # the path (e.g. ``/home/me/plugins-monorepo/...``). The implicit-CWD
+    # behaviour matches the kernel's runtime invariant: every writer is
+    # rooted in the workspace it is operating on.
+    if workspace_root is None:
+        workspace_root = os.getcwd()
+    ws = Path(workspace_root).resolve()
+    try:
+        rel_parts = p.relative_to(ws).parts
+    except ValueError:
+        # Write target is outside the workspace — not our concern.
+        return
+    bad = _has_plugins_segment(rel_parts)
 
     if not bad:
         return
 
-    if workspace_root is not None:
-        try:
-            sys.path.insert(0, str(Path(__file__).resolve().parent))
-            from extract_audit import audit  # noqa: WPS433
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from extract_audit import audit  # noqa: WPS433
 
-            audit(
-                workspace_root,
-                asset_type=asset_type,
-                outcome="plugin_readonly_violation",
-                verdict="rejected",
-                reason=str(p),
-            )
-        except Exception:  # pragma: no cover — audit must never mask the real error
-            pass
+        audit(
+            workspace_root,
+            asset_type=asset_type,
+            outcome="plugin_readonly_violation",
+            verdict="rejected",
+            reason=str(p),
+        )
+    except Exception:  # pragma: no cover — audit must never mask the real error
+        pass
 
     raise PluginReadOnlyViolation(
         f"refusing to write under plugins/ (read-only): {p}"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # M9.7 — plugin read-only enforcement.
-# Spec: docs/v6/memory-and-extraction-v6.md §2.1, §9
-# Cases: docs/v6/m9-test-cases.md TC-M9.7-01, TC-M9.7-02, TC-M9.7-03, TC-M9.7-07
+# Spec: docs/memory-and-extraction.md §2.1, §9
+# Cases: docs/m9-test-cases.md TC-M9.7-01, TC-M9.7-02, TC-M9.7-03, TC-M9.7-07
 
 load helpers/load
 load helpers/assertions
@@ -83,8 +83,11 @@ assert issubclass(pr.PluginReadOnlyViolation, PermissionError)
   m9_init_memory "$ws" >/dev/null
   mkdir -p "$ws/plugins"
   # Force _atomic_write_text to a plugins/ destination — must raise.
+  # DR-001 (v0.11.2): assert_writable_path(workspace_root=None) now uses
+  # CWD as the implicit workspace, so the test chdir's into ws first.
   run_with_stderr "PYTHONPATH='$LIB_DIR' WS='$ws' python3 -c '
 import os, sys
+os.chdir(os.environ[\"WS\"])
 import memory_layer as ml
 import plugin_readonly as pr
 target = os.path.join(os.environ[\"WS\"], \"plugins\", \"evil.md\")
@@ -173,8 +176,10 @@ sys.exit(2)
 @test "[m9.7] TC-M9.7-22 router_context write_context targeting plugins/ rejected" {
   ws="$(make_scratch)"
   mkdir -p "$ws/plugins"
+  # DR-001 (v0.11.2): chdir to ws so CWD-fallback in assert_writable_path catches the segment.
   run_with_stderr "PYTHONPATH='$LIB_DIR' WS='$ws' python3 -c '
 import os, sys
+os.chdir(os.environ[\"WS\"])
 from pathlib import Path
 import router_context as rc
 import plugin_readonly as pr
@@ -194,8 +199,10 @@ sys.exit(2)
 @test "[m9.7] TC-M9.7-23 draft_config write_draft targeting plugins/ rejected" {
   ws="$(make_scratch)"
   mkdir -p "$ws/plugins"
+  # DR-001 (v0.11.2): chdir so CWD-fallback applies.
   run_with_stderr "PYTHONPATH='$LIB_DIR' WS='$ws' python3 -c '
 import os, sys
+os.chdir(os.environ[\"WS\"])
 from pathlib import Path
 import draft_config as dc
 import plugin_readonly as pr
