@@ -200,13 +200,113 @@ def _candidates_from_role_outputs(workspace: Path, task_id: str) -> list[dict] |
                     "summary": summary[:200],
                     "tags": [task_id, p.stem.split("-")[-1] or "role-output"],
                     "body": (body_after or summary)[:4096],
+                    "_source_file": p.name,
+                    "_source_role": p.stem,
                 })
             continue
         items = block if isinstance(block, list) else [block]
         for it in items:
             if isinstance(it, dict):
+                # Tag each candidate with its role-output origin so the
+                # coarse-grained aggregator (change D) can record the
+                # contributing roles as `sources` without duplicating
+                # body content into per-role files.
+                it = dict(it)
+                it.setdefault("_source_file", p.name)
+                it.setdefault("_source_role", p.stem)
                 candidates.append(it)
     return candidates
+
+
+# ─────────────────── change D: per-task aggregation ────────────────────
+#
+# Historical behaviour: four role outputs → four candidates → four
+# near-identical ``memory/knowledge/*.md`` files. Change D collapses
+# per-role candidates into a single synthesized ``by_topic`` entry for
+# the task and records the contributing roles under ``sources_by_role``
+# / the body's "## Sources" section.
+
+
+def _aggregate_candidates_per_task(
+    candidates: list[dict], task_id: str
+) -> list[dict]:
+    """Fold a list of per-role candidates into a single synthesized entry.
+
+    * Single-candidate inputs pass through unchanged.
+    * Multi-candidate inputs are merged:
+        - ``title`` = first non-empty candidate title.
+        - ``summary`` = first non-empty candidate summary.
+        - ``tags`` = union (order-preserving) capped to MAX_TAGS.
+        - ``body`` = concatenation of per-role bodies with a "### From
+          <role>" header per contributor, plus a trailing "## Sources"
+          list. No by-role file is ever written — the per-role view is
+          reconstructed from this single content file.
+        - ``topic`` = inherited from the first candidate's ``title`` /
+          ``topic`` hint, falling back to ``task_id``.
+    * ``_source_roles`` / ``_source_files`` are carried on the synth
+      candidate so :func:`_process_candidate` can seed ``sources_by_role``
+      via the memory layer.
+    """
+    real = [c for c in candidates if isinstance(c, dict)]
+    if len(real) <= 1:
+        return real
+
+    titles = [str(c.get("title") or "").strip() for c in real]
+    summaries = [str(c.get("summary") or "").strip() for c in real]
+    bodies = [str(c.get("body") or "").strip() for c in real]
+    files = [str(c.get("_source_file") or "") for c in real]
+    roles = [str(c.get("_source_role") or "") for c in real]
+
+    merged_tags: list[str] = []
+    seen_tags: set[str] = set()
+    for c in real:
+        for t in c.get("tags") or []:
+            if isinstance(t, str) and t and t not in seen_tags:
+                seen_tags.add(t)
+                merged_tags.append(t)
+    if task_id and task_id not in seen_tags:
+        merged_tags.append(task_id)
+
+    title = next((t for t in titles if t), f"{task_id} knowledge")
+    summary = next((s for s in summaries if s), "")
+
+    body_parts: list[str] = []
+    for role, f, b in zip(roles, files, bodies):
+        if not b:
+            continue
+        header = f"### From {role or f or 'source'}"
+        body_parts.append(f"{header}\n\n{b}")
+    body = "\n\n".join(body_parts)
+
+    sources_lines = []
+    for role, f in zip(roles, files):
+        label = role or f
+        if label and label not in sources_lines:
+            sources_lines.append(label)
+    if sources_lines:
+        body = (
+            body.rstrip() + "\n\n## Sources\n"
+            + "\n".join(f"- {s}" for s in sources_lines) + "\n"
+        )
+
+    # Inherit topic hint from the first candidate, if present.
+    topic_hint = next(
+        (str(c.get("topic")) for c in real if c.get("topic")),
+        "",
+    )
+
+    out = {
+        "title": title,
+        "summary": summary,
+        "tags": merged_tags[: MAX_TAGS],
+        "body": body[:INPUT_BODY_TRUNC * 2],  # allow a larger merged body
+        "_source_roles": [r for r in roles if r],
+        "_source_files": [f for f in files if f],
+        "_aggregated": True,
+    }
+    if topic_hint:
+        out["topic"] = topic_hint
+    return [out]
 
 
 # ------------------------------------------------------------ LLM helpers
@@ -472,6 +572,13 @@ def _process_candidate(
         "hash": candidate_hash,
         "topic": target_topic,
     }
+    # Change D: record per-role provenance when aggregated (no per-role
+    # file is written — this list *is* the by_role→by_topic reference).
+    source_roles = cand.get("_source_roles") or []
+    if source_roles:
+        new_fm["sources_by_role"] = list(source_roles)
+    if task_id:
+        new_fm["sources"] = [task_id]
     written = ml.write_knowledge(
         workspace,
         topic=target_topic,
@@ -610,6 +717,12 @@ def main(argv: list[str]) -> int:
             if not isinstance(cand, dict):
                 continue
             n, was_trunc = _normalize_candidate(cand)
+            # Preserve the aggregator-injected source hints through the
+            # normalization step so _process_candidate can record them.
+            for _k in ("_source_roles", "_source_files", "_aggregated",
+                       "_source_role", "_source_file"):
+                if _k in cand and _k not in n:
+                    n[_k] = cand[_k]
             if was_trunc:
                 ml.append_audit(
                     workspace,
@@ -623,6 +736,24 @@ def main(argv: list[str]) -> int:
                     },
                 )
             normalized.append(n)
+
+        # ── Change D: collapse per-role candidates into one synthesized
+        # entry per task so we never produce four near-identical files
+        # for a single T-NNN.
+        if used_frontmatter and len(normalized) > 1:
+            before = len(normalized)
+            normalized = _aggregate_candidates_per_task(normalized, task_id)
+            ml.append_audit(
+                workspace,
+                {
+                    "ts": _now_iso(),
+                    "event": "candidates_aggregated",
+                    "asset_type": "knowledge",
+                    "task_id": task_id,
+                    "before": before,
+                    "after": len(normalized),
+                },
+            )
 
         kept, dropped = _rank_and_cap(normalized, workspace, task_id=task_id, route=route)
         if dropped:

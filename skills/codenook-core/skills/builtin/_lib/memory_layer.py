@@ -290,12 +290,20 @@ def write_knowledge(
     status: str = "candidate",
     created_from_task: str = "",
     atomic: bool = True,  # noqa: ARG001 — kept for API compatibility
+    fuzzy_merge: bool = True,
 ) -> Path:
     """Atomically create / overwrite a knowledge file.
 
     Two call shapes are supported:
         write_knowledge(ws, topic=..., summary=..., tags=[...], body=...)
         write_knowledge(ws, doc={"topic": ..., "frontmatter": {...}, "body": ...})
+
+    When *fuzzy_merge* is True (change E, default) and the target file
+    does not already exist, scan existing knowledge for a near-duplicate
+    by normalized title / body fingerprint and, if found, merge the new
+    evidence into the existing file instead of creating a new topic.
+    Callers that must force a fresh write (e.g. tests, or the "replace"
+    branch of an extractor decision) can pass ``fuzzy_merge=False``.
     """
     if doc is not None:
         topic = topic or doc.get("topic") or doc.get("frontmatter", {}).get("topic")
@@ -316,6 +324,24 @@ def write_knowledge(
     _validate_frontmatter(fm)
 
     target = _knowledge_path(workspace_root, topic)
+
+    # ── Change E: fuzzy-merge on write ──────────────────────────────
+    if fuzzy_merge and not target.exists():
+        title = str(fm.get("title") or topic)
+        source_task = str(
+            fm.get("created_from_task") or created_from_task or fm.get("source_task") or ""
+        )
+        matched = _fuzzy_match_existing_knowledge(workspace_root, title, body)
+        if matched is not None:
+            return _merge_into_existing_knowledge(
+                workspace_root,
+                existing=matched,
+                source_task=source_task,
+                new_title=title,
+                new_body=body,
+                new_tags=list(fm.get("tags") or []),
+            )
+
     rendered = _render_frontmatter_doc(fm, body)
     _atomic_write_text(target, rendered, workspace_root=workspace_root)
     memory_index.invalidate(workspace_root, target)
@@ -424,6 +450,185 @@ def archive_knowledge(workspace_root: Path | str, path: Path | str) -> None:
     _set_status(workspace_root, path, "archived")
 
 
+# ───────────────────── change E: fuzzy-merge helpers ─────────────────────
+
+
+def _fuzzy_match_existing_knowledge(
+    workspace_root: Path | str, new_title: str, new_body: str
+) -> dict[str, Any] | None:
+    """Scan existing knowledge for a near-duplicate by title/body fingerprint.
+
+    Returns ``{"path", "frontmatter", "body", "reason", "score"}`` on
+    the first hit (stable, alphabetical by filename via
+    :func:`scan_knowledge`), or None when nothing is close enough.
+    """
+    try:
+        import text_fingerprint as tf  # local: _lib is on sys.path
+    except ImportError:
+        return None
+    for meta in scan_knowledge(workspace_root):
+        ex_path = meta.get("path")
+        if not ex_path:
+            continue
+        try:
+            doc = read_knowledge(ex_path)
+        except OSError:
+            continue
+        ex_title = (
+            doc["frontmatter"].get("title")
+            or doc["frontmatter"].get("topic")
+            or Path(ex_path).stem
+        )
+        ex_body = doc["body"] or ""
+        matched, reason, score = tf.is_fuzzy_match(
+            new_title, new_body, str(ex_title), ex_body
+        )
+        if matched:
+            return {
+                "path": ex_path,
+                "frontmatter": doc["frontmatter"],
+                "body": ex_body,
+                "reason": reason,
+                "score": score,
+            }
+    return None
+
+
+def _append_source_ref(fm: dict[str, Any], source_task: str) -> bool:
+    """Append *source_task* to frontmatter's ``sources`` list (dedup).
+
+    Returns True when the list actually grew. Also mirrors into
+    ``related_tasks`` for back-compat with existing readers.
+    """
+    changed = False
+    if not source_task:
+        return False
+    sources = list(fm.get("sources") or [])
+    if source_task not in sources:
+        sources.append(source_task)
+        fm["sources"] = sources
+        changed = True
+    related = list(fm.get("related_tasks") or [])
+    if source_task not in related:
+        related.append(source_task)
+        fm["related_tasks"] = related
+        changed = True
+    return changed
+
+
+def _merge_tags_into(fm: dict[str, Any], new_tags: list[str]) -> None:
+    existing_tags = list(fm.get("tags") or [])
+    for t in new_tags or []:
+        if isinstance(t, str) and t and t not in existing_tags:
+            existing_tags.append(t)
+    fm["tags"] = existing_tags[:MAX_TAGS]
+
+
+def _merge_into_existing_knowledge(
+    workspace_root: Path | str,
+    *,
+    existing: dict[str, Any],
+    source_task: str,
+    new_title: str,
+    new_body: str,
+    new_tags: list[str] | None = None,
+) -> Path:
+    """Fold new evidence into an existing knowledge file in-place.
+
+    Policy:
+      * always append *source_task* under ``sources:`` (dedup).
+      * if ≥ 20% of the new body's shingles are absent from the existing
+        body, append a dated "Update — <task> — <iso>" section; else
+        only record the source link.
+    """
+    import text_fingerprint as tf
+
+    ex_path = Path(existing["path"])
+    fm = dict(existing.get("frontmatter") or {})
+    body = existing.get("body") or ""
+
+    _append_source_ref(fm, source_task)
+    _merge_tags_into(fm, list(new_tags or []))
+
+    # Record the fuzzy match reason/score for audit traceability.
+    match_reason = str(existing.get("reason") or "")
+    match_score = existing.get("score")
+
+    ratio = tf.new_content_ratio(new_body, body)
+    body_changed = False
+    if ratio >= tf.MATERIAL_NEW_RATIO and (new_body or "").strip():
+        header = f"## Update — {source_task or 'unknown'} — {_now_iso()}"
+        note = (new_title.strip() + "\n\n") if new_title else ""
+        addition = f"\n\n{header}\n\n{note}{new_body.strip()}\n"
+        body = body.rstrip() + addition
+        body_changed = True
+
+    fm["dedup_hash"] = memory_index.get_hash(body)
+    _validate_frontmatter(fm)
+    rendered = _render_frontmatter_doc(fm, body)
+    _atomic_write_text(ex_path, rendered, workspace_root=workspace_root)
+    memory_index.invalidate(workspace_root, ex_path)
+    _refresh_index_yaml(workspace_root)
+    append_audit(
+        workspace_root,
+        {
+            "ts": _now_iso(),
+            "asset_type": "knowledge",
+            "topic": fm.get("topic") or ex_path.stem,
+            "verdict": "fuzzy_merge",
+            "rationale": (
+                f"match={match_reason} score={match_score} "
+                f"new_ratio={ratio:.2f} body_changed={body_changed}"
+            )[:200],
+            "path": str(ex_path),
+            "source_task": source_task,
+        },
+    )
+    return ex_path
+
+
+def append_by_role_reference(
+    workspace_root: Path | str,
+    *,
+    topic: str,
+    role: str,
+    source_task: str = "",
+) -> Path | None:
+    """Record a *role* as a contributing source for an existing knowledge
+    topic, without duplicating any body content.
+
+    This is the "by_role/<role>.md points at the same by_topic content"
+    invariant expressed in change D: one canonical content file, many
+    per-role references via the ``sources_by_role`` frontmatter list.
+
+    Returns the topic path on success, or None when the topic does not
+    exist. Best-effort — never raises into the caller.
+    """
+    try:
+        target = _knowledge_path(workspace_root, topic)
+    except ValueError:
+        return None
+    if not target.is_file():
+        return None
+
+    def _mutate(doc: dict[str, Any]) -> dict[str, Any]:
+        fm = dict(doc.get("frontmatter") or {})
+        roles = list(fm.get("sources_by_role") or [])
+        if role and role not in roles:
+            roles.append(role)
+            fm["sources_by_role"] = roles
+        _append_source_ref(fm, source_task)
+        return {"frontmatter": fm, "body": doc.get("body", "")}
+
+    try:
+        return patch_knowledge(
+            workspace_root, topic=topic, mutator=_mutate,
+            rationale=f"by_role-ref role={role}",
+        )
+    except Exception:
+        return None
+
+
 # ----------------------------------------------------------------- skills
 
 
@@ -452,6 +657,7 @@ def write_skill(
     body: str,
     status: str = "candidate",
     created_from_task: str = "",
+    fuzzy_merge: bool = True,
 ) -> Path:
     fm = dict(frontmatter)
     fm.setdefault("name", name)
@@ -460,6 +666,24 @@ def write_skill(
     fm.setdefault("created_at", _now_iso())
     fm["dedup_hash"] = memory_index.get_hash(body)
     target = _skill_md(workspace_root, name)
+
+    # ── Change E: fuzzy-merge on write (skills) ─────────────────────
+    if fuzzy_merge and not target.exists():
+        title = str(fm.get("title") or fm.get("name") or name)
+        source_task = str(
+            fm.get("created_from_task") or created_from_task or fm.get("source_task") or ""
+        )
+        matched = _fuzzy_match_existing_skill(workspace_root, title, body)
+        if matched is not None:
+            return _merge_into_existing_skill(
+                workspace_root,
+                existing=matched,
+                source_task=source_task,
+                new_title=title,
+                new_body=body,
+                new_tags=list(fm.get("tags") or []),
+            )
+
     target.parent.mkdir(parents=True, exist_ok=True)
     _atomic_write_text(target, _render_frontmatter_doc(fm, body), workspace_root=workspace_root)
     memory_index.invalidate(workspace_root, target)
@@ -515,6 +739,100 @@ def promote_skill(workspace_root: Path | str, name: str) -> None:
     _atomic_write_text(p, _render_frontmatter_doc(doc["frontmatter"], doc["body"]), workspace_root=workspace_root)
     memory_index.invalidate(workspace_root, p)
     _refresh_index_yaml(workspace_root)
+
+
+def _fuzzy_match_existing_skill(
+    workspace_root: Path | str, new_title: str, new_body: str
+) -> dict[str, Any] | None:
+    """Skill-side counterpart of :func:`_fuzzy_match_existing_knowledge`."""
+    try:
+        import text_fingerprint as tf
+    except ImportError:
+        return None
+    for meta in scan_skills(workspace_root):
+        ex_path = meta.get("path")
+        name = meta.get("name") or (
+            Path(ex_path).parent.name if ex_path else ""
+        )
+        if not name:
+            continue
+        try:
+            doc = read_skill(workspace_root, name)
+        except OSError:
+            continue
+        ex_title = (
+            doc["frontmatter"].get("title")
+            or doc["frontmatter"].get("name")
+            or name
+        )
+        ex_body = doc["body"] or ""
+        matched, reason, score = tf.is_fuzzy_match(
+            new_title, new_body, str(ex_title), ex_body
+        )
+        if matched:
+            return {
+                "path": ex_path,
+                "name": name,
+                "frontmatter": doc["frontmatter"],
+                "body": ex_body,
+                "reason": reason,
+                "score": score,
+            }
+    return None
+
+
+def _merge_into_existing_skill(
+    workspace_root: Path | str,
+    *,
+    existing: dict[str, Any],
+    source_task: str,
+    new_title: str,
+    new_body: str,
+    new_tags: list[str] | None = None,
+) -> Path:
+    """Fold new evidence into an existing skill file in-place (see
+    :func:`_merge_into_existing_knowledge` for policy)."""
+    import text_fingerprint as tf
+
+    ex_path = Path(existing["path"])
+    fm = dict(existing.get("frontmatter") or {})
+    body = existing.get("body") or ""
+
+    _append_source_ref(fm, source_task)
+    _merge_tags_into(fm, list(new_tags or []))
+
+    match_reason = str(existing.get("reason") or "")
+    match_score = existing.get("score")
+
+    ratio = tf.new_content_ratio(new_body, body)
+    body_changed = False
+    if ratio >= tf.MATERIAL_NEW_RATIO and (new_body or "").strip():
+        header = f"## Update — {source_task or 'unknown'} — {_now_iso()}"
+        note = (new_title.strip() + "\n\n") if new_title else ""
+        body = body.rstrip() + f"\n\n{header}\n\n{note}{new_body.strip()}\n"
+        body_changed = True
+
+    fm["dedup_hash"] = memory_index.get_hash(body)
+    rendered = _render_frontmatter_doc(fm, body)
+    _atomic_write_text(ex_path, rendered, workspace_root=workspace_root)
+    memory_index.invalidate(workspace_root, ex_path)
+    _refresh_index_yaml(workspace_root)
+    append_audit(
+        workspace_root,
+        {
+            "ts": _now_iso(),
+            "asset_type": "skill",
+            "name": existing.get("name") or ex_path.parent.name,
+            "verdict": "fuzzy_merge",
+            "rationale": (
+                f"match={match_reason} score={match_score} "
+                f"new_ratio={ratio:.2f} body_changed={body_changed}"
+            )[:200],
+            "path": str(ex_path),
+            "source_task": source_task,
+        },
+    )
+    return ex_path
 
 
 # ----------------------------------------------------------------- config

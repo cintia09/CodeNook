@@ -249,6 +249,31 @@ def _rel_to_workspace(workspace_root: Path | str, path: str) -> str:
         return path
 
 
+def _collect_sources(meta: dict[str, Any]) -> list[str]:
+    """Derive a de-duplicated list of source task-ids from a meta dict.
+
+    Precedence: explicit ``sources:`` list (new, populated by the
+    fuzzy-merge path) → legacy ``related_tasks`` → single
+    ``created_from_task`` fallback. Preserves first-seen order so the
+    list is stable across regenerations.
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def _push(val: Any) -> None:
+        if isinstance(val, str) and val and val not in seen:
+            seen.add(val)
+            out.append(val)
+
+    for v in meta.get("sources") or []:
+        _push(v)
+    for v in meta.get("related_tasks") or []:
+        _push(v)
+    _push(meta.get("created_from_task"))
+    _push(meta.get("source_task"))
+    return out
+
+
 def export_index_yaml(workspace_root: Path | str) -> Path:
     """Write a human-readable summary of memory/{skills,knowledge}/.
 
@@ -288,6 +313,7 @@ def export_index_yaml(workspace_root: Path | str) -> Path:
                 "summary": meta.get("summary", ""),
                 "tags": list(meta.get("tags") or []),
                 "status": meta.get("status", ""),
+                "sources": _collect_sources(meta),
                 "path": _rel_to_workspace(workspace_root, ap),
             }
         )
@@ -301,6 +327,7 @@ def export_index_yaml(workspace_root: Path | str) -> Path:
                 "summary": meta.get("summary", ""),
                 "tags": list(meta.get("tags") or []),
                 "status": meta.get("status", ""),
+                "sources": _collect_sources(meta),
                 "path": _rel_to_workspace(workspace_root, ap),
             }
         )
