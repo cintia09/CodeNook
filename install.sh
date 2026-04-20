@@ -30,7 +30,7 @@
 
 set -euo pipefail
 
-VERSION="0.13.5"
+VERSION="0.13.6"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_PLUGIN="development"
 

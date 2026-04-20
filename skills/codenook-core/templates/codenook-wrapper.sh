@@ -44,6 +44,17 @@ if [ ! -f "$STATE_JSON" ]; then
 fi
 
 KERNEL_DIR="$(CN_STATE="$STATE_JSON" python3 -c "import json,os; d=json.load(open(os.environ['CN_STATE'])); print(d.get('kernel_dir') or '')" 2>/dev/null || true)"
+# On Git-Bash / msys2, kernel_dir is stored in native Windows form (C:\..)
+# but bash test/cd want msys POSIX form (/c/..). Normalize via cygpath when
+# available; otherwise do a manual drive-letter rewrite.
+if [ -n "$KERNEL_DIR" ] && [[ "$KERNEL_DIR" == *'\'* ]]; then
+  if command -v cygpath >/dev/null 2>&1; then
+    KERNEL_DIR="$(cygpath -u "$KERNEL_DIR")"
+  elif [[ "$KERNEL_DIR" =~ ^([A-Za-z]):\\(.*)$ ]]; then
+    _drv="$(printf '%s' "${BASH_REMATCH[1]}" | tr 'A-Z' 'a-z')"
+    KERNEL_DIR="/${_drv}/${BASH_REMATCH[2]//\\//}"
+  fi
+fi
 if [ -z "$KERNEL_DIR" ] || [ ! -d "$KERNEL_DIR" ]; then
   echo "codenook: kernel_dir missing/invalid in $STATE_JSON" >&2
   echo "          re-run: bash install.sh \"$CODENOOK_WORKSPACE\"" >&2

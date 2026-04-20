@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.6] - Wrapper: normalize kernel_dir from Windows backslash form
+
+### Fixed
+
+- **`templates/codenook-wrapper.sh`** — `state.json.kernel_dir` is
+  written by Python `Path.resolve()` which on Windows produces a native
+  `C:\foo\bar` string. The wrapper then ran `[ -d "C:\foo\bar" ]`
+  under msys/Git-Bash, which always returns false, so every
+  `.codenook/bin/codenook` invocation on Windows aborted with
+  "kernel_dir missing/invalid". Now normalised via `cygpath -u`
+  (preferred) or a manual `^([A-Za-z]):\\(.*)$ → /\L\1/\2` rewrite.
+
 ## [0.13.5] - Windows: codenook.cmd shim so PowerShell can call the wrapper
 
 ### Added
