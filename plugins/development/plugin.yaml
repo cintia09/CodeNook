@@ -16,7 +16,7 @@
 
 # ── M2 install-pipeline contract ────────────────────────────────────────
 id: development
-version: "0.1.1"
+version: "0.1.2"
 type: domain
 entry_points:
   install: phases.yaml
@@ -46,8 +46,20 @@ keywords:
   - implement
   - refactor
   - fix bug
+  - debug
   - test
   - pytest
+  - code review
+  - PR
+  - commit
+  - 实现
+  - 修复
+  - 修 bug
+  - 重构
+  - 调试
+  - 测试
+  - 代码评审
+  - 提交
 examples:
   - "Add a --tag filter to the xueba CLI list command"
   - "Refactor the auth middleware to use JWT"
@@ -102,3 +114,15 @@ config:
 # precedence on overlapping inputs.
 routing:
   priority: 50
+
+# Skills shipped with this plugin. Each role MAY invoke any of these
+# via `skill-resolve --name <name> --plugin development`.
+# This list is the single source of truth: role files MUST NOT
+# hard-code skill names. To add or remove a SHIPPED skill, edit only
+# here. Users may also drop additional skills into
+# `<workspace>/.codenook/plugins/development/skills/<name>/` — those
+# are resolved by skill-resolve at the plugin_shipped tier but are
+# user-managed and intentionally not listed here.
+available_skills:
+  - name: test-runner
+    use_case: "run pytest / jest / go test; tester role uses this in every run"

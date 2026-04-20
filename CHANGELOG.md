@@ -1,3 +1,24 @@
+## v0.13.21 (2026-04-20)
+
+### Added
+- `plugins/development/plugin.yaml`: declarative `available_skills:` block
+  (currently lists only the shipped `test-runner`). Single source of truth
+  for which skills roles may invoke; extensible by users via
+  workspace-local override of plugin.yaml.
+- Chinese keywords in `plugins/development/plugin.yaml` (实现, 修复, 修 bug,
+  重构, 调试, 测试, 代码评审, 提交) and `plugins/generic/plugin.yaml` (总结,
+  解释, 说明, 帮我, 帮忙, 问答, 研究, 头脑风暴, 待办) for better conductor
+  routing on Chinese prompts.
+
+### Changed
+- Development role files (clarifier/designer/planner/implementer/tester/
+  acceptor/reviewer/validator) `## Skills` section: replaced the
+  hard-coded "test-runner is the only one you should invoke" prose with
+  a pointer to `available_skills:` in plugin.yaml + the `skill-resolve`
+  invocation pattern. Adding a new skill now requires editing plugin.yaml
+  only; role files stay stable.
+- Plugin manifest version bump: development 0.1.1 -> 0.1.2,
+  generic 0.1.1 -> 0.1.2 (writing unchanged).
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -2576,3 +2597,4 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - Violation response template: shows role, blocked action, and switch suggestion
 - agent-init Step 7a: CLAUDE.md template includes enforcement rules
 - Works in both Claude Code (hook-enforced) and Copilot CLI (self-check enforced)
+

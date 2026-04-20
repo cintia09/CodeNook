@@ -12,7 +12,7 @@
 
 # ── M2 install-pipeline contract ────────────────────────────────────────
 id: generic
-version: "0.1.1"
+version: "0.1.2"
 type: domain
 entry_points:
   install: phases.yaml
@@ -37,7 +37,17 @@ keywords:
   - research
   - todo
   - list
+  - brainstorm
   - generic
+  - 总结
+  - 解释
+  - 说明
+  - 帮我
+  - 帮忙
+  - 问答
+  - 研究
+  - 头脑风暴
+  - 待办
 examples:
   - "Summarise this PDF"
   - "Help me brainstorm holiday ideas"
