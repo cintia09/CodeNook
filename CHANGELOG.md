@@ -1,4 +1,69 @@
-## v0.15.0 (2026-04-20)
+## v0.15.1 (2026-04-21)
+
+### Changed
+- **Knowledge extraction — coarse-grained per-task output** (`64f9c95`).
+  `extractor-batch.sh` used to fan out one knowledge-extractor
+  invocation per contributing role (clarifier / planner / tester /
+  acceptor → four near-duplicate `by_topic` files per task). Per-role
+  candidates harvested from `tasks/<T>/outputs/*.md` are now folded
+  into a single synthesized candidate per task. Contributing roles
+  are preserved on the merged entry's `sources_by_role:` frontmatter
+  and in a trailing `## Sources` section. Skill-extractor retains
+  its existing `PER_TASK_CAP=1` cap.
+- **Write-time fuzzy-merge dedup** (`64f9c95`). Before materialising
+  a new `memory/knowledge/by_topic/<topic>.md` or
+  `memory/skills/<name>.md`, the layer scans existing entries via a
+  new stdlib-only `text_fingerprint` module (normalized fingerprint
+  + `difflib.SequenceMatcher` body ratio + 4-shingle Jaccard
+  overlap). Matches land as a `sources:` append + optional dated
+  `## Update — T-NNN — <iso>` section when the new body contributes
+  ≥ 20% new shingles. Callers that need deterministic creation
+  (tests, the extractor's suffix-on-collision branch) can pass
+  `fuzzy_merge=False`. `memory/index.yaml` now emits per-entry
+  `sources: [T-NNN, T-MMM, …]`.
+
+### Fixed
+- **Concurrent merge lost updates** (`151d8e5`, [CRITICAL]). The
+  v0.15.1 merge helpers did scan → read → mutate → `_atomic_write_text`
+  without holding a lock. Two concurrent writers fuzzy-matching the
+  same target both read the pre-merge body, each appended only their
+  own `sources:` entry, and `os.replace` serialised with the second
+  writer silently overwriting the first's additions. Fixed by
+  acquiring a directory-level `_knowledge_write_lock` /
+  `_skills_write_lock` sentinel over the full
+  scan+match+merge+write sequence, with a re-check of
+  `target.exists()` inside the lock to close the TOCTOU gap.
+- **Title-equality false positives** (`151d8e5`, [MAJOR]).
+  `is_fuzzy_match` returned "merge" on `title_normalized_match` alone,
+  which conflated unrelated entries sharing a generic title ("Key
+  Findings", "Summary", "Notes"). Title equality now requires
+  `body_ratio ≥ TITLE_MATCH_MIN_BODY_RATIO` (0.30) before declaring a
+  match; the 0.85 body-ratio and 0.70 shingle-Jaccard paths remain
+  disjunctive as before.
+- **Suffix-on-collision branch silently bypassed by fuzzy-merge**
+  (`151d8e5`, [MAJOR]). knowledge-extractor's "file exists → append
+  timestamp suffix" branch (FR-LAY-3) forgot to pass
+  `fuzzy_merge=False`, so a suffixed path chosen explicitly to stay
+  distinct could still be folded into a prior entry through a title
+  match. The branch now passes `fuzzy_merge=not suffixed`.
+- **Sources block truncated away** (`151d8e5`). The aggregator
+  truncated `body + "## Sources"` together, chopping off the Sources
+  list for tasks with long role outputs. Truncation now happens
+  before the Sources block is appended.
+- **`append_by_role_reference` swallowed real failures** (`151d8e5`).
+  Narrowed the except to `FileNotFoundError` / `ValueError`; other
+  exceptions now emit an audit record with
+  `verdict=by_role_reference_failed` for observability.
+- **`extractor-batch.sh` exported dead `CN_ARTEFACT_PATHS`**
+  (`151d8e5`). Removed; no consumer existed.
+- **Fuzzy-match scan was O(N²) on disk reads** (`151d8e5`). Added a
+  module-level `_BODY_CACHE` keyed by `(path, mtime_ns)` with
+  `_read_knowledge_cached` / `_read_skill_cached` wrappers. Stale
+  entries auto-invalidate on atomic write. Sufficient until memory
+  grows beyond a few hundred entries, at which point a proper index
+  is warranted (TODO in place).
+
+
 
 ### Added
 - **Development plugin v0.2.0 — profile-aware 11-phase pipeline**
