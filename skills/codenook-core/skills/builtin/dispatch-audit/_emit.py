@@ -72,10 +72,26 @@ def main() -> int:
         "payload_preview": redact(payload)[:PREVIEW_LEN],
     }
 
+    line = json.dumps(entry, ensure_ascii=False) + "\n"
     # Single-line append — atomic enough at M1 for typical `write()` sizes
     # well under PIPE_BUF. No locking needed for the 1-line case.
     with log_path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        f.write(line)
+
+    # E2E-P-007 — also tee into per-task audit.jsonl when payload carries
+    # a task id. Best-effort; failures must never block the dispatch.
+    try:
+        task_id = json.loads(payload).get("task")
+    except Exception:
+        task_id = None
+    if task_id:
+        try:
+            tdir = ws / ".codenook" / "tasks" / str(task_id)
+            tdir.mkdir(parents=True, exist_ok=True)
+            with (tdir / "audit.jsonl").open("a", encoding="utf-8") as f:
+                f.write(line)
+        except OSError:
+            pass
 
     return 0
 

@@ -136,8 +136,20 @@ def cmd_decide(ws: Path, eid: str, decision: str, reviewer: str,
     # Mirror to append-only history.
     hist = ws / ".codenook" / "history" / "hitl.jsonl"
     hist.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(entry, ensure_ascii=False, separators=(",", ":")) + "\n"
     with hist.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False, separators=(",", ":")) + "\n")
+        f.write(line)
+
+    # E2E-P-007 — per-task audit.jsonl tee.
+    task_id = entry.get("task_id")
+    if task_id:
+        try:
+            tdir = ws / ".codenook" / "tasks" / str(task_id)
+            tdir.mkdir(parents=True, exist_ok=True)
+            with (tdir / "audit.jsonl").open("a", encoding="utf-8") as f:
+                f.write(line)
+        except OSError:
+            pass
 
     return 0
 
