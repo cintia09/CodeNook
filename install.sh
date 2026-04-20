@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CodeNook v0.11.2 — top-level installer.
+# CodeNook v0.11.3 — top-level installer.
 #
 # Usage:
 #   bash install.sh                       # install into $PWD
@@ -29,7 +29,7 @@
 
 set -euo pipefail
 
-VERSION="0.11.2"
+VERSION="0.11.3"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_PLUGIN="development"
 
@@ -126,28 +126,115 @@ if [ ! -d "$PLUGIN_SRC" ]; then
   err "plugin source not found: $PLUGIN_SRC"; exit 2
 fi
 
+# Read incoming plugin version from plugin.yaml (best-effort).
+read_plugin_version() {
+  python3 -c "
+import sys, yaml
+try:
+    d = yaml.safe_load(open('$PLUGIN_SRC/plugin.yaml')) or {}
+    print(d.get('version') or '')
+except Exception:
+    print('')
+" 2>/dev/null
+}
+NEW_VERSION="$(read_plugin_version)"
+
+# E2E-016: idempotent re-install. If state.json shows the same plugin id at
+# the same version, auto-promote to --upgrade so G03/G07 don't trip. If the
+# version differs, --upgrade must be explicit (preserves accidental-bump
+# protection).
+STATE_FILE="$WORKSPACE/.codenook/state.json"
+EXISTING_VERSION=""
+EXISTING_HASH=""
+if [ -f "$STATE_FILE" ]; then
+  EXISTING_VERSION="$(python3 -c "
+import json,sys
+try:
+    d=json.load(open('$STATE_FILE'))
+    for r in (d.get('installed_plugins') or []):
+        if r.get('id')=='$PLUGIN_ID':
+            print(r.get('version') or ''); break
+    else:
+        print('')
+except Exception:
+    print('')
+" 2>/dev/null)"
+  EXISTING_HASH="$(python3 -c "
+import json
+try:
+    d=json.load(open('$STATE_FILE'))
+    for r in (d.get('installed_plugins') or []):
+        if r.get('id')=='$PLUGIN_ID':
+            print(r.get('files_sha256') or ''); break
+    else:
+        print('')
+except Exception:
+    print('')
+" 2>/dev/null)"
+fi
+
+IDEMPOTENT_RUN=0
+if [ -n "$EXISTING_VERSION" ] && [ "$EXISTING_VERSION" = "$NEW_VERSION" ] && [ -z "$UPGRADE" ]; then
+  # Same version on disk → automatic upgrade (idempotent path).
+  UPGRADE="--upgrade"
+  IDEMPOTENT_RUN=1
+elif [ -n "$EXISTING_VERSION" ] && [ "$EXISTING_VERSION" != "$NEW_VERSION" ] && [ -z "$UPGRADE" ]; then
+  err "plugin '$PLUGIN_ID' is installed at v${EXISTING_VERSION}; this source is v${NEW_VERSION}"
+  err "re-run with --upgrade to perform the version bump"
+  exit 3
+fi
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🤖 CodeNook v${VERSION}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Workspace : $WORKSPACE"
 echo "  Plugin    : ${PLUGIN_ID} (from ${PLUGIN_SRC})"
+[ -n "$NEW_VERSION" ] && echo "  Version   : ${NEW_VERSION}${EXISTING_VERSION:+ (was ${EXISTING_VERSION})}"
 [ -n "$DRY_RUN" ] && echo "  Mode      : DRY-RUN"
-[ -n "$UPGRADE" ] && echo "  Mode      : UPGRADE"
+[ -n "$UPGRADE" ] && [ "$IDEMPOTENT_RUN" -eq 0 ] && echo "  Mode      : UPGRADE"
+[ "$IDEMPOTENT_RUN" -eq 1 ] && echo "  Mode      : IDEMPOTENT (re-install)"
 echo ""
 
-set +e
-"$KERNEL_INSTALL" --src "$PLUGIN_SRC" --workspace "$WORKSPACE" $DRY_RUN $UPGRADE
-rc=$?
-set -e
-if [ "$rc" -ne 0 ]; then
-  err "kernel install exited with rc=$rc"
-  exit "$rc"
+if [ "$IDEMPOTENT_RUN" -eq 1 ] && [ -z "$DRY_RUN" ]; then
+  # E2E-016: skip the kernel install entirely — same version already on disk.
+  # G04 (--upgrade rejects no-op) would otherwise fire. We still re-seed the
+  # bin/memory/schemas below to heal any user-deleted files.
+  info "↻ already installed (idempotent): plugin ${PLUGIN_ID} v${NEW_VERSION}"
+  # E2E-019: still upgrade state.json to the v0.11.3 schema (kernel_version,
+  # kernel_dir, files_sha256, schema_version, bin) so the wrapper resolves.
+  CN_WS="$WORKSPACE" CN_PLUGIN="$PLUGIN_ID" CN_VER="$NEW_VERSION" \
+  CN_KV="$VERSION" CN_KDIR="$SELF_DIR/skills/codenook-core/skills/builtin" \
+  CN_PSRC="$PLUGIN_SRC" \
+  python3 - <<'PY'
+import os, sys
+sys.path.insert(0, os.path.join(os.environ["CN_KDIR"], "install-orchestrator"))
+sys.path.insert(0, os.path.join(os.environ["CN_KDIR"], "_lib"))
+from pathlib import Path
+import _orchestrator as orch
+ws = Path(os.environ["CN_WS"])
+sha = orch._aggregate_files_sha256(ws / ".codenook" / "plugins" / os.environ["CN_PLUGIN"])
+orch.update_state_json(
+    ws, os.environ["CN_PLUGIN"], os.environ["CN_VER"],
+    kernel_version=os.environ["CN_KV"],
+    kernel_dir=os.environ["CN_KDIR"],
+    files_sha256=sha,
+)
+PY
+else
+  set +e
+  "$KERNEL_INSTALL" --src "$PLUGIN_SRC" --workspace "$WORKSPACE" $DRY_RUN $UPGRADE
+  rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    err "kernel install exited with rc=$rc"
+    exit "$rc"
+  fi
+  info "Plugin '$PLUGIN_ID' installed into $WORKSPACE/.codenook/"
 fi
-info "Plugin '$PLUGIN_ID' installed into $WORKSPACE/.codenook/"
 
 # ── CLAUDE.md augmentation (DR-006) ──────────────────────────────────────
 if [ -n "$DRY_RUN" ]; then
-  echo "  [DRY-RUN] Would write CLAUDE.md bootloader block"
+  echo "  [DRY-RUN] Would write CLAUDE.md bootloader block + bin wrapper + memory skeleton"
   exit 0
 fi
 
@@ -157,11 +244,65 @@ if [ "$AUGMENT_CLAUDE" -eq 1 ]; then
     --version "$VERSION" \
     --plugin "$PLUGIN_ID"
   info "CLAUDE.md bootloader block synced (idempotent)"
+
+  # E2E-017: warn (don't fail) if the user's own CLAUDE.md content outside
+  # the codenook marker block contains legacy v4.x role tokens.
+  python3 "$SELF_DIR/skills/codenook-core/skills/builtin/_lib/claude_md_linter.py" \
+    --marker-only --json "$WORKSPACE/CLAUDE.md" >/dev/null 2>&1 || true
+  outside_hits="$(
+    {
+      python3 "$SELF_DIR/skills/codenook-core/skills/builtin/_lib/claude_md_linter.py" \
+        --outside-marker-only --json "$WORKSPACE/CLAUDE.md" 2>/dev/null || true
+    } | python3 -c "import json,sys
+try:
+  d=json.load(sys.stdin)
+  toks=sorted({f.get('token','') for f in (d.get('errors',[])+d.get('warnings',[])) if f.get('token')})
+  print(','.join(t for t in toks if t))
+except Exception:
+  pass
+" || true
+  )"
+  if [ -n "$outside_hits" ]; then
+    warn "legacy v4.x tokens in CLAUDE.md outside codenook block: ${outside_hits}"
+    warn "  they're harmless but consider cleanup; rerun with"
+    warn "  \`bash install.sh --migrate-claude-md\` (planned v0.12)"
+  fi
 fi
+
+# ── E2E-003 / E2E-018: seed schemas, memory skeleton, bin wrapper ────────
+TPL_DIR="$SELF_DIR/skills/codenook-core/templates"
+SCHEMAS_SRC="$SELF_DIR/skills/codenook-core/schemas"
+
+mkdir -p "$WORKSPACE/.codenook/schemas"
+for f in task-state.schema.json hitl-entry.schema.json queue-entry.schema.json \
+         locks-entry.schema.json installed.schema.json; do
+  [ -f "$SCHEMAS_SRC/$f" ] && cp -f "$SCHEMAS_SRC/$f" "$WORKSPACE/.codenook/schemas/$f"
+done
+[ -f "$TPL_DIR/state.example.md" ] && \
+  cp -f "$TPL_DIR/state.example.md" "$WORKSPACE/.codenook/state.example.md"
+
+# Memory skeleton (idempotent — never overwrite existing files).
+MEM_DIR="$WORKSPACE/.codenook/memory"
+for sub in knowledge skills history _pending; do
+  mkdir -p "$MEM_DIR/$sub"
+  [ -f "$MEM_DIR/$sub/.gitkeep" ] || : > "$MEM_DIR/$sub/.gitkeep"
+done
+if [ ! -f "$MEM_DIR/config.yaml" ]; then
+  cp "$TPL_DIR/memory-config.yaml" "$MEM_DIR/config.yaml"
+fi
+
+# Bin wrapper (idempotent — overwrite is OK; it's source-controlled).
+BIN_DIR="$WORKSPACE/.codenook/bin"
+mkdir -p "$BIN_DIR"
+cp -f "$TPL_DIR/codenook-wrapper.sh" "$BIN_DIR/codenook"
+chmod +x "$BIN_DIR/codenook"
+
+info "Seeded .codenook/{schemas,memory,bin/codenook}"
 
 echo ""
 echo "  Quick start:"
 echo "    cd \"$WORKSPACE\""
-echo "    # In Claude Code or Copilot CLI session:"
-echo "    \"CodeNook: start a new task\""
+echo "    .codenook/bin/codenook --help"
+echo "    .codenook/bin/codenook task new --title \"Implement X\""
+echo "    .codenook/bin/codenook tick --task T-001"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
