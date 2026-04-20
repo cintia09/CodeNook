@@ -2,7 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.0] - Self-contained workspace install
+
+### Changed
+
+- **install.sh** now bootstraps the kernel into the target workspace
+  before invoking the orchestrator. Every workspace gets a private,
+  fully self-contained copy of `codenook-core/` at
+  `<ws>/.codenook/codenook-core/`. `state.json.kernel_dir` and all
+  helper paths (`claude_md_sync.py`, `claude_md_linter.py`, schemas,
+  templates) now resolve to the workspace-local copy, so a workspace
+  no longer depends on the source repo's filesystem location.
+- **builtin/init/init.sh** copies the entire `codenook-core/` tree
+  (excluding `tests/`, `__pycache__`, `.pytest_cache`) via VERSION
+  compare + atomic swap. Idempotent: re-running is a cheap version
+  check.
+- **CLAUDE.md** protocol command paths rewritten to
+  `<ws>/.codenook/codenook-core/skills/builtin/...`. Removed all
+  legacy "v6" version markers (current is v0.13.0).
+
+### Why
+
+Prior versions wrote the source repo's absolute path
+(`<src>/skills/codenook-core/skills/builtin`) into each workspace's
+`state.json`. Moving or deleting the source repo broke every
+workspace. This release makes each workspace a portable, hermetic
+unit.
+
 ## [0.11.3] - 2026-04-20 · Usability fix-pack (E2E round 1)
+
 
 Round-1 follow-up to the v0.11.2 end-to-end report
 (`docs/e2e-report-v0.11.2.md`): 11 user-blocking findings closed
