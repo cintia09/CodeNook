@@ -119,10 +119,29 @@ dispatch_one() {
     return 0
   fi
   # Spawn detached; failures captured to per-extractor log, not propagated.
+  # E2E-015: dedup err lines so repeated runs don't unbounded-grow the file.
   local err_log="$HISTORY_DIR/.extractor-${name}.err"
+  local err_tmp="$HISTORY_DIR/.extractor-${name}.err.tmp.$$"
   nohup "$script" --task-id "$TASK_ID" --workspace "$WORKSPACE" \
         --phase "$PHASE" --reason "$REASON" \
-        </dev/null >>"$err_log" 2>&1 &
+        </dev/null >>"$err_tmp" 2>&1 &
+  disown $! 2>/dev/null || true
+  # Best-effort dedup-merge: when the spawned process completes (usually
+  # near-instantly for mock LLM), splice unique lines from tmp into the
+  # canonical err log. Idempotency keeps the err file bounded by unique
+  # error count, matching E2E-015 / E2E-009 follow-up.
+  (
+    wait $! 2>/dev/null || true
+    if [ -f "$err_tmp" ]; then
+      if [ -f "$err_log" ]; then
+        cat "$err_log" "$err_tmp" 2>/dev/null | awk '!seen[$0]++' \
+          > "$err_log.new" && mv -f "$err_log.new" "$err_log"
+      else
+        awk '!seen[$0]++' "$err_tmp" > "$err_log" 2>/dev/null || true
+      fi
+      rm -f "$err_tmp"
+    fi
+  ) &
   disown $! 2>/dev/null || true
   log_event "extractor_dispatched" "$name"
   ENQUEUED+=("$name")

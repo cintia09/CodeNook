@@ -130,6 +130,70 @@ def _read_task_context(workspace: Path, task_id: str, input_path: Path | None) -
     return ("\n\n".join(chunks))[:INPUT_BODY_TRUNC]
 
 
+# E2E-009: extract knowledge candidates directly from role-output frontmatter.
+_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+
+
+def _candidates_from_role_outputs(workspace: Path, task_id: str) -> list[dict] | None:
+    """Scan ``.codenook/tasks/<task>/outputs/*.md`` for an ``extract:`` block in
+    the YAML frontmatter and harvest knowledge candidates from it.
+
+    Returns:
+        * ``None`` if no role outputs were found at all (caller may fall
+          back to the LLM-driven pipeline).
+        * ``[]`` (empty list) if outputs exist but none declared an
+          ``extract:`` block — graceful "no_candidates" path.
+        * A list of normalized candidate dicts otherwise.
+
+    Frontmatter contract::
+
+        ---
+        verdict: ok
+        extract:
+          - title: "Use iterative fib for n<1000"
+            summary: "Linear-time path avoids stack blowup"
+            tags: [algorithm, fibonacci, performance]
+            body: |
+              Detail body here…
+        ---
+    """
+    try:
+        import yaml  # local import — extract.py must work in mock-only envs
+    except ImportError:  # pragma: no cover
+        return None
+
+    out_dir = workspace / ".codenook" / "tasks" / task_id / "outputs"
+    if not out_dir.is_dir():
+        return None
+    files = sorted(out_dir.glob("*.md"))
+    if not files:
+        return None
+
+    candidates: list[dict] = []
+    for p in files:
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        m = _FRONTMATTER_RE.match(text)
+        if not m:
+            continue
+        try:
+            fm = yaml.safe_load(m.group(1)) or {}
+        except yaml.YAMLError:
+            continue
+        if not isinstance(fm, dict):
+            continue
+        block = fm.get("extract")
+        if block is None:
+            continue
+        items = block if isinstance(block, list) else [block]
+        for it in items:
+            if isinstance(it, dict):
+                candidates.append(it)
+    return candidates
+
+
 # ------------------------------------------------------------ LLM helpers
 
 
@@ -454,44 +518,64 @@ def main(argv: list[str]) -> int:
 
     secret_blocked = False
     try:
-        body_in = _read_task_context(workspace, task_id, input_path)
-        prompt = _build_extract_prompt(task_id, phase, reason, body_in)
-        try:
-            raw = call_llm(prompt, call_name="extract")
-        except Exception as e:
-            print(f"[best-effort] llm call failed: {e}", file=sys.stderr)
+        # E2E-009: prefer YAML-frontmatter `extract:` blocks emitted by
+        # role outputs. Fall back to the LLM-driven path only if no role
+        # outputs exist.
+        cands_raw: list[dict] | None
+        cands_raw = _candidates_from_role_outputs(workspace, task_id)
+        used_frontmatter = cands_raw is not None
+        if used_frontmatter and not cands_raw:
             ml.append_audit(
                 workspace,
                 {
                     "ts": _now_iso(),
-                    "event": "extract_failed",
+                    "event": "extract_complete",
                     "asset_type": "knowledge",
                     "task_id": task_id,
-                    "status": "failed",
-                    "reason": str(e)[:200],
+                    "status": "no_candidates",
+                    "reason": "role outputs present but no `extract:` frontmatter block",
                 },
             )
             return 0
+        if cands_raw is None:
+            body_in = _read_task_context(workspace, task_id, input_path)
+            prompt = _build_extract_prompt(task_id, phase, reason, body_in)
+            try:
+                raw = call_llm(prompt, call_name="extract")
+            except Exception as e:
+                print(f"[best-effort] llm call failed: {e}", file=sys.stderr)
+                ml.append_audit(
+                    workspace,
+                    {
+                        "ts": _now_iso(),
+                        "event": "extract_failed",
+                        "asset_type": "knowledge",
+                        "task_id": task_id,
+                        "status": "failed",
+                        "reason": str(e)[:200],
+                    },
+                )
+                return 0
 
-        try:
-            payload = _parse_json_payload(raw)
-            cands_raw = payload.get("candidates") or []
-            if not isinstance(cands_raw, list):
-                raise ValueError("candidates must be a list")
-        except Exception as e:
-            print(f"[best-effort] candidate parse failed: {e}", file=sys.stderr)
-            ml.append_audit(
-                workspace,
-                {
-                    "ts": _now_iso(),
-                    "event": "extract_failed",
-                    "asset_type": "knowledge",
-                    "task_id": task_id,
-                    "status": "failed",
-                    "reason": f"parse: {e}"[:200],
-                },
-            )
-            return 0
+            try:
+                payload = _parse_json_payload(raw)
+                cands_raw = payload.get("candidates") or []
+                if not isinstance(cands_raw, list):
+                    raise ValueError("candidates must be a list")
+            except Exception as e:
+                print(f"[best-effort] candidate parse failed: {e}", file=sys.stderr)
+                ml.append_audit(
+                    workspace,
+                    {
+                        "ts": _now_iso(),
+                        "event": "extract_failed",
+                        "asset_type": "knowledge",
+                        "task_id": task_id,
+                        "status": "failed",
+                        "reason": f"parse: {e}"[:200],
+                    },
+                )
+                return 0
 
         normalized: list[dict] = []
         for cand in cands_raw:
