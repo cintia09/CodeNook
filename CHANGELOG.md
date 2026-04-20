@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.4] - Hot-fix: post-install assertion under Git-Bash on Windows
+
+### Fixed
+
+- **install.sh** — the E2E-P-001 post-install assertion read
+  `state.json` by interpolating `$WORKSPACE` (a POSIX-style `/c/...`
+  path under Git-Bash) directly inside a Python `-c` string. Native
+  Windows Python could not open that path, so the assertion silently
+  read `kernel_version=''` and aborted every install on Windows even
+  though `state.json` was correct. Now passed via `CN_STATE` env var
+  so msys path conversion kicks in.
+
 ## [0.13.3] - Code review follow-up: CI rebuild + doc version sync
 
 ### Fixed

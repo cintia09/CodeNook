@@ -30,7 +30,7 @@
 
 set -euo pipefail
 
-VERSION="0.13.3"
+VERSION="0.13.4"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_PLUGIN="development"
 
@@ -365,7 +365,9 @@ chmod +x "$BIN_DIR/codenook"
 info "Seeded .codenook/{schemas,memory,bin/codenook}"
 
 # E2E-P-001: assert state.json.kernel_version matches the installer VERSION.
-ACTUAL_KV="$(python3 -c "import json; print(json.load(open('$WORKSPACE/.codenook/state.json')).get('kernel_version',''))" 2>/dev/null || echo '')"
+# Pass the path via env so msys-style POSIX paths (/c/...) are converted to
+# native Windows form before native python sees them on Windows / Git-Bash.
+ACTUAL_KV="$(CN_STATE="$WORKSPACE/.codenook/state.json" python3 -c "import json,os; print(json.load(open(os.environ['CN_STATE'])).get('kernel_version',''))" 2>/dev/null || echo '')"
 if [ "$ACTUAL_KV" != "$VERSION" ]; then
   err "post-install assertion failed: state.json.kernel_version='$ACTUAL_KV' != VERSION='$VERSION'"
   err "  (this indicates the inner skills/codenook-core/VERSION drifted from the root VERSION)"
