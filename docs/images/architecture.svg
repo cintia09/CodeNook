@@ -1,212 +1,216 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1280" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="14">
-  <!-- CodeNook v0.14.0 architecture - 4-layer C4-style view.
-       Layers (top-down): User session / Per-workspace runtime / Kernel / Plugins.
-       v0.14 changes vs v0.11: Python installer (install.py) + Python CLI shim
-       (.codenook/bin/codenook) replace the bash wrapper; three first-party plugins. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
   <defs>
-    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
-      <path d="M0,0 L12,6 L0,12 z" fill="#444"/>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
-    <marker id="arrow-blue" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
-      <path d="M0,0 L12,6 L0,12 z" fill="#2c5d87"/>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2563eb"/>
     </marker>
-    <marker id="arrow-green" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
-      <path d="M0,0 L12,6 L0,12 z" fill="#0f7a4a"/>
+    <marker id="arrow-violet" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/>
     </marker>
-    <marker id="arrow-orange" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
-      <path d="M0,0 L12,6 L0,12 z" fill="#b45309"/>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#059669"/>
     </marker>
   </defs>
-  <style>
-    .layer-title  { font-size: 16px; font-weight: 700; fill: #1f2937; }
-    .layer-sub    { font-size: 12px; fill: #6b7280; }
-    .box-title    { font-size: 14px; font-weight: 700; fill: #1f2937; }
-    .box-sub      { font-size: 12px; fill: #4b5563; }
-    .small        { font-size: 11px; fill: #6b7280; }
-    .badge        { font-size: 11px; font-weight: 700; fill: #ffffff; }
-    .arrow-label  { font-size: 11px; fill: #374151; }
-    .new-tag      { font-size: 10px; font-weight: 700; fill: #b45309; }
-  </style>
-  <rect x="0" y="0" width="1200" height="1280" fill="#fafafa"/>
-  <text x="600" y="38" text-anchor="middle" font-size="22" font-weight="700" fill="#111827">CodeNook v0.14.0 - Plugin Architecture</text>
-  <text x="600" y="60" text-anchor="middle" font-size="13" fill="#6b7280">Kernel + per-workspace runtime + read-only plugins. Python installer/CLI; bash dependency removed.</text>
-  <rect x="40" y="90" width="1120" height="120" rx="10" ry="10" fill="#eef2ff" stroke="#a5b4fc" stroke-width="1.5"/>
-  <text x="60" y="114" class="layer-title">1. User session</text>
-  <text x="60" y="132" class="layer-sub">Claude Code / Copilot CLI - the conductor reads CLAUDE.md bootloader and relays opaque envelopes.</text>
-  <rect x="80" y="148" width="240" height="46" rx="6" ry="6" fill="#ffffff" stroke="#6366f1" stroke-width="1.5"/>
-  <text x="200" y="168" text-anchor="middle" class="box-title">User</text>
-  <text x="200" y="185" text-anchor="middle" class="box-sub">natural-language turn</text>
-  <rect x="380" y="148" width="320" height="46" rx="6" ry="6" fill="#ffffff" stroke="#6366f1" stroke-width="1.5"/>
-  <text x="540" y="168" text-anchor="middle" class="box-title">Main session (conductor)</text>
-  <text x="540" y="185" text-anchor="middle" class="box-sub">CLAUDE.md bootloader - opaque relay</text>
-  <rect x="760" y="148" width="360" height="46" rx="6" ry="6" fill="#ffffff" stroke="#6366f1" stroke-width="1.5"/>
-  <text x="940" y="168" text-anchor="middle" class="box-title">Sub-agents (router / phase / extractor)</text>
-  <text x="940" y="185" text-anchor="middle" class="box-sub">isolated context per dispatch</text>
-  <line x1="320" y1="171" x2="378" y2="171" stroke="#444" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <line x1="700" y1="171" x2="758" y2="171" stroke="#444" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <rect x="40" y="240" width="1120" height="320" rx="10" ry="10" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.5"/>
-  <text x="60" y="264" class="layer-title">2. Per-workspace runtime  -  &lt;ws&gt;/.codenook/</text>
-  <text x="60" y="282" class="layer-sub">Self-contained: every workspace owns its kernel copy, plugins, memory, tasks, and a Python CLI shim.</text>
-  <rect x="80" y="298" width="260" height="76" rx="8" ry="8" fill="#ffffff" stroke="#10b981" stroke-width="2"/>
-  <rect x="80" y="298" width="42" height="18" rx="4" ry="4" fill="#b45309"/>
-  <text x="101" y="311" text-anchor="middle" class="badge">NEW</text>
-  <text x="210" y="330" text-anchor="middle" class="box-title">.codenook/bin/codenook</text>
-  <text x="210" y="348" text-anchor="middle" class="box-sub">Python shim (POSIX + .cmd)</text>
-  <text x="210" y="364" text-anchor="middle" class="small">task / router / tick / hitl / decide / status / chain</text>
-  <rect x="370" y="298" width="260" height="76" rx="8" ry="8" fill="#ffffff" stroke="#10b981" stroke-width="1.5"/>
-  <text x="500" y="322" text-anchor="middle" class="box-title">codenook-core/  (kernel copy)</text>
-  <text x="500" y="340" text-anchor="middle" class="box-sub">staged at install time</text>
-  <text x="500" y="358" text-anchor="middle" class="small">no dependency on source-repo path</text>
-  <rect x="660" y="298" width="220" height="76" rx="8" ry="8" fill="#ffffff" stroke="#10b981" stroke-width="1.5"/>
-  <text x="770" y="322" text-anchor="middle" class="box-title">CLAUDE.md</text>
-  <text x="770" y="340" text-anchor="middle" class="box-sub">bootloader block</text>
-  <text x="770" y="358" text-anchor="middle" class="small">codenook:begin / codenook:end markers</text>
-  <rect x="910" y="298" width="210" height="76" rx="8" ry="8" fill="#ffffff" stroke="#10b981" stroke-width="1.5"/>
-  <text x="1015" y="322" text-anchor="middle" class="box-title">state.json + schemas/</text>
-  <text x="1015" y="340" text-anchor="middle" class="box-sub">model catalog + config</text>
-  <text x="1015" y="358" text-anchor="middle" class="small">JSON schemas for validators</text>
-  <rect x="80" y="394" width="500" height="146" rx="8" ry="8" fill="#ffffff" stroke="#0f7a4a" stroke-width="1.5"/>
-  <text x="100" y="416" class="box-title">plugins/&lt;id&gt;/  (read-only, atomic-committed)</text>
-  <text x="100" y="434" class="box-sub">plugin.yaml | phases.yaml | transitions.yaml | hitl-gates.yaml | roles/ | prompts/ | validators/</text>
-  <rect x="100" y="452" width="130" height="74" rx="6" ry="6" fill="#f9fafb" stroke="#7c3aed" stroke-width="1.5"/>
-  <text x="165" y="474" text-anchor="middle" class="box-title" fill="#7c3aed">development</text>
-  <text x="165" y="494" text-anchor="middle" class="small">8-phase SE pipeline</text>
-  <text x="165" y="510" text-anchor="middle" class="small">clarify-design-plan-...</text>
-  <rect x="250" y="452" width="130" height="74" rx="6" ry="6" fill="#f9fafb" stroke="#2c5d87" stroke-width="1.5"/>
-  <text x="315" y="474" text-anchor="middle" class="box-title" fill="#2c5d87">generic</text>
-  <text x="315" y="494" text-anchor="middle" class="small">lightweight default</text>
-  <text x="315" y="510" text-anchor="middle" class="small">any domain</text>
-  <rect x="400" y="452" width="130" height="74" rx="6" ry="6" fill="#f9fafb" stroke="#b45309" stroke-width="1.5"/>
-  <text x="465" y="474" text-anchor="middle" class="box-title" fill="#b45309">writing</text>
-  <text x="465" y="494" text-anchor="middle" class="small">long-form authoring</text>
-  <text x="465" y="510" text-anchor="middle" class="small">draft-revise-publish</text>
-  <rect x="610" y="394" width="240" height="146" rx="8" ry="8" fill="#ffffff" stroke="#0f7a4a" stroke-width="1.5"/>
-  <text x="630" y="416" class="box-title">memory/</text>
-  <text x="630" y="436" class="small">knowledge/&lt;topic&gt;.md  (LLM-judged)</text>
-  <text x="630" y="454" class="small">skills/&lt;name&gt;/  (reusable)</text>
-  <text x="630" y="472" class="small">config.yaml  (entries[] log)</text>
-  <text x="630" y="490" class="small">history/extraction-log.jsonl</text>
-  <text x="630" y="518" class="small" font-style="italic">Caps: 3 knowledge + 1 skill + 5 cfg / task</text>
-  <rect x="880" y="394" width="240" height="146" rx="8" ry="8" fill="#ffffff" stroke="#0f7a4a" stroke-width="1.5"/>
-  <text x="900" y="416" class="box-title">tasks/&lt;T-NNN&gt;/</text>
-  <text x="900" y="436" class="small">state.json  (phase, verdict, retry)</text>
-  <text x="900" y="454" class="small">outputs/phase-N-&lt;role&gt;.md</text>
-  <text x="900" y="472" class="small">.router-prompt.md  (rendered)</text>
-  <text x="900" y="490" class="small">audit/  (dispatch + extract logs)</text>
-  <text x="900" y="518" class="small" font-style="italic">DAG of parents (Jaccard top-3)</text>
-  <rect x="40" y="590" width="1120" height="350" rx="10" ry="10" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
-  <text x="60" y="614" class="layer-title">3. Kernel  -  skills/codenook-core/</text>
-  <text x="60" y="632" class="layer-sub">Domain-agnostic: routing / orchestration / memory / install (12 gates) / config &amp; models / helpers.</text>
-  <rect x="80" y="650" width="240" height="130" rx="8" ry="8" fill="#ffffff" stroke="#ea580c" stroke-width="1.5"/>
-  <rect x="80" y="650" width="42" height="18" rx="4" ry="4" fill="#b45309"/>
-  <text x="101" y="663" text-anchor="middle" class="badge">NEW</text>
-  <text x="200.0" y="674" text-anchor="middle" class="box-title">Python installer</text>
-  <text x="200.0" y="694" text-anchor="middle" class="small">_lib/install/cli.py</text>
-  <text x="200.0" y="710" text-anchor="middle" class="small">stage_kernel.py</text>
-  <text x="200.0" y="726" text-anchor="middle" class="small">stage_plugins.py</text>
-  <text x="200.0" y="742" text-anchor="middle" class="small">seed_workspace.py</text>
-  <text x="200.0" y="758" text-anchor="middle" class="small">install.py  (entrypoint)</text>
-  <rect x="340" y="650" width="240" height="130" rx="8" ry="8" fill="#ffffff" stroke="#ea580c" stroke-width="1.5"/>
-  <rect x="340" y="650" width="42" height="18" rx="4" ry="4" fill="#b45309"/>
-  <text x="361" y="663" text-anchor="middle" class="badge">NEW</text>
-  <text x="460.0" y="674" text-anchor="middle" class="box-title">Python CLI dispatch</text>
-  <text x="460.0" y="694" text-anchor="middle" class="small">_lib/cli/app.py</text>
-  <text x="460.0" y="710" text-anchor="middle" class="small">cmd_task / cmd_router / cmd_tick</text>
-  <text x="460.0" y="726" text-anchor="middle" class="small">cmd_decide / cmd_hitl</text>
-  <text x="460.0" y="742" text-anchor="middle" class="small">cmd_status / cmd_chain</text>
-  <text x="460.0" y="758" text-anchor="middle" class="small">forwards from bin/codenook</text>
-  <rect x="600" y="650" width="240" height="130" rx="8" ry="8" fill="#ffffff" stroke="#ea580c" stroke-width="1.5"/>
-  <text x="720.0" y="674" text-anchor="middle" class="box-title">Routing</text>
-  <text x="720.0" y="694" text-anchor="middle" class="small">router-agent</text>
-  <text x="720.0" y="710" text-anchor="middle" class="small">router-context-scan</text>
-  <text x="720.0" y="726" text-anchor="middle" class="small">router-dispatch-build</text>
-  <text x="720.0" y="742" text-anchor="middle" class="small">parent_suggester (Jaccard top-3)</text>
-  <text x="720.0" y="758" text-anchor="middle" class="small">chain_summarize (2-pass LLM)</text>
-  <rect x="860" y="650" width="260" height="130" rx="8" ry="8" fill="#ffffff" stroke="#ea580c" stroke-width="1.5"/>
-  <text x="990.0" y="674" text-anchor="middle" class="box-title">Orchestration</text>
-  <text x="990.0" y="694" text-anchor="middle" class="small">orchestrator-tick</text>
-  <text x="990.0" y="710" text-anchor="middle" class="small">dispatch-audit</text>
-  <text x="990.0" y="726" text-anchor="middle" class="small">hitl-adapter (terminal | html)</text>
-  <text x="990.0" y="742" text-anchor="middle" class="small">queue-runner</text>
-  <text x="990.0" y="758" text-anchor="middle" class="small">session-resume</text>
-  <rect x="80" y="790" width="320" height="130" rx="8" ry="8" fill="#ffffff" stroke="#ea580c" stroke-width="1.5"/>
-  <text x="240.0" y="814" text-anchor="middle" class="box-title">Plugin install (12 gates: G01-G12)</text>
-  <text x="240.0" y="834" text-anchor="middle" class="small">install-orchestrator</text>
-  <text x="240.0" y="850" text-anchor="middle" class="small">plugin-format / -schema / -id-validate</text>
-  <text x="240.0" y="866" text-anchor="middle" class="small">plugin-version-check / -signature</text>
-  <text x="240.0" y="882" text-anchor="middle" class="small">plugin-deps-check / -subsystem-claim</text>
-  <text x="240.0" y="898" text-anchor="middle" class="small">plugin-shebang-scan / -path-normalize / sec-audit</text>
-  <rect x="420" y="790" width="280" height="130" rx="8" ry="8" fill="#ffffff" stroke="#ea580c" stroke-width="1.5"/>
-  <text x="560.0" y="814" text-anchor="middle" class="box-title">Memory / extraction</text>
-  <text x="560.0" y="834" text-anchor="middle" class="small">extractor-batch (after_phase)</text>
-  <text x="560.0" y="850" text-anchor="middle" class="small">knowledge-extractor</text>
-  <text x="560.0" y="866" text-anchor="middle" class="small">skill-extractor</text>
-  <text x="560.0" y="882" text-anchor="middle" class="small">config-extractor</text>
-  <text x="560.0" y="898" text-anchor="middle" class="small">distiller (workspace promotion)</text>
-  <rect x="720" y="790" width="200" height="130" rx="8" ry="8" fill="#ffffff" stroke="#ea580c" stroke-width="1.5"/>
-  <text x="820.0" y="814" text-anchor="middle" class="box-title">Config &amp; models</text>
-  <text x="820.0" y="834" text-anchor="middle" class="small">config-resolve / -validate</text>
-  <text x="820.0" y="850" text-anchor="middle" class="small">config-mutator</text>
-  <text x="820.0" y="866" text-anchor="middle" class="small">model-probe</text>
-  <text x="820.0" y="882" text-anchor="middle" class="small">secrets-resolve</text>
-  <text x="820.0" y="898" text-anchor="middle" class="small">task-config-set / preflight</text>
-  <rect x="940" y="790" width="180" height="130" rx="8" ry="8" fill="#ffffff" stroke="#ea580c" stroke-width="1.5"/>
-  <text x="1030.0" y="814" text-anchor="middle" class="box-title">Helpers (_lib/)</text>
-  <text x="1030.0" y="834" text-anchor="middle" class="small">task_chain / memory_layer</text>
-  <text x="1030.0" y="850" text-anchor="middle" class="small">memory_index / llm_call</text>
-  <text x="1030.0" y="866" text-anchor="middle" class="small">render_prompt / token_estimate</text>
-  <text x="1030.0" y="882" text-anchor="middle" class="small">workspace_overlay</text>
-  <text x="1030.0" y="898" text-anchor="middle" class="small">claude_md_linter / sec_scan</text>
-  <rect x="40" y="970" width="1120" height="190" rx="10" ry="10" fill="#fdf4ff" stroke="#d8b4fe" stroke-width="1.5"/>
-  <text x="60" y="994" class="layer-title">4. First-party plugins  -  plugins/  (source repo)</text>
-  <text x="60" y="1012" class="layer-sub">Self-contained directories shipped in this repo; install.py copies them into &lt;ws&gt;/.codenook/plugins/&lt;id&gt;/.</text>
-  <rect x="80" y="1032" width="340" height="106" rx="8" ry="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
-  <text x="250" y="1056" text-anchor="middle" class="box-title" fill="#7c3aed">plugins/development/</text>
-  <text x="250" y="1078" text-anchor="middle" class="small">clarify -> design -> plan -> implement -> test -> accept -> validate -> ship</text>
-  <text x="250" y="1098" text-anchor="middle" class="small">8 roles, criteria-*.md, pytest post-validators</text>
-  <text x="250" y="1120" text-anchor="middle" class="small" font-style="italic">plugin.yaml + phases.yaml + transitions.yaml + roles/ + prompts/ + validators/</text>
-  <rect x="440" y="1032" width="340" height="106" rx="8" ry="8" fill="#ffffff" stroke="#2c5d87" stroke-width="1.5"/>
-  <text x="610" y="1056" text-anchor="middle" class="box-title" fill="#2c5d87">plugins/generic/</text>
-  <text x="610" y="1078" text-anchor="middle" class="small">lightweight 3-phase pipeline for any domain</text>
-  <text x="610" y="1098" text-anchor="middle" class="small">minimal HITL gates, fast turnaround</text>
-  <text x="610" y="1120" text-anchor="middle" class="small" font-style="italic">plugin.yaml + phases.yaml + transitions.yaml + roles/ + prompts/ + validators/</text>
-  <rect x="800" y="1032" width="340" height="106" rx="8" ry="8" fill="#ffffff" stroke="#b45309" stroke-width="1.5"/>
-  <text x="970" y="1056" text-anchor="middle" class="box-title" fill="#b45309">plugins/writing/</text>
-  <text x="970" y="1078" text-anchor="middle" class="small">draft -> revise -> publish (long-form authoring)</text>
-  <text x="970" y="1098" text-anchor="middle" class="small">role profiles for writer / editor / reviewer</text>
-  <text x="970" y="1120" text-anchor="middle" class="small" font-style="italic">plugin.yaml + phases.yaml + transitions.yaml + roles/ + prompts/ + validators/</text>
-  <path d="M 540 210 L 540 230 L 210 230 L 210 298" fill="none" stroke="#2c5d87" stroke-width="1.8" marker-end="url(#arrow-blue)"/>
-  <rect x="335" y="222" width="120" height="16" fill="#fafafa" opacity="0.95"/>
-  <text x="395" y="234" text-anchor="middle" class="arrow-label">codenook task new</text>
-  <path d="M 210 374 L 210 640 L 460 640 L 460 650" fill="none" stroke="#444" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <rect x="280" y="632" width="100" height="16" fill="#fff7ed" opacity="0.95"/>
-  <text x="330" y="644" text-anchor="middle" class="arrow-label">forwards to _lib/cli</text>
-  <path d="M 990 650 L 990 540" fill="none" stroke="#0f7a4a" stroke-width="1.5" marker-end="url(#arrow-green)"/>
-  <rect x="935" y="598" width="110" height="16" fill="#fff7ed" opacity="0.95"/>
-  <text x="990" y="610" text-anchor="middle" class="arrow-label">writes state + audit</text>
-  <path d="M 560 790 L 560 540" fill="none" stroke="#0f7a4a" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow-green)"/>
-  <rect x="495" y="772" width="130" height="16" fill="#fff7ed" opacity="0.95"/>
-  <text x="560" y="784" text-anchor="middle" class="arrow-label">extractor writes memory</text>
-  <path d="M 200 970 L 200 780 L 200 920" fill="none" stroke="#b45309" stroke-width="1.5" marker-end="url(#arrow-orange)"/>
-  <rect x="80" y="925" width="240" height="16" fill="#fff7ed" opacity="0.95"/>
-  <text x="200" y="937" text-anchor="middle" class="arrow-label">install.py reads &amp; stages plugins</text>
-  <path d="M 240 650 L 240 540" fill="none" stroke="#b45309" stroke-width="1.5" marker-end="url(#arrow-orange)"/>
-  <rect x="170" y="598" width="140" height="16" fill="#fff7ed" opacity="0.95"/>
-  <text x="240" y="610" text-anchor="middle" class="arrow-label">G12 atomic commit</text>
-  <rect x="40" y="1200" width="1120" height="62" rx="8" ry="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1"/>
-  <text x="60" y="1222" class="box-title">Legend</text>
-  <line x1="60" y1="1244" x2="90" y2="1244" stroke="#2c5d87" stroke-width="2"/>
-  <text x="98" y="1248" class="small">CLI invocation</text>
-  <line x1="240" y1="1244" x2="270" y2="1244" stroke="#444444" stroke-width="2"/>
-  <text x="278" y="1248" class="small">control / dispatch</text>
-  <line x1="420" y1="1244" x2="450" y2="1244" stroke="#0f7a4a" stroke-width="2"/>
-  <text x="458" y="1248" class="small">state / audit write</text>
-  <line x1="600" y1="1244" x2="630" y2="1244" stroke="#0f7a4a" stroke-width="2" stroke-dasharray="5,3"/>
-  <text x="638" y="1248" class="small">memory write (dashed)</text>
-  <line x1="780" y1="1244" x2="810" y2="1244" stroke="#b45309" stroke-width="2"/>
-  <text x="818" y="1248" class="small">install pipeline</text>
-  <rect x="960" y="1236" width="30" height="14" rx="3" ry="3" fill="#b45309"/>
-  <text x="975" y="1246" text-anchor="middle" class="badge">NEW</text>
-  <text x="998" y="1248" class="small">NEW in v0.14.0</text>
+
+  <!-- Background -->
+  <rect width="1280" height="720" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="640" y="42" text-anchor="middle" font-size="22" font-weight="700" fill="#0f172a">CodeNook v0.14.0 — three-layer architecture</text>
+  <text x="640" y="66" text-anchor="middle" font-size="13" fill="#64748b">conductor (Claude Code / Copilot CLI) → kernel CLI → plugin + workspace state</text>
+
+  <!-- ========== LAYER 1: Main session (conductor) ========== -->
+  <rect x="30" y="100" width="290" height="540" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="175" y="128" text-anchor="middle" font-size="14" font-weight="700" fill="#1e3a8a">LAYER 1 — Main session</text>
+  <text x="175" y="146" text-anchor="middle" font-size="11" fill="#1d4ed8">Pure protocol conductor</text>
+
+  <rect x="55" y="170" width="240" height="80" rx="10" fill="#ffffff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="175" y="195" text-anchor="middle" font-size="13" font-weight="600" fill="#1e3a8a">Claude Code / Copilot CLI</text>
+  <text x="175" y="214" text-anchor="middle" font-size="11" fill="#475569">reads CLAUDE.md bootloader</text>
+  <text x="175" y="232" text-anchor="middle" font-size="11" fill="#475569">never interprets domain output</text>
+
+  <rect x="55" y="280" width="240" height="120" rx="10" fill="#ffffff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="175" y="305" text-anchor="middle" font-size="13" font-weight="600" fill="#1e3a8a">4-step protocol</text>
+  <text x="70" y="328" font-size="11" fill="#334155">1. classify user turn</text>
+  <text x="70" y="346" font-size="11" fill="#334155">2. invoke <tspan font-family="monospace" fill="#0f172a">codenook tick</tspan></text>
+  <text x="70" y="364" font-size="11" fill="#334155">3. relay HITL gates verbatim</text>
+  <text x="70" y="382" font-size="11" fill="#334155">4. loop until done | blocked</text>
+
+  <rect x="55" y="430" width="240" height="80" rx="10" fill="#ffffff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="175" y="455" text-anchor="middle" font-size="13" font-weight="600" fill="#1e3a8a">Context-pressure path</text>
+  <text x="175" y="475" text-anchor="middle" font-size="11" fill="#475569">@ 80% watermark →</text>
+  <text x="175" y="492" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#0f172a">extractor-batch --reason context-pressure</text>
+
+  <text x="175" y="555" text-anchor="middle" font-size="11" fill="#64748b" font-style="italic">user ↔ conductor</text>
+  <text x="175" y="572" text-anchor="middle" font-size="11" fill="#64748b" font-style="italic">"use codenook to …"</text>
+  <text x="175" y="610" text-anchor="middle" font-size="11" fill="#64748b" font-style="italic">"approve" / "needs_changes"</text>
+
+  <!-- ========== LAYER 2: Kernel ========== -->
+  <rect x="345" y="100" width="320" height="540" rx="14" fill="#f3e8ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="505" y="128" text-anchor="middle" font-size="14" font-weight="700" fill="#5b21b6">LAYER 2 — CodeNook CLI + Kernel</text>
+  <text x="505" y="146" text-anchor="middle" font-size="11" fill="#6d28d9">codenook-core/ · plugin-agnostic</text>
+
+  <!-- CLI surface -->
+  <rect x="365" y="170" width="280" height="90" rx="10" fill="#ffffff" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="505" y="192" text-anchor="middle" font-size="12" font-weight="600" fill="#5b21b6">CLI surface (bin/codenook)</text>
+  <text x="505" y="213" text-anchor="middle" font-family="monospace" font-size="11" fill="#0f172a">codenook tick   --task T --json</text>
+  <text x="505" y="230" text-anchor="middle" font-family="monospace" font-size="11" fill="#0f172a">codenook decide --task T --phase P</text>
+  <text x="505" y="247" text-anchor="middle" font-family="monospace" font-size="11" fill="#0f172a">codenook hitl   list|show|render</text>
+
+  <!-- orchestrator-tick -->
+  <rect x="365" y="285" width="280" height="120" rx="10" fill="#ffffff" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="505" y="307" text-anchor="middle" font-size="12" font-weight="600" fill="#5b21b6">orchestrator-tick (state machine)</text>
+  <text x="380" y="328" font-size="11" fill="#334155">load phase → render manifest →</text>
+  <text x="380" y="345" font-size="11" fill="#334155">dispatch sub-agent → consume verdict →</text>
+  <text x="380" y="362" font-size="11" fill="#334155">post_validate → fire extractors →</text>
+  <text x="380" y="379" font-size="11" fill="#334155">open HITL gate → advance per profile</text>
+  <text x="505" y="397" text-anchor="middle" font-size="10.5" fill="#7c3aed" font-style="italic">status ∈ {advanced, waiting, done, blocked}</text>
+
+  <!-- HITL adapter -->
+  <rect x="365" y="425" width="135" height="80" rx="10" fill="#ffffff" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="432.5" y="447" text-anchor="middle" font-size="12" font-weight="600" fill="#5b21b6">hitl-adapter</text>
+  <text x="432.5" y="467" text-anchor="middle" font-size="10.5" fill="#475569">terminal + html</text>
+  <text x="432.5" y="484" text-anchor="middle" font-size="10.5" fill="#475569">channels</text>
+
+  <!-- Extractors -->
+  <rect x="510" y="425" width="135" height="80" rx="10" fill="#ffffff" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="577.5" y="447" text-anchor="middle" font-size="12" font-weight="600" fill="#5b21b6">extractor-batch</text>
+  <text x="577.5" y="465" text-anchor="middle" font-size="10" fill="#475569">skill · knowledge ·</text>
+  <text x="577.5" y="481" text-anchor="middle" font-size="10" fill="#475569">config extractors</text>
+  <text x="577.5" y="497" text-anchor="middle" font-size="10" fill="#475569">→ memory/</text>
+
+  <!-- Other builtins -->
+  <rect x="365" y="525" width="280" height="95" rx="10" fill="#ffffff" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="505" y="547" text-anchor="middle" font-size="12" font-weight="600" fill="#5b21b6">other builtin skills</text>
+  <text x="380" y="567" font-size="10.5" fill="#475569">preflight · skill-resolve · sec-audit</text>
+  <text x="380" y="584" font-size="10.5" fill="#475569">install-orchestrator + 12-gate plugin install</text>
+  <text x="380" y="601" font-size="10.5" fill="#475569">config-resolve · model-probe · secrets-resolve</text>
+  <text x="380" y="615" font-size="9.5" fill="#94a3b8" font-style="italic">router-agent: deprecated · scheduled for removal</text>
+
+  <!-- ========== LAYER 3: Plugin + Workspace ========== -->
+  <rect x="690" y="100" width="560" height="540" rx="14" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+  <text x="970" y="128" text-anchor="middle" font-size="14" font-weight="700" fill="#065f46">LAYER 3 — Plugin + Workspace state</text>
+  <text x="970" y="146" text-anchor="middle" font-size="11" fill="#047857">domain knowledge · per-task / cross-task data</text>
+
+  <!-- Plugin -->
+  <rect x="710" y="170" width="245" height="285" rx="10" fill="#ffffff" stroke="#10b981" stroke-width="1.5"/>
+  <text x="832.5" y="192" text-anchor="middle" font-size="12" font-weight="600" fill="#065f46">plugins/&lt;id&gt;/  (read-only)</text>
+  <text x="832.5" y="208" text-anchor="middle" font-size="10.5" fill="#047857" font-style="italic">development v0.2.0 · writing · generic</text>
+
+  <line x1="725" y1="220" x2="940" y2="220" stroke="#a7f3d0" stroke-width="1"/>
+
+  <text x="725" y="240" font-family="monospace" font-size="11" fill="#0f172a">plugin.yaml</text>
+  <text x="855" y="240" font-size="10.5" fill="#475569">identity + routing</text>
+
+  <text x="725" y="260" font-family="monospace" font-size="11" fill="#0f172a">phases.yaml</text>
+  <text x="855" y="260" font-size="10.5" fill="#475569">catalogue + profiles</text>
+
+  <text x="725" y="280" font-family="monospace" font-size="11" fill="#0f172a">hitl-gates.yaml</text>
+  <text x="855" y="280" font-size="10.5" fill="#475569">10 gates (dev)</text>
+
+  <text x="725" y="300" font-family="monospace" font-size="11" fill="#0f172a">roles/&lt;role&gt;.md</text>
+  <text x="855" y="300" font-size="10.5" fill="#475569">10 roles (dev)</text>
+
+  <text x="725" y="320" font-family="monospace" font-size="11" fill="#0f172a">manifest-templates/</text>
+
+  <text x="725" y="340" font-family="monospace" font-size="11" fill="#0f172a">knowledge/</text>
+  <text x="855" y="340" font-size="10.5" fill="#475569">shipped facts</text>
+
+  <text x="725" y="360" font-family="monospace" font-size="11" fill="#0f172a">skills/</text>
+  <text x="855" y="360" font-size="10.5" fill="#475569">e.g. test-runner</text>
+
+  <text x="725" y="380" font-family="monospace" font-size="11" fill="#0f172a">validators/</text>
+  <text x="855" y="380" font-size="10.5" fill="#475569">post_validate hooks</text>
+
+  <line x1="725" y1="400" x2="940" y2="400" stroke="#a7f3d0" stroke-width="1"/>
+
+  <text x="832.5" y="420" text-anchor="middle" font-size="11" font-weight="600" fill="#065f46">development feature profile</text>
+  <text x="832.5" y="437" text-anchor="middle" font-size="9.5" fill="#475569">clarify→design→plan→implement→build→</text>
+  <text x="832.5" y="450" text-anchor="middle" font-size="9.5" fill="#475569">review→submit→test-plan→test→accept→ship</text>
+
+  <!-- Workspace state -->
+  <rect x="970" y="170" width="265" height="285" rx="10" fill="#ffffff" stroke="#10b981" stroke-width="1.5"/>
+  <text x="1102.5" y="192" text-anchor="middle" font-size="12" font-weight="600" fill="#065f46">tasks/&lt;T-NNN&gt;/</text>
+
+  <text x="985" y="215" font-family="monospace" font-size="11" fill="#0f172a">state.json</text>
+  <text x="1102" y="215" font-size="10" fill="#475569">phase, profile, status</text>
+
+  <text x="985" y="234" font-family="monospace" font-size="11" fill="#0f172a">prompts/</text>
+  <text x="1102" y="234" font-size="10" fill="#475569">rendered manifests</text>
+
+  <text x="985" y="253" font-family="monospace" font-size="11" fill="#0f172a">outputs/</text>
+  <text x="1102" y="253" font-size="10" fill="#475569">verdict-stamped</text>
+
+  <text x="985" y="272" font-family="monospace" font-size="11" fill="#0f172a">audit/</text>
+  <text x="1102" y="272" font-size="10" fill="#475569">dispatch.jsonl</text>
+
+  <line x1="985" y1="285" x2="1220" y2="285" stroke="#a7f3d0" stroke-width="1"/>
+
+  <text x="1102.5" y="305" text-anchor="middle" font-size="12" font-weight="600" fill="#065f46">memory/  (cross-task)</text>
+  <text x="985" y="325" font-family="monospace" font-size="11" fill="#0f172a">skills/&lt;name&gt;/</text>
+  <text x="1102" y="325" font-size="10" fill="#475569">SKILL.md</text>
+  <text x="985" y="344" font-family="monospace" font-size="11" fill="#0f172a">knowledge/</text>
+  <text x="1102" y="344" font-size="10" fill="#475569">topic markdown</text>
+  <text x="985" y="363" font-family="monospace" font-size="11" fill="#0f172a">configs/</text>
+  <text x="985" y="382" font-family="monospace" font-size="11" fill="#0f172a">index.yaml</text>
+  <text x="1102" y="382" font-size="10" fill="#475569">human-readable</text>
+
+  <line x1="985" y1="395" x2="1220" y2="395" stroke="#a7f3d0" stroke-width="1"/>
+
+  <text x="1102.5" y="415" text-anchor="middle" font-size="12" font-weight="600" fill="#065f46">hitl-queue/</text>
+  <text x="1102.5" y="432" text-anchor="middle" font-size="10.5" fill="#475569">&lt;task&gt;-&lt;gate&gt;.json</text>
+  <text x="1102.5" y="447" text-anchor="middle" font-size="10" fill="#475569">+ extraction-log.jsonl</text>
+
+  <!-- 11-phase row -->
+  <rect x="710" y="475" width="525" height="55" rx="8" fill="#f0fdf4" stroke="#10b981" stroke-width="1"/>
+  <text x="972.5" y="495" text-anchor="middle" font-size="11" font-weight="600" fill="#065f46">phases (catalogue) — every phase except `implement` has a HITL gate</text>
+  <text x="972.5" y="515" text-anchor="middle" font-family="monospace" font-size="10" fill="#0f172a">clarify · design · plan · implement · build · review · submit · test-plan · test · accept · ship</text>
+
+  <!-- Profiles row -->
+  <rect x="710" y="545" width="525" height="80" rx="8" fill="#f0fdf4" stroke="#10b981" stroke-width="1"/>
+  <text x="972.5" y="565" text-anchor="middle" font-size="11" font-weight="600" fill="#065f46">7 profiles · clarifier picks task_type → tick walks the chain</text>
+  <text x="725" y="585" font-size="10" fill="#334155">feature 11 ·  refactor 9 ·  hotfix 7 ·  test-only 4</text>
+  <text x="725" y="602" font-size="10" fill="#334155">docs 4    ·  design 3   ·  review 3</text>
+  <text x="725" y="618" font-size="9.5" fill="#64748b" font-style="italic">profile cached in state.profile after first dispatch</text>
+
+  <!-- ========== ARROWS ========== -->
+  <!-- Conductor → CLI -->
+  <line x1="295" y1="320" x2="365" y2="320" stroke="#2563eb" stroke-width="2.2" marker-end="url(#arrow-blue)"/>
+  <text x="330" y="313" text-anchor="middle" font-size="9.5" fill="#1d4ed8">invoke</text>
+
+  <!-- CLI envelope back -->
+  <line x1="365" y1="345" x2="295" y2="345" stroke="#475569" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+  <text x="330" y="362" text-anchor="middle" font-size="9.5" fill="#475569">JSON status</text>
+
+  <!-- orchestrator-tick → plugin (read role/manifest) -->
+  <line x1="645" y1="335" x2="710" y2="280" stroke="#7c3aed" stroke-width="2" marker-end="url(#arrow-violet)"/>
+  <text x="676" y="298" font-size="9.5" fill="#7c3aed">read role</text>
+
+  <!-- orchestrator-tick → tasks/ (write manifest+output, mutate state) -->
+  <line x1="645" y1="365" x2="970" y2="240" stroke="#7c3aed" stroke-width="2" marker-end="url(#arrow-violet)"/>
+  <text x="800" y="298" font-size="9.5" fill="#7c3aed">dispatch sub-agent · write outputs · mutate state.json</text>
+
+  <!-- hitl-adapter → hitl-queue -->
+  <line x1="500" y1="465" x2="970" y2="425" stroke="#7c3aed" stroke-width="2" marker-end="url(#arrow-violet)"/>
+  <text x="730" y="450" font-size="9.5" fill="#7c3aed">raise gate entry</text>
+
+  <!-- extractors → memory -->
+  <line x1="645" y1="465" x2="970" y2="345" stroke="#059669" stroke-width="2" marker-end="url(#arrow-green)"/>
+  <text x="780" y="412" font-size="9.5" fill="#059669">extract → memory · index.yaml regen · audit log</text>
+
+  <!-- ========== Legend ========== -->
+  <rect x="30" y="660" width="1220" height="46" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="48" y="680" font-size="11" font-weight="600" fill="#0f172a">Legend</text>
+  <line x1="110" y1="676" x2="148" y2="676" stroke="#2563eb" stroke-width="2.2" marker-end="url(#arrow-blue)"/>
+  <text x="155" y="680" font-size="11" fill="#1e3a8a">conductor → CLI</text>
+  <line x1="288" y1="676" x2="326" y2="676" stroke="#475569" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+  <text x="333" y="680" font-size="11" fill="#334155">JSON envelope back</text>
+  <line x1="490" y1="676" x2="528" y2="676" stroke="#7c3aed" stroke-width="2" marker-end="url(#arrow-violet)"/>
+  <text x="535" y="680" font-size="11" fill="#5b21b6">kernel → plugin / tasks / queue</text>
+  <line x1="765" y1="676" x2="803" y2="676" stroke="#059669" stroke-width="2" marker-end="url(#arrow-green)"/>
+  <text x="810" y="680" font-size="11" fill="#065f46">extractor → memory</text>
+  <text x="48" y="698" font-size="10" fill="#64748b">Style: flat icon · white background · all state is plain JSON / YAML / Markdown — resumable, auditable, diff-able.</text>
 </svg>

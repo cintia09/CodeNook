@@ -1,3 +1,79 @@
+## Unreleased — post-v0.14.0
+
+### Added
+- **Development plugin v0.2.0 — profile-aware 11-phase pipeline**
+  (`40c1637`). `phases.yaml` now uses a two-key `phases:` (catalogue
+  map keyed by id) + `profiles:` (`task_type → [phase id, …]`)
+  shape. The catalogue covers
+  `clarify → design → plan → implement → build → review → submit →
+  test-plan → test → accept → ship` (the `ship` phase reuses the
+  reviewer role with `mode: ship`). Seven profiles ship: `feature`
+  (11 phases), `refactor` (9), `hotfix` (7), `test-only` (4), `docs`
+  (4), `design` (3), `review` (3). Clarifier emits a `task_type`
+  frontmatter field; tick caches the resolved profile in
+  `state.profile` after the first dispatch (default: `feature`).
+  Ten HITL gates wired (`requirements_signoff`, `design_signoff`,
+  `plan_signoff`, `build_signoff`, `local_review_signoff`,
+  `submit_signoff`, `test_plan_signoff`, `test_signoff`,
+  `acceptance`, `ship_signoff`) — `implement` is the only gate-less
+  phase by design.
+- `memory/index.yaml` human-readable exporter (`77cc637`):
+  regenerated on every memory write/delete and consumed by
+  conductors / role agents to inventory available
+  knowledge/skills/configs without scanning the filesystem.
+- `extractor-batch` task-relevance routing (`c832bd3`): the
+  dispatcher consults the planned routes before fanning out the
+  three sub-extractors, reducing wasted LLM calls.
+- HITL `html` channel auto-opens the rendered file in a browser
+  (`62f98fa`); the bootloader's HITL channel-choice prompt is now
+  mandatory (`1481a63`).
+- Documentation set rewritten end-to-end for v0.14.0 + development
+  v0.2.0 (`README.md`, `PIPELINE.md`, `docs/architecture.md`,
+  `docs/skills-mechanism.md`, `docs/memory-and-extraction.md`,
+  `docs/task-chains.md`) plus a regenerated three-layer architecture
+  diagram (`docs/images/architecture.{svg,png}`).
+
+### Changed
+- **`codenook` CLI is now the sole sanctioned entry point**
+  (`9c0d839`). Direct invocations of underlying helper scripts
+  (`_tick.py`, `terminal.sh`, …) are unsupported; everything routes
+  through `codenook task / tick / decide / hitl / extract / status /
+  chain`.
+- `cmd_decide` accepts either a phase id (`--phase clarify`) or a
+  gate id (`--phase requirements_signoff`); the CLI resolves both
+  shapes against `phases.yaml` (`48ea1b0`).
+- All CLI commands and the orchestrator state machine now understand
+  both the v0.2.0 catalogue+profiles map shape and legacy v0.1 flat
+  `phases: [{id: …}, …]` lists, so existing plugins keep working
+  unchanged (`48ea1b0`).
+- Dispatch manifests substitute `{{TASK_CONTEXT}}` from
+  `state.summary` so role agents get the user's intent without a
+  side-channel read (`48ea1b0`).
+- Bootloader (`CLAUDE.md`) no longer hardcodes a plugin id, so the
+  block stays correct after `--plugin all` or any subset install
+  (`06abc37`).
+
+### Removed
+- **`task_specific` extraction route deleted** (`77cc637`). All
+  extracted artefacts now route to the `memory/` cross-task store;
+  the per-task `extracted/` writers (`write_*_to_task` helpers) and
+  the `TC-ROUTE-01` test are gone. `extraction_router.py` is kept
+  as a thin compatibility shim that always returns `cross_task` —
+  scheduled for full removal in a follow-up refactor.
+- Stale top-level `CLAUDE.md` template (`08964fb`); the bootloader
+  is now sourced exclusively from `claude_md_sync.render_block()`.
+- **`router-agent` deprecated** (`077428e`): hidden from the
+  bootloader template, and the `codenook router` flag now prints a
+  deprecation warning. Scheduled for hard removal in the next major
+  release; the conductor protocol drives `codenook` directly.
+
+### Fixed
+- Manifest YAML safety: orchestrator-tick no longer crashes on
+  manifest templates with stray `{{ }}` Jinja-ish tokens
+  (`48ea1b0`).
+- `cmd_decide` removed an unreachable branch in the gate-id
+  scanner (`e859578`).
+
 ## v0.14.0 (2026-04-20)
 
 ### Changed

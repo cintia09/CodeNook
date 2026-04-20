@@ -1,313 +1,287 @@
-# CodeNook Pipeline — v0.14 Runtime Reference
+# CodeNook Pipeline — v0.14 / development v0.2.0
 
-This document describes the end-to-end runtime of CodeNook v0.14.0: how a user
-turn becomes a task, how a task advances through phases, how memory accumulates,
-and how task chains stitch follow-up work back to its ancestors.
+End-to-end walkthrough of how a CodeNook task moves from "user has an
+idea" to "ship_signoff approved", using the development plugin's
+**`feature` profile** (the longest chain — 11 phases) as the example.
 
-The kernel is `skills/codenook-core/`; the canonical software-engineering
-plugin is `plugins/development/`. Everything else is per-workspace state under
-`.codenook/`.
-
----
-
-## 1. Lifecycles at a glance
-
-```
-┌─ workspace ───────────────────────────────────────────────────────────────┐
-│                                                                          │
-│   python install.py        python install.py --plugin <id> --upgrade       │
-│      │                            │                                      │
-│      ▼                            ▼                                      │
-│   .codenook/ seeded   →   .codenook/plugins/<p>/  (atomic, read-only)    │
-│                                                                          │
-│   ┌─ per turn ──────────────────────────────────────────────────────┐    │
-│   │ user turn ──► router-agent.spawn (prepare) ──► user confirms    │    │
-│   │                       │                                         │    │
-│   │                       ▼                                         │    │
-│   │           spawn --confirm  ─►  first orchestrator-tick          │    │
-│   │                                                                 │    │
-│   │   ┌─ per task ───────────────────────────────────────────────┐  │    │
-│   │   │ tick → load phase → dispatch sub-agent → read verdict    │  │    │
-│   │   │      → post_validate → extractor-batch → hitl gate? →    │  │    │
-│   │   │      → advance per transitions.yaml → tick again         │  │    │
-│   │   └──────────────────────────────────────────────────────────┘  │    │
-│   └─────────────────────────────────────────────────────────────────┘    │
-└──────────────────────────────────────────────────────────────────────────┘
-```
-
-There are three nested loops: workspace (one-shot install), turn (one
-router-agent invocation per user utterance), and task (orchestrator-tick,
-called once per phase).
+The kernel is `<ws>/.codenook/codenook-core/`. The plugin is
+`<ws>/.codenook/plugins/development/`. All runtime state is under
+`<ws>/.codenook/tasks/<T-NNN>/`.
 
 ---
 
-## 2. Workspace setup
+## 1. The conductor protocol
 
-> **Status note (v0.14.0):** workspace seed and plugin install are both
-> driven by the top-level Python installer `python install.py
-> [--target <ws>] [--upgrade] [--plugin <id|all>] [--dry-run] [--check]
-> [--no-claude-md] [--yes]`. The legacy bash entry points (`install.sh`,
-> kernel `skills/codenook-core/install.sh`) are gone; they ship one more
-> release as `install.sh.legacy` for fallback only. Inside an installed
-> workspace, the `.codenook/bin/codenook` Python shim exposes the
-> `task / router / tick / hitl / decide / status / chain` subcommand
-> surface; the previously-planned `init.sh --*` plugin-management
-> subcommands are obsolete — re-run `install.py --upgrade --plugin <id>`
-> from the source repo to add or bump a plugin in an existing workspace.
+The CLI session you are using (Claude Code, Copilot CLI) is a **pure
+protocol conductor**. Its loop on every user turn is exactly four
+steps:
 
-### 2.1 Seed
+1. **Classify.** Decide whether the user's turn is a CodeNook task
+   trigger ("use codenook to …", "open a codenook task", "走
+   codenook 流程", …). If not, answer normally — do nothing else.
+2. **Invoke `codenook tick`.** Allocate (or reuse) a `T-NNN` id and
+   call:
+   ```bash
+   codenook tick --task T-NNN --json
+   ```
+   Read the `status` field. Treat its value as opaque: only the
+   four branches `advanced`, `waiting`, `done`, `blocked` matter to
+   the conductor.
+3. **Handle HITL.** When `status == waiting`, list the queue with
+   `codenook hitl list` (or read `<ws>/.codenook/hitl-queue/*.json`
+   directly), surface each pending entry's `prompt` verbatim, collect
+   the user's decision, and call:
+   ```bash
+   codenook decide --task T-NNN --phase <phase-id-or-gate-id> \
+                   --decision <approve|reject|needs_changes> \
+                   [--comment "…"]
+   ```
+4. **Loop.** Tick again. Repeat until `status` is `done` (success)
+   or `blocked` (something needs operator action; surface the
+   `message_for_user` field verbatim and stop).
+
+The conductor never reads role files, never interprets phase
+outputs, never picks a plugin or profile. All of that lives behind
+the kernel.
+
+---
+
+## 2. Catalogue + profiles
+
+The development plugin's `phases.yaml` has **two top-level keys**:
+
+- `phases:` — the **catalogue**. A map keyed by phase id; each entry
+  defines the role, the expected output path, the gate (if any),
+  and feature flags (`supports_iteration`, `allows_fanout`,
+  `dual_mode_compatible`, `post_validate`).
+- `profiles:` — a map of `task_type → [phase id, …]`. The clarifier
+  emits a `task_type` in its frontmatter; the orchestrator caches
+  the resolved profile in `state.profile` after the first dispatch
+  and walks that ordered list.
+
+The `feature` profile uses every phase in the catalogue:
+
+```
+clarify → design → plan → implement → build → review →
+submit → test-plan → test → accept → ship
+```
+
+### Catalogue table
+
+| # | Phase | Role file | Produces (under `tasks/<T>/`) | Gate | Flags |
+|---|-------|-----------|-------------------------------|------|-------|
+| 1 | `clarify` | `roles/clarifier.md` | `outputs/phase-1-clarifier.md` | `requirements_signoff` | — |
+| 2 | `design` | `roles/designer.md` | `outputs/phase-2-designer.md` | `design_signoff` | `dual_mode_compatible` |
+| 3 | `plan` | `roles/planner.md` | `outputs/phase-3-planner.md` | `plan_signoff` | `allows_fanout` |
+| 4 | `implement` | `roles/implementer.md` | `outputs/phase-4-implementer.md` | *(none)* | `supports_iteration`, `allows_fanout`, `dual_mode_compatible`, `post_validate` |
+| 5 | `build` | `roles/builder.md` | `outputs/phase-5-builder.md` | `build_signoff` | `post_validate` |
+| 6 | `review` | `roles/reviewer.md` | `outputs/phase-6-reviewer.md` | `local_review_signoff` | — |
+| 7 | `submit` | `roles/submitter.md` | `outputs/phase-7-submitter.md` | `submit_signoff` | — |
+| 8 | `test-plan` | `roles/test-planner.md` | `outputs/phase-8-test-planner.md` | `test_plan_signoff` | — |
+| 9 | `test` | `roles/tester.md` | `outputs/phase-9-tester.md` | `test_signoff` | `supports_iteration`, `post_validate` |
+| 10 | `accept` | `roles/acceptor.md` | `outputs/phase-10-acceptor.md` | `acceptance` | — |
+| 11 | `ship` | `roles/reviewer.md` (mode: ship) | `outputs/phase-11-reviewer.md` | `ship_signoff` | — |
+
+`implement` is the only gate-less phase by design — it is the one
+phase where rapid iteration is worth more than human approval, and
+the downstream `build`, `review`, and `test` gates catch what
+matters anyway.
+
+### Phase-by-phase
+
+**1. `clarify` (clarifier).** Turns a vague user request into a
+testable spec: ≤3-bullet goal restatement, ≥3 acceptance criteria,
+explicit non-goals, numbered ambiguities. Critically, it also emits a
+`task_type` frontmatter field — `feature | hotfix | refactor |
+test-only | docs | review | design` — that selects the profile. Gate:
+`requirements_signoff`. Default profile when ambiguous: `feature`.
+
+**2. `design` (designer).** Drafts the architecture / ADR for the
+change. `dual_mode_compatible` means that when the task is started
+with `state.dual_mode = parallel`, the orchestrator dispatches `N`
+designer agents in parallel and the verdict is the consensus of
+their outputs. Gate: `design_signoff`.
+
+**3. `plan` (planner).** Decomposes the design into a concrete
+sequenced task list. With `allows_fanout`, the planner may emit
+`decomposed: true` in its frontmatter; orchestrator-tick then seeds
+child tasks (one per subtask) and pauses the parent until they
+complete. Gate: `plan_signoff`.
+
+**4. `implement` (implementer).** Writes the actual code (red →
+green → refactor). `supports_iteration` enables loop-back from a
+failed `post_validate` (capped by `state.max_iterations`).
+`post_validate: validators/post-implement.sh` runs after the agent
+returns; failure bumps `state.iteration` and re-dispatches. **No
+gate** — the next phase (`build`) catches mechanical breakage.
+
+**5. `build` (builder).** Executes the project's build / lint /
+smoke command. Caches the command in `state` for reuse. Pure
+mechanical gate: `build_signoff` confirms the build is green and
+the cached command still applies.
+
+**6. `review` (reviewer, mode: review).** Local code-review critique
+before any external submission. Gate: `local_review_signoff`.
+
+**7. `submit` (submitter).** Records the external review-submission
+decision (Gerrit / GitHub PR / skip) and the resulting URL. The
+external LGTM is out of orchestrator scope — operator resumes the
+tick once it lands. Gate: `submit_signoff`.
+
+**8. `test-plan` (test-planner).** Writes the test document (cases,
+fixtures, pass criteria) **before** tests run, so missing scenarios
+are caught up front. Gate: `test_plan_signoff`.
+
+**9. `test` (tester).** Runs the tests using the shipped
+`test-runner` skill. `supports_iteration` lets a failed
+`post_validate` (e.g. tests still red) loop back. Gate:
+`test_signoff` is the operator spot-check before user acceptance.
+
+**10. `accept` (acceptor).** Final user acceptance — confirms the
+change actually solves the reported problem. Gate: `acceptance`.
+
+**11. `ship` (reviewer, mode: ship).** Final deliver-mode sign-off
+checklist. Reuses the reviewer role file but with
+`mode: ship` set in the manifest template (`phase-11-reviewer.md`),
+so the role file is one source of truth for both review modes.
+Gate: `ship_signoff`. Approval transitions the task to
+`status: done`.
+
+---
+
+## 3. The 7 profiles
+
+| Profile | Length | Phases | Skips |
+|---------|-------:|--------|-------|
+| `feature` | 11 | clarify, design, plan, implement, build, review, submit, test-plan, test, accept, ship | — |
+| `refactor` | 9 | clarify, design, plan, implement, build, review, test-plan, test, ship | submit, accept |
+| `hotfix` | 7 | clarify, implement, build, review, test-plan, test, ship | design, plan, submit, accept |
+| `test-only` | 4 | clarify, test-plan, test, accept | design, plan, implement, build, review, submit, ship |
+| `docs` | 4 | clarify, implement, review, ship | design, plan, build, submit, test-plan, test, accept |
+| `design` | 3 | clarify, design, ship | everything between |
+| `review` | 3 | clarify, review, ship | everything between |
+
+The catalogue is the **single source of truth** for phase metadata
+(role, gate, flags); the profiles only choose which subset and in
+which order.
+
+---
+
+## 4. HITL semantics
+
+Every gate ships in `plugins/development/hitl-gates.yaml` with three
+fields: `trigger` (the phase id that opens it), `required_reviewers`
+(currently always `[human]`), and a human-readable `description`.
+When tick reaches a gated phase and the role's output is consumed,
+it materialises an entry in `<ws>/.codenook/hitl-queue/<task>-<gate>.json`
+and parks the task with `status: waiting`.
+
+The conductor resolves the gate via:
 
 ```bash
-python install.py --target <workspace_path>            # ✅ install all plugins (development, generic, writing)
-python install.py --target <ws> --plugin development   # ✅ install one plugin
+codenook decide --task T-NNN --phase <phase-id-or-gate-id> \
+                --decision <verb> [--comment "…"]
 ```
 
-Creates `.codenook/` with an empty `tasks/`, an empty `memory/`, a default
-`config.yaml`, a `state.json` skeleton, a `schemas/` overlay, and the
-`bin/codenook(.cmd)` Python shims.
+`--phase` accepts either the phase id (e.g. `clarify`) or the gate
+id (e.g. `requirements_signoff`) — the CLI resolves either form by
+consulting the plugin's `phases.yaml`.
 
-### 2.2 Plugin install (12 gates)
+Decision verbs recognised by the orchestrator:
+
+- **`approve`** — the gate passes; tick advances to the next phase
+  in the profile.
+- **`reject`** — the gate fails terminally; task transitions to
+  `status: blocked` with the operator comment recorded in
+  `state.history`.
+- **`needs_changes`** — the gate fails recoverably; tick re-dispatches
+  the same phase (subject to `max_iterations`) so the role can rework
+  its output. Equivalent to verdict `needs_revision`.
+
+Render a gate's full prompt (long context, code, file refs) as a
+self-contained HTML file with `codenook hitl render --id <eid>` —
+useful when the gate is too long to scroll comfortably in a
+terminal.
+
+---
+
+## 5. Memory & extraction at phase boundaries
+
+After every phase output is consumed and `post_validate` (if any)
+passes, tick fires
+`extractor-batch.sh --task-id T-NNN --phase <phase> --reason after_phase`.
+The dispatcher fans out three sub-extractors:
+
+- **`skill-extractor`** — looks for repeated script / CLI invocations
+  (≥3 in the phase) and proposes one reusable skill candidate
+  written to `memory/skills/<name>/SKILL.md`.
+- **`knowledge-extractor`** — pulls declarative findings (decisions,
+  conventions, environment notes) into `memory/knowledge/<topic>.md`.
+- **`config-extractor`** — captures config decisions into
+  `memory/configs/` (when applicable).
+
+All writes are hash-keyed (dedupe via `.index-snapshot.json`) and
+recorded line-by-line in `<ws>/.codenook/extraction-log.jsonl`.
+Each successful write also regenerates the human-readable
+`<ws>/.codenook/memory/index.yaml`, which is what the conductor and
+future role agents consult to inventory available memory.
+
+The same dispatcher is invoked with `--reason context-pressure` when
+the conductor's local token estimate hits the 80 % watermark; it
+returns a non-blocking JSON envelope within ≤200 ms so the
+conductor can decide whether to `/clear` or `/compact` without losing
+the task's accumulated knowledge.
+
+Full reference: [`docs/memory-and-extraction.md`](docs/memory-and-extraction.md).
+
+---
+
+## 6. Troubleshooting
+
+When a task does not behave as expected, three commands and one file
+cover almost every diagnostic question:
 
 ```bash
-python install.py --target <ws> --plugin <id> --upgrade   # ✅ install/bump one plugin
-python install.py --target <ws> --upgrade                 # ✅ install/bump all bundled plugins
+# What does tick think the next step is?
+codenook tick --task T-001 --json
+
+# What is the canonical state?
+cat .codenook/tasks/T-001/state.json | python3 -m json.tool
+
+# What gates are still open?
+codenook hitl list
 ```
 
-The `install-orchestrator` skill runs gates G01–G12 against the staged tarball
-and only commits to `.codenook/plugins/<id>/` on success.
+### `status: blocked`
 
-| Gate | Skill | Purpose |
-|------|-------|---------|
-| G01 | `plugin-format` | Well-formedness, no escaping symlinks |
-| G02 | `plugin-schema` | `plugin.yaml` schema validation |
-| G03 | `plugin-id-validate` | Id regex + reserved + already-installed |
-| G04 | `plugin-version-check` | SemVer + `--upgrade` strict-greater |
-| G05 | `plugin-signature` | Optional sha256 (when `CODENOOK_REQUIRE_SIG`) |
-| G06 | `plugin-deps-check` | `requires.core_version` comparator |
-| G07 | `plugin-subsystem-claim` | `declared_subsystems` collision detection |
-| G08 | `sec-audit` | Workspace security scan |
-| G09 | inline | Disk-quota check |
-| G10 | `plugin-shebang-scan` | Shebang allowlist for `+x` files |
-| G11 | `plugin-path-normalize` | No symlinks; no abs / `~` / `..` in YAML paths |
-| G12 | inline | Atomic commit (rename staged tree into place) |
+The state machine has stopped advancing. Inspect
+`state.history[-1]` (the rejection comment, the failed verdict, or
+the `post_validate` exit code is logged there). To resume after
+fixing the underlying problem, re-tick. To abandon, `codenook task
+set --task T-001 --field status --value cancelled`.
 
-After install, the plugin tree is **read-only** by contract — `plugin_readonly`
-verifies this on every kernel invocation.
+### Gate stuck (`status: waiting` forever)
 
----
+Either the gate entry was never opened (check
+`<ws>/.codenook/hitl-queue/`) or the operator's `decide` call
+referenced the wrong `--phase`. List with `codenook hitl list`,
+inspect `cat .codenook/hitl-queue/T-001-<gate>.json`, and decide
+again with the exact gate id.
 
-## 3. Per-turn pipeline (router-agent)
+### Sub-agent failure
 
-The main session (Claude Code or Copilot CLI) invokes
-`skills/builtin/router-agent/spawn.sh` once per user turn.
+The role agent returned without a valid `verdict` frontmatter, the
+expected output file was missing, or `post_validate` exited
+non-zero. `tick --json` will surface a `status: blocked` envelope
+with `message_for_user` explaining the failure. The dispatched
+manifest is at `.codenook/tasks/T-001/prompts/phase-N-<role>.md`
+and the (partial) output at `.codenook/tasks/T-001/outputs/phase-N-<role>.md`
+— hand-fix the output, re-tick, and the orchestrator will pick up
+where it stopped.
 
-### 3.1 Prepare
+### Iteration cap exhausted
 
-```
-spawn.sh --task-id T-NNN --workspace <ws> --user-turn-file <f>
-```
-
-`render_prompt.py` runs deterministically (no LLM) and:
-
-1. Acquires a per-task fcntl lock on `tasks/<tid>/.lock`.
-2. Computes the four prompt slots:
-   - `{{MEMORY_INDEX}}` — `_lib/memory_index.py` digest of `memory/knowledge/`
-     and `memory/config.yaml` (token-budgeted).
-   - `{{PLUGINS_INDEX}}` — list of installed plugins with one-line summaries.
-   - `{{TASK_CHAIN}}` — `_lib/chain_summarize.py` output if a parent is set,
-     otherwise empty.
-   - `{{USER_TURN}}` — verbatim user utterance.
-3. Renders `prompt.md` into `tasks/<tid>/.router-prompt.md`.
-4. Emits a JSON envelope telling the host runtime to spawn a Task sub-agent
-   with that prompt.
-
-### 3.2 Sub-agent run
-
-The router-agent sub-agent (default model: `claude-opus-4.7`) reads the
-rendered prompt and writes back three artefacts:
-
-| File | Purpose |
-|------|---------|
-| `tasks/<tid>/router-context.md` | What the agent observed about the workspace |
-| `tasks/<tid>/router-reply.md` | Conversational reply for the user |
-| `tasks/<tid>/draft-config.yaml` | Proposed plugin, phase entry, dual_mode, model tier, parent task |
-
-If a parent task is suggested, `_lib/parent_suggester.py` has already computed
-the Jaccard top-3 candidates and they are presented inline.
-
-### 3.3 Confirm
-
-Once the user confirms (`spawn.sh --confirm …`), `render_prompt.py`:
-
-1. Materialises `draft-config.yaml` into `tasks/<tid>/state.json`.
-2. Overlays the chosen plugin and the memory layer into the task prompt
-   directory (`_lib/workspace_overlay.py`).
-3. Invokes `orchestrator-tick` for the first time.
-
----
-
-## 4. Per-task pipeline (orchestrator-tick)
-
-`tick.sh --task T-NNN` advances the task by exactly one phase.
-
-```
-tick
- │
- ├─ resolve current phase from plugins/<p>/phases.yaml
- │
- ├─ entry-questions check (entry-questions.yaml)
- │     └─ block if any required state field missing
- │
- ├─ dispatch_subagent
- │     ├─ render manifest-templates/phase-N-<role>.md
- │     │     with role profile, criteria-<phase>.md, ancestor context
- │     ├─ resolve model (task → phase → role → tier_* → platform default)
- │     └─ spawn sub-agent; wait for outputs/phase-N-<role>.md
- │
- ├─ read_verdict
- │     └─ parse YAML frontmatter (verdict ∈ {ok, needs_revision, blocked})
- │
- ├─ post_validate (if phases.yaml declares post_validate)
- │     └─ run validators/post-<phase>.sh; non-zero ⇒ verdict = needs_revision
- │
- ├─ extractor-batch (after_phase hook)
- │     └─ see §5
- │
- ├─ open HITL gate (if phases.yaml declares gate)
- │     └─ enqueue to .codenook/queue/hitl-<gate>; tick exits 1 (blocked)
- │
- └─ advance via transitions.yaml
-       ok            → next phase
-       needs_revision→ replay current phase (retry counter += 1)
-       blocked       → exit 1 (blocked)
-```
-
-Exit codes: `0` advanced / waiting / done · `1` blocked (entry questions, HITL,
-max_iterations, error) · `2` usage error · `3` legacy idle / terminal phase.
-
-### 4.1 The development plugin's 8 phases
-
-| # | Phase | Role | Output | Gate | Notes |
-|---|-------|------|--------|------|-------|
-| 1 | `clarify` | clarifier | `outputs/phase-1-clarifier.md` | — | turns the user's vague request into a testable spec |
-| 2 | `design` | designer | `outputs/phase-2-designer.md` | `design_signoff` | dual_mode_compatible |
-| 3 | `plan` | planner | `outputs/phase-3-planner.md` | — | `allows_fanout` (sub-tasks seeded if `decomposed=true`) |
-| 4 | `implement` | implementer | `outputs/phase-4-implementer.md` | `pre_test_review` | dual_mode_compatible · `post_validate=validators/post-implement.sh` · `supports_iteration` · `allows_fanout` |
-| 5 | `test` | tester | `outputs/phase-5-tester.md` | — | `post_validate=validators/post-test.sh` · `supports_iteration` |
-| 6 | `accept` | acceptor | `outputs/phase-6-acceptor.md` | `acceptance` | |
-| 7 | `validate` | validator | `outputs/phase-7-validator.md` | — | |
-| 8 | `ship` | reviewer | `outputs/phase-8-reviewer.md` | — | |
-
-Each role has a profile in `plugins/development/roles/<role>.md` that pins the
-`one_line_job`, the verdict enum, and the dispatch contract. Quality criteria
-for the three high-stakes phases live in
-`plugins/development/prompts/criteria-{implement,test,accept}.md`.
-
----
-
-## 5. Memory & extraction lifecycle
-
-`extractor-batch` runs after every phase. It invokes three sub-extractors:
-
-| Sub-extractor | Reads | Writes | Per-task cap |
-|---------------|-------|--------|--------------|
-| `knowledge-extractor` | role output + criteria | `memory/knowledge/<topic>.md` (patch or create) | 3 |
-| `skill-extractor` | role output | `memory/skills/<name>/SKILL.md` | 1 |
-| `config-extractor` | role output | `memory/config.yaml` (single `entries[]` log) | 5 |
-
-### 5.1 Patch-or-create
-
-For each candidate extraction, `_lib/memory_layer.py`:
-
-1. Computes a content hash; bails if the hash already exists in
-   `memory/history/extraction-log.jsonl`.
-2. Asks the LLM (`_lib/llm_call.py`) to compare the candidate against the
-   pre-computed `memory_index` digest of all current notes.
-3. The LLM returns either `{action: patch, target: <path>, diff: …}` or
-   `{action: create, topic: <slug>, body: …}`.
-4. Atomic write under `memory/`; append a JSONL audit entry.
-
-### 5.2 Water-marks
-
-The 80% prompt-budget water-mark is enforced by `_lib/token_estimate.py`. When
-the running prompt for the next phase would exceed 80% of the model's context
-window (computed from `state.json.model_catalog`), `extractor-batch` skips the
-non-essential extractions for that round and emits a `truncated` audit kind.
-
-### 5.3 Workspace promotion
-
-The `distiller` skill promotes plugin-local notes to workspace level when the
-plugin's `plugin.yaml.knowledge.produces.promote_to_workspace_when` boolean
-expressions evaluate to true. The expression context includes hit-count,
-cross-task references, and explicit `promote: true` directives in the note's
-frontmatter.
-
----
-
-## 6. Task chains
-
-### 6.1 Parent suggestion
-
-Before the router-agent presents `draft-config.yaml`, `_lib/parent_suggester.py`:
-
-1. Loads every active task's title and last-phase summary.
-2. Tokenises the user turn and computes Jaccard similarity against each
-   candidate.
-3. Returns the top-3 with scores plus an `independent` option.
-
-### 6.2 Chain context injection
-
-If the user picks a parent (or chain of ancestors), `_lib/chain_summarize.py`:
-
-1. Walks ancestors from root → child via `state.json.parent_task_id`.
-2. Two-pass LLM compression — pass 1 summarises each ancestor individually;
-   pass 2 merges the summaries into a single ≤8K-token narrative.
-3. Injects the narrative into the child task's prompt as `{{TASK_CHAIN}}`.
-
-This is what makes follow-up turns like *"now add refresh-token support"*
-inherit the original *"add JWT login"* design without dragging in unrelated
-history.
-
----
-
-## 7. Quality gates per commit
-
-Every commit on this repo passes the following before merge to `main`:
-
-```bash
-# 1. Full bats sweep
-bats skills/codenook-core/tests/                       # 851 / 851 expected
-
-# 2. CLAUDE.md linter
-python3 skills/codenook-core/_lib/claude_md_linter.py --check-claude-md CLAUDE.md
-
-# 3. Plugin read-only invariant
-python3 skills/codenook-core/_lib/plugin_readonly.py --target . --json
-
-# 4. Secret scan
-python3 skills/codenook-core/_lib/secret_scan.py <changed-files>
-
-# 5. Greenfield grep on user-facing docs (legacy version phrasing must be empty)
-#    Pattern enforced by CI; expected output: GREENFIELD CLEAN
-bash skills/codenook-core/tests/greenfield-docs.sh \
-    README.md PIPELINE.md docs/README.md docs/vibe-coding-and-multi-agent.md
-```
-
-CI fails on any non-zero exit.
-
----
-
-## 8. Where to look when something breaks
-
-| Symptom | First file to read |
-|---------|-------------------|
-| Tick exits 1 immediately | `tasks/<tid>/audit/tick-*.json` (latest) |
-| Sub-agent verdict missing | `tasks/<tid>/outputs/phase-N-<role>.md` (frontmatter parse) |
-| Memory write failed | `memory/history/extraction-log.jsonl` (last entry) |
-| HITL never resolves | `.codenook/queue/hitl-<gate>/` (queue-runner state) |
-| Plugin install failed | `install-orchestrator` JSON output (gate id + reason) |
-| Router-agent loops | `tasks/<tid>/.router-prompt.md` (slot rendering) |
-
----
-
-*Generated for CodeNook v0.14.0 — kernel + plugin runtime reference.*
+`state.iteration >= state.max_iterations` on a `supports_iteration`
+phase. Bump the cap with
+`codenook task set --task T-001 --field max_iterations --value 6`
+and re-tick.

@@ -51,7 +51,7 @@ So I built a project: **CodeNook — a multi-agent development framework**.
 
 Core idea — if Vibe Coding is "natural language programming," then the entire software development lifecycle should be definable and executable in natural language too.
 
-Today's incarnation (v0.11) is a two-layer system: a small **kernel** (`skills/codenook-core/`) that knows about routing, dispatch, memory, and gates — and an installable **plugin** (`plugins/development/`) that defines the actual software-engineering pipeline (clarify → design → plan → implement → test → accept → validate → ship).
+Today's incarnation (v0.14.0) is a three-layer system: a small **kernel** (`skills/codenook-core/`) that owns the CLI, the state machine, the HITL adapter, and the memory extractors; an installable **plugin** (`plugins/development/` v0.2.0) that defines the actual software-engineering pipeline as a profile-aware 11-phase catalogue (clarify → design → plan → implement → build → review → submit → test-plan → test → accept → ship); and per-workspace **state** under `.codenook/{tasks,memory,hitl-queue}/`.
 
 ![CodeNook Architecture](images/architecture.png)
 
@@ -66,7 +66,7 @@ Today's incarnation (v0.11) is a two-layer system: a small **kernel** (`skills/c
                                       ▼
         ┌───────────────────── codenook-core ────────────────────┐
         │                                                         │
-        │   router-agent  ──►  spawn  ──►  orchestrator-tick      │
+        │   codenook tick  ──►  dispatch sub-agent ──► consume verdict   │
         │        │                                  │             │
         │        │       ┌──────────────────────────┤             │
         │        ▼       ▼                          ▼             │
@@ -104,14 +104,13 @@ You: "Implement login" → Agent codes → you test manually → broken → you 
               "Add JWT login to the auth service"
                      │
                      ▼
-   router-agent  ──► drafts tasks/T-001/draft-config.yaml
-                     │  (plugin: development, parent: independent,
-                     │   model tier: tier_strong)
+   conductor    ──► codenook task new --plugin development
+                     │  (allocates T-001, seeds state.json)
                      ▼
-              user confirms
+              clarifier picks task_type → profile selected
                      │
                      ▼
-   orchestrator-tick (one phase per call)
+   codenook tick  (one phase per call)
                      │
        ┌─────────────┼─────────────┬─────────────┬───────────────┐
        ▼             ▼             ▼             ▼               ▼
@@ -121,20 +120,21 @@ You: "Implement login" → Agent codes → you test manually → broken → you 
                      ▼             ▼             ▼               ▼
                extractor-batch after every phase
                → memory/knowledge/<topic>.md
-               → memory/skills/<name>/
-               → memory/config.yaml entries[]
+               → memory/skills/<name>/SKILL.md
+               → memory/index.yaml (regenerated)
                      │
                      ▼
-              acceptor → validator → reviewer → done ✅
+              builder → reviewer → submitter → test-planner →
+              tester → acceptor → reviewer (mode: ship) → done ✅
 ```
 
-**You only do two things per task: confirm the draft and approve at HITL gates.** Everything between — phase dispatch, sub-agent spawning, verdict reading, post-validation, memory extraction — is the kernel's job.
+**You only do two things per task: phrase the request and approve at HITL gates.** Everything between — phase dispatch, sub-agent spawning, verdict reading, post-validation, memory extraction — is the kernel's job.
 
 ## Benefits
 
 ### 1. Memory accumulates, not chat history
 
-Every phase's useful artefacts (decisions, conventions, reusable skills) are extracted by `extractor-batch` into `memory/`. The next task's router-agent reads `memory/knowledge/` as a digest before drafting its config — so a follow-up turn like *"now add refresh-token support"* automatically inherits the original JWT design without you having to re-explain anything.
+Every phase's useful artefacts (decisions, conventions, reusable skills) are extracted by `extractor-batch` into `memory/`. The next task's clarifier reads `memory/index.yaml` as a digest before drafting its spec — so a follow-up turn like *"now add refresh-token support"* automatically inherits the original JWT design without you having to re-explain anything.
 
 ### 2. Task chains, not flat history
 
@@ -142,11 +142,11 @@ When you say *"add refresh-token support"*, `parent_suggester` sees the recent J
 
 ### 3. The kernel can never lie about what happened
 
-Every dispatch is logged to `tasks/<T-NNN>/audit/`. Every memory write goes through `memory/history/extraction-log.jsonl`. Every plugin file is read-only (`plugin_readonly` enforces it). Every commit on the repo passes `claude_md_linter`, `secret_scan`, and 851/851 bats. *"Process-driven"* isn't a slogan — it's a set of fcntl locks and atomic writes.
+Every dispatch is logged to `tasks/<T-NNN>/audit/`. Every memory write goes through `extraction-log.jsonl`. Every plugin file is read-only (`plugin_readonly` enforces it). Every commit on the repo passes `claude_md_linter` and `secret_scan`. *"Process-driven"* isn't a slogan — it's a set of fcntl locks and atomic writes.
 
 ### 4. Plugins are the unit of extension
 
-The kernel knows nothing about software engineering. `plugins/development/` defines the 8 phases, the role profiles, the verdict contract, and the post-validators. Adding a `plugins/writing/` or `plugins/research/` doesn't need a single kernel change — install it through the same 12-gate pipeline and it shows up as a `PLUGINS_INDEX` entry on the next router-agent turn.
+The kernel knows nothing about software engineering. `plugins/development/` defines the 11 phases (across 7 profiles), the role profiles, the verdict contract, and the post-validators. Adding a `plugins/writing/` or `plugins/research/` doesn't need a single kernel change — install it through the same 12-gate pipeline and it shows up alongside the others on the next task.
 
 ### 5. Resumable at any point
 
@@ -154,31 +154,23 @@ All state lives in files (JSON + YAML + Markdown), not in AI memory. Even if the
 
 ## How to Use
 
-### Install (30 seconds)
+### Install (one command)
 
 ```bash
-curl -sL https://raw.githubusercontent.com/cintia09/CodeNook/main/install.sh | bash
+git clone https://github.com/cintia09/CodeNook.git
+cd CodeNook
+python3 install.py --target ~/code/my-project --plugin development --yes
 ```
 
-The installer detects Claude Code and/or Copilot CLI and copies the `codenook-core` kernel into the appropriate skills directory.
-
-### Seed a workspace
-
-```bash
-cd ~/code/my-project
-~/.claude/skills/codenook-core/init.sh
-~/.claude/skills/codenook-core/init.sh --refresh-models
-~/.claude/skills/codenook-core/init.sh \
-    --install-plugin ~/.claude/skills/codenook-core/dist/development-*.tar.gz
-```
+The Python installer is the only sanctioned entry point as of v0.14.0 — it stages the kernel + plugins atomically into `<workspace>/.codenook/` and syncs the bootloader block in `<workspace>/CLAUDE.md`.
 
 ### Start a turn
 
 In your AI session, just talk:
 
-> "I want to add JWT login to the auth service."
+> "use codenook to add JWT login to the auth service."
 
-The router-agent spawns, drafts a config, suggests a parent task if one looks relevant, and asks you to confirm. From there, every `orchestrator-tick` advances one phase. You only intervene at HITL gates (`design_signoff`, `pre_test_review`, `acceptance` for the development plugin).
+The conductor recognises the trigger, allocates a `T-NNN` id, and starts ticking. From there, every `codenook tick` advances one phase. You only intervene at HITL gates (`requirements_signoff`, `design_signoff`, `plan_signoff`, …, `ship_signoff` for the development plugin's `feature` profile).
 
 ## Conclusion
 
@@ -192,10 +184,10 @@ Before: humans design, humans code, humans test. Now: agents design, agents code
 
 This may be the ultimate form of Vibe Coding — not one person endlessly going back and forth with one Agent, but an **agent team** with a deterministic kernel, a swappable plugin layer, and a memory layer that actually remembers — collaborating like a real software development team.
 
-The framework realising these ideas today is CodeNook v0.11. The kernel is `skills/codenook-core/`. The pipeline is `plugins/development/`. The runtime is `.codenook/`. The design archive — 9 design docs, 117 acceptance tests, 100 PASS / 13 PARTIAL / 4 SKIP — is under [`docs/`](../docs/README.md).
+The framework realising these ideas today is CodeNook v0.14.0, with the development plugin at v0.2.0. The kernel is `skills/codenook-core/`. The pipeline is `plugins/development/`. The runtime is `.codenook/`. The design archive is under [`docs/`](../docs/README.md).
 
 And the interesting part? This framework itself was built by agents.
 
 ---
 
-> 🔗 Project: [github.com/cintia09/CodeNook](https://github.com/cintia09/CodeNook) · v0.11.1 stable · 851 bats green · M1–M11 shipped
+> 🔗 Project: [github.com/cintia09/CodeNook](https://github.com/cintia09/CodeNook) · v0.14.0 · development plugin v0.2.0 · M1–M11 shipped
