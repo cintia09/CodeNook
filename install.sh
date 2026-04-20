@@ -30,6 +30,15 @@
 
 set -euo pipefail
 
+# Force UTF-8 mode for every Python child process. Plugin YAML files
+# routinely contain non-ASCII (em-dash, CJK); on Windows hosts whose
+# default locale is GBK / cp936 the bare `open()` codec crashes with
+# UnicodeDecodeError, silently zeroing out plugin-version reads (which
+# then breaks idempotent reinstall detection). PYTHONUTF8=1 is honoured
+# by Python 3.7+ and is inherited by every subprocess spawned below.
+export PYTHONUTF8=1
+export PYTHONIOENCODING=utf-8
+
 # --- ensure `python3` is callable -------------------------------------------
 # Git-Bash on Windows ships without python; users may only have `python.exe`
 # on PATH (or none). First try common Windows install dirs, then synthesize
@@ -66,9 +75,9 @@ PYSHIM
   fi
 fi
 
-VERSION="0.13.15"
+VERSION="0.13.16"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEFAULT_PLUGIN="development"
+DEFAULT_PLUGIN="all"   # "all" → install every plugins/<id>/ subdir
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 info()  { echo -e "${GREEN}✓${NC} $*"; }
@@ -83,7 +92,7 @@ Usage:
   bash install.sh [<workspace_path>]                  install plugin into workspace
   bash install.sh --dry-run [<workspace_path>]        gates only, no commit
   bash install.sh --upgrade [<workspace_path>]        allow re-install
-  bash install.sh --plugin <id> [<workspace_path>]    plugin id (default: ${DEFAULT_PLUGIN})
+  bash install.sh --plugin <id|all> [<workspace_path>]    plugin id (default: ${DEFAULT_PLUGIN}; "all" = every plugins/* subdir)
   bash install.sh --no-claude-md [<workspace_path>]   skip CLAUDE.md augmentation
   bash install.sh --yes [<workspace_path>]            auto-confirm CLAUDE.md write (CI/non-interactive)
   bash install.sh --check [<workspace_path>]          report install state
@@ -134,6 +143,42 @@ WORKSPACE="$(cd "$WORKSPACE" && pwd)"
 SOURCE_CORE="$SELF_DIR/skills/codenook-core"
 WS_CORE="$WORKSPACE/.codenook/codenook-core"
 KERNEL_INSTALL="$WS_CORE/install.sh"   # resolved post-bootstrap (see below)
+
+# ── multi-plugin fan-out ─────────────────────────────────────────────────
+# When --plugin all (the default), discover every plugins/<id>/ that has a
+# plugin.yaml and re-invoke this script once per id with the same flags.
+# The kernel bootstrap and CLAUDE.md augmentation steps are idempotent, so
+# repeated calls are cheap and produce the union of all plugins in
+# state.installed_plugins[].
+if [ "$PLUGIN_ID" = "all" ] && [ "$CHECK_ONLY" -eq 0 ]; then
+  PLUGINS_DIR="$SELF_DIR/plugins"
+  if [ ! -d "$PLUGINS_DIR" ]; then
+    err "plugins/ source dir not found: $PLUGINS_DIR"; exit 2
+  fi
+  _ids=()
+  for _d in "$PLUGINS_DIR"/*/; do
+    [ -d "$_d" ] || continue
+    [ -f "${_d}plugin.yaml" ] || continue
+    _ids+=("$(basename "$_d")")
+  done
+  if [ "${#_ids[@]}" -eq 0 ]; then
+    err "no installable plugins found under $PLUGINS_DIR"; exit 2
+  fi
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "📦 CodeNook v${VERSION} — installing ${#_ids[@]} plugin(s): ${_ids[*]}"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  _yes_flag=""; [ "$AUTO_YES" -eq 1 ] && _yes_flag="--yes"
+  _claude_flag=""; [ "$AUGMENT_CLAUDE" -eq 0 ] && _claude_flag="--no-claude-md"
+  for _id in "${_ids[@]}"; do
+    echo ""
+    echo "▸ plugin: $_id"
+    bash "$SELF_DIR/install.sh" --plugin "$_id" \
+        ${DRY_RUN:+--dry-run} ${UPGRADE:+--upgrade} \
+        $_yes_flag $_claude_flag "$WORKSPACE"
+  done
+  exit 0
+fi
+
 PLUGIN_SRC="$SELF_DIR/plugins/$PLUGIN_ID"
 
 # ── check-only mode ──────────────────────────────────────────────────────
@@ -189,16 +234,29 @@ if [ ! -x "$KERNEL_INSTALL" ]; then
   err "kernel installer missing after bootstrap: $KERNEL_INSTALL"; exit 2
 fi
 
+# Convert a bash-style path (/c/Users/...) to a form Python can open on
+# the host. On MSYS / Git-Bash use cygpath -m for forward-slash mixed
+# style (Python on Windows accepts both); elsewhere the path is already
+# native. Without this, `python3 -c "open('/c/...')"` fails on Windows
+# because Python doesn't understand the MSYS prefix.
+_native_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+
 # Read incoming plugin version from plugin.yaml (best-effort).
 read_plugin_version() {
-  python3 -c "
-import sys, yaml
+  CN_PYAML="$(_native_path "$PLUGIN_SRC/plugin.yaml")" python3 -c "
+import os, yaml
 try:
-    d = yaml.safe_load(open('$PLUGIN_SRC/plugin.yaml')) or {}
+    d = yaml.safe_load(open(os.environ['CN_PYAML'], encoding='utf-8')) or {}
     print(d.get('version') or '')
 except Exception:
     print('')
-" 2>/dev/null
+"
 }
 NEW_VERSION="$(read_plugin_version)"
 
@@ -210,30 +268,30 @@ STATE_FILE="$WORKSPACE/.codenook/state.json"
 EXISTING_VERSION=""
 EXISTING_HASH=""
 if [ -f "$STATE_FILE" ]; then
-  EXISTING_VERSION="$(python3 -c "
-import json,sys
+  EXISTING_VERSION="$(CN_STATE="$(_native_path "$STATE_FILE")" CN_PID="$PLUGIN_ID" python3 -c "
+import os, json
 try:
-    d=json.load(open('$STATE_FILE'))
+    d=json.load(open(os.environ['CN_STATE'], encoding='utf-8'))
     for r in (d.get('installed_plugins') or []):
-        if r.get('id')=='$PLUGIN_ID':
+        if r.get('id')==os.environ['CN_PID']:
             print(r.get('version') or ''); break
     else:
         print('')
 except Exception:
     print('')
-" 2>/dev/null)"
-  EXISTING_HASH="$(python3 -c "
-import json
+")"
+  EXISTING_HASH="$(CN_STATE="$(_native_path "$STATE_FILE")" CN_PID="$PLUGIN_ID" python3 -c "
+import os, json
 try:
-    d=json.load(open('$STATE_FILE'))
+    d=json.load(open(os.environ['CN_STATE'], encoding='utf-8'))
     for r in (d.get('installed_plugins') or []):
-        if r.get('id')=='$PLUGIN_ID':
+        if r.get('id')==os.environ['CN_PID']:
             print(r.get('files_sha256') or ''); break
     else:
         print('')
 except Exception:
     print('')
-" 2>/dev/null)"
+")"
 fi
 
 IDEMPOTENT_RUN=0

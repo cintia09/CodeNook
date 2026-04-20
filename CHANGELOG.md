@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.16] - install all plugins by default + Windows path fixes
+
+### Changed
+
+- **`bash install.sh` now installs every plugin under `plugins/`** by
+  default (currently `development`, `generic`, `writing`). The new
+  `DEFAULT_PLUGIN="all"` triggers a fan-out loop that re-invokes
+  `install.sh --plugin <id>` for each subdirectory containing a
+  `plugin.yaml`. Use `--plugin <id>` to install a single plugin
+  explicitly. Existing single-plugin invocations (`--plugin
+  development`, etc.) are unchanged.
+
+  Rationale: router-agent's plugin selection is meaningful only when
+  multiple plugins are installed. Shipping just `development` made the
+  generic / writing flows invisible to new users.
+
+### Fixed
+
+- **Windows reinstall stuck at G03/G07** — `install.sh`'s
+  `read_plugin_version` and `state.json` lookups embedded bash-style
+  paths (`/c/...`) directly into `python3 -c` strings. Python on
+  Windows can't open MSYS-prefixed paths, so the lookups silently
+  returned empty (errors swallowed by `2>/dev/null`), defeating the
+  idempotent-reinstall auto-promote and tripping G03 ("already
+  installed; use --upgrade") on every re-run. Now routes through a new
+  `_native_path` helper that uses `cygpath -m` when available, and
+  passes paths via env vars instead of shell-substituted string
+  literals. Also adds `encoding='utf-8'` to those `open()` calls.
+
+- **`install.sh` cp936 crash** — exports `PYTHONUTF8=1` and
+  `PYTHONIOENCODING=utf-8` at the top so child Python processes can
+  read non-ASCII YAML on Windows GBK locale (mirrors the wrapper fix
+  shipped in v0.13.15).
+
 ## [0.13.15] - HITL queue prompt + clarify requirements_signoff gate
 
 ### Fixed
