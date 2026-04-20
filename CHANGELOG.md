@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.1] - 2026-04-20 · E2E-P round-2 fixes forward-ported
+
+The 9 E2E-P findings from `docs/e2e-report-v0.11.3-parallel.md` (originally
+shipped as v0.11.4 on the `release/v0.11.4` branch) are now forward-ported on
+top of the v0.12 native-Windows port and the v0.13 self-contained workspace
+kernel. No regressions: bats 914 / pytest 32, all green.
+
+### Fixed
+
+- **E2E-P-001** — `install.sh` now stamps `state.json.kernel_version` from
+  the root `VERSION` file and asserts post-install that
+  `state.kernel_version == VERSION` (catches inner/outer `VERSION` drift).
+- **E2E-P-002** — `codenook task new` without `--dual-mode` returns a
+  structured `entry_question` JSON + exit 2 instead of silently defaulting.
+- **E2E-P-003** — extractor now consumes the real role-output frontmatter
+  (`summary` + body) when no `extract:` block is present, so the memory
+  layer is no longer observably empty after a full lifecycle.
+- **E2E-P-004** — `claude_md_linter` learned a per-token inside-marker
+  allowlist for kernel-reference tokens, resolving the linter ↔ installer
+  self-conflict.
+- **E2E-P-006** — `state.example.md` is now seeded into
+  `.codenook/schemas/` (and any legacy copy at `.codenook/` root is
+  removed), aligning bootloader and installer.
+
+### Added
+
+- **E2E-P-005** — `codenook task new --target-dir` flag (default `src/`);
+  `tick` returns `entry_question` + exit 2 on missing `target_dir`;
+  `codenook task set --field` subcommand to mutate `state.json`.
+- **E2E-P-007** — dispatch-audit + hitl-adapter tee a per-task
+  `audit.jsonl` alongside the global stream.
+- **E2E-P-008** — `task new --priority P0|P1|P2|P3` (default P2); schema
+  validation rejects invalid values.
+- **E2E-P-009** — `tick` exit-code contract pinned: `0`=advanced/done,
+  `2`=entry-question, `3`=hitl, `1`=error.
+
+### Tests
+
+- 11 new bats / pytest cases covering every round-2 regression: bats
+  895 → 914, pytest 21 → 32.
+
+See `docs/e2e-report-v0.11.3-parallel.md` for the full round-2 audit and
+the v0.13.1 follow-up table.
+
 ## [0.13.0] - Self-contained workspace install
 
 ### Changed
