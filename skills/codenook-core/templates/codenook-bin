@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+"""codenook — workspace CLI shim (POSIX).
+
+Installed by ``install.py`` into ``<workspace>/.codenook/bin/codenook``.
+Resolves the kernel via the ``codenook-core/`` snapshot stored next to
+this shim and forwards to ``_lib/cli/__main__.py``.
+"""
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
+
+_BIN = Path(__file__).resolve().parent          # <ws>/.codenook/bin
+_KERNEL = _BIN.parent / "codenook-core"         # <ws>/.codenook/codenook-core
+_ENTRY = _KERNEL / "_lib" / "cli" / "__main__.py"
+
+if not _ENTRY.is_file():
+    sys.stderr.write(
+        f"codenook: kernel entry missing: {_ENTRY}\n"
+        f"          re-run: python install.py --target "
+        f"\"{_BIN.parent.parent}\"\n"
+    )
+    sys.exit(1)
+
+os.environ.setdefault("PYTHONUTF8", "1")
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+os.environ.setdefault("CODENOOK_WORKSPACE", str(_BIN.parent.parent))
+
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+    except Exception:
+        pass
+
+# Insert the kernel root so ``from _lib.cli.app import main`` resolves.
+sys.path.insert(0, str(_KERNEL))
+
+from _lib.cli.app import main  # noqa: E402
+
+sys.exit(main(sys.argv[1:]))

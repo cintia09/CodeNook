@@ -1,3 +1,47 @@
+## v0.14.0 (2026-04-20)
+
+### Changed
+- **Replaced bash CLI wrapper with Python.** The 623-line
+  `templates/codenook-wrapper.sh` is gone (kept as
+  `codenook-wrapper.sh.legacy` for one release). The installed shim
+  at `<ws>/.codenook/bin/codenook(.cmd)` now forwards directly to the
+  new `_lib/cli/__main__.py` package  no Git Bash, no
+  `python3 -c '<inline>'` startup tax per subcommand.
+- **Replaced bash installer with Python.** `install.sh` is gone
+  (kept as `install.sh.legacy` for one release). Use
+  `python install.py [--target <ws>] [--upgrade] [--plugin <id|all>]
+  [--no-claude-md] [--yes] [--check] [--dry-run]`  same surface,
+  no bash dependency on Windows.
+
+### Added
+- `skills/codenook-core/_lib/cli/` package: `app.py` dispatcher,
+  `cmd_task / cmd_router / cmd_tick / cmd_decide / cmd_hitl /
+  cmd_status / cmd_chain` modules. Subcommand surface is 1-for-1
+  with the v0.13.x bash wrapper.
+- `skills/codenook-core/_lib/install/` package: `cli.py`,
+  `stage_kernel.py`, `stage_plugins.py`, `seed_workspace.py`.
+- `templates/codenook-bin` (POSIX shim) +
+  `templates/codenook-bin.cmd` (Windows shim)  thin python forwarders
+  installed into `<ws>/.codenook/bin/`.
+- `tests/python/test_cli_smoke.py`  pytest subprocess smoke for
+  `--version`, `--help`, `status`, `task new`,
+  entry-question, `hitl render` error path.
+
+### Notes
+- bats suite untouched and not run locally for this release (`bats`
+  not installed on the dev box). The wrapper's external contract
+  (stdin / stdout / exit codes) is preserved black-box, so the suite
+  should pass in CI; verify there.
+- The ~30 thin `skills/builtin/*/*.sh` shims are out of scope (Phase
+  C); the new wrapper imports / subprocess-execs the underlying python
+  helpers directly and bypasses those shims for performance.
+- `install.sh.legacy`, `codenook-wrapper.sh.legacy` and
+  `codenook-wrapper.cmd.legacy` ship one more release as fallbacks
+  in case a user reports a contract regression with the new shims.
+- Python floor: 3.9+ (PEP 585 `list[...]`/`dict[...]` used freely).
+- `shellout` for user-supplied `plugins/*/validators/*.sh` is
+  unchanged  the user-extension surface for plugin validators stays
+  bash-friendly.
 ## v0.13.23 (2026-04-20)
 
 ### Added
