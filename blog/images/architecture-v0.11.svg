@@ -1,227 +1,244 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1160" font-family="Helvetica Neue, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1240" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="14">
+  <!--
+    CodeNook v0.11 architecture — C4-style 4-layer view (no module appears twice).
+    Layers (top-down):
+      1. User / Claude Code (or Copilot CLI) session
+      2. Per-workspace runtime (.codenook/)
+      3. Kernel (skills/codenook-core/)
+      4. Plugins (plugins/development | writing | generic)
+    Subdued 4-color palette, no gradients, no icons.
+  -->
+
   <defs>
-    <style>
-      .layer-label { font-size: 13px; fill: #64748b; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
-      .container-label { font-size: 17px; fill: #0f172a; font-weight: 700; }
-      .box-title { font-size: 15px; fill: #0f172a; font-weight: 600; }
-      .box-sub { font-size: 11px; fill: #475569; }
-      .tile-title { font-size: 13px; fill: #0f172a; font-weight: 600; }
-      .tile-sub { font-size: 10px; fill: #64748b; }
-      .note { font-size: 11px; fill: #64748b; font-style: italic; }
-      .arrow-label { font-size: 11px; fill: #334155; font-weight: 500; }
-      .title { font-size: 20px; fill: #0f172a; font-weight: 700; }
-      .subtitle { font-size: 12px; fill: #64748b; }
-    </style>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L12,6 L0,12 z" fill="#444"/>
     </marker>
-    <marker id="arrow-dashed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+    <marker id="arrow-blue" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L12,6 L0,12 z" fill="#2c5d87"/>
     </marker>
   </defs>
 
-  <!-- Title -->
-  <text x="600" y="36" text-anchor="middle" class="title">CodeNook v0.11 — System Architecture</text>
-  <text x="600" y="56" text-anchor="middle" class="subtitle">Kernel · Plugins · Per-workspace runtime</text>
+  <style>
+    .layer-box     { fill:#fbfcfd; stroke:#1f2d3d; stroke-width:1.6; }
+    .layer-title   { font-size:20px; font-weight:600; fill:#1f2d3d; }
+    .layer-tag     { font-size:12px; fill:#6b7785; font-style:italic; }
 
-  <!-- Layer 1: User -->
-  <text x="60" y="100" class="layer-label">1 · User</text>
-  <rect x="440" y="80" width="320" height="60" rx="4" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5"/>
-  <text x="600" y="106" text-anchor="middle" class="box-title">User · Claude Code session</text>
-  <text x="600" y="124" text-anchor="middle" class="box-sub">natural-language turn → main session orchestrator</text>
+    .user-box      { fill:#eaf3fb; stroke:#2c5d87; stroke-width:1.6; }
+    .ws-box        { fill:#fff5e6; stroke:#a85f00; stroke-width:1.6; }
+    .kernel-box    { fill:#eef7ee; stroke:#2e7d32; stroke-width:1.6; }
+    .kernel-sub    { fill:#f7fbf7; stroke:#2e7d32; stroke-width:1.0; stroke-dasharray:3 3; }
+    .plug-box      { fill:#f3eef7; stroke:#5f3a8a; stroke-width:1.6; }
+    .tile          { fill:#ffffff; stroke:#324258; stroke-width:1.0; }
+    .tile-label    { font-size:13px; fill:#1f2d3d; }
+    .tile-strong   { font-size:14px; font-weight:600; fill:#1f2d3d; }
+    .legend        { font-size:12px; fill:#6b7785; }
+    .flow          { stroke:#444; stroke-width:1.6; fill:none; }
+    .flow-blue     { stroke:#2c5d87; stroke-width:1.6; fill:none; }
+    .flow-label    { font-size:11px; fill:#444; }
+  </style>
 
-  <!-- Arrow 1→2 -->
-  <line x1="600" y1="140" x2="600" y2="180" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <!-- title strip -->
+  <text x="600" y="34" text-anchor="middle" font-size="22" font-weight="700" fill="#1f2d3d">CodeNook v0.11 — Layered Architecture</text>
+  <text x="600" y="56" text-anchor="middle" class="layer-tag">C4 container view · each module appears exactly once</text>
 
-  <!-- Layer 2: Router Agent -->
-  <text x="60" y="200" class="layer-label">2 · Router agent</text>
-  <rect x="160" y="180" width="880" height="90" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
-  <text x="600" y="204" text-anchor="middle" class="container-label">Router agent — per-turn orchestrator</text>
+  <!-- ────────────── LAYER 1 — User session ────────────── -->
+  <g>
+    <text x="40" y="100" class="layer-title">1. User session</text>
+    <rect x="300" y="80" width="600" height="80" rx="8" class="user-box"/>
+    <text x="600" y="115" text-anchor="middle" class="tile-strong">Claude Code  ·  Copilot CLI</text>
+    <text x="600" y="138" text-anchor="middle" class="tile-label">user prompts, file edits, tool calls per turn</text>
+  </g>
 
-  <rect x="190" y="218" width="190" height="40" rx="4" fill="#ffffff" stroke="#d97706" stroke-width="1"/>
-  <text x="285" y="236" text-anchor="middle" class="tile-title">classify turn</text>
-  <text x="285" y="250" text-anchor="middle" class="tile-sub">chat vs task candidate</text>
+  <!-- ────────────── LAYER 2 — Per-workspace runtime ────────────── -->
+  <g>
+    <text x="40" y="220" class="layer-title">2. Per-workspace runtime</text>
+    <text x="40" y="240" class="layer-tag">  &lt;workspace&gt;/.codenook/  (created on install, owned by user)</text>
+    <rect x="60" y="255" width="1080" height="160" rx="8" class="ws-box"/>
 
-  <rect x="400" y="218" width="190" height="40" rx="4" fill="#ffffff" stroke="#d97706" stroke-width="1"/>
-  <text x="495" y="236" text-anchor="middle" class="tile-title">render-prompt</text>
-  <text x="495" y="250" text-anchor="middle" class="tile-sub">draft-config → confirm</text>
+    <rect x="90" y="285" width="320" height="110" rx="6" class="tile"/>
+    <text x="250" y="312" text-anchor="middle" class="tile-strong">plugins/</text>
+    <text x="250" y="334" text-anchor="middle" class="tile-label">read-only · git-managed</text>
+    <text x="250" y="354" text-anchor="middle" class="tile-label">staged from plugins/&lt;id&gt;/ at install time</text>
+    <text x="250" y="374" text-anchor="middle" class="tile-label">enforced by kernel.plugin_readonly</text>
 
-  <rect x="610" y="218" width="190" height="40" rx="4" fill="#ffffff" stroke="#d97706" stroke-width="1"/>
-  <text x="705" y="236" text-anchor="middle" class="tile-title">spawn</text>
-  <text x="705" y="250" text-anchor="middle" class="tile-sub">materialise .codenook/tasks/&lt;id&gt;</text>
+    <rect x="440" y="285" width="320" height="110" rx="6" class="tile"/>
+    <text x="600" y="312" text-anchor="middle" class="tile-strong">memory/</text>
+    <text x="600" y="334" text-anchor="middle" class="tile-label">knowledge/  ·  skills/  ·  config/</text>
+    <text x="600" y="354" text-anchor="middle" class="tile-label">history/  ·  .index-snapshot.json</text>
+    <text x="600" y="374" text-anchor="middle" class="tile-label">extracted &amp; injected per turn</text>
 
-  <rect x="820" y="218" width="190" height="40" rx="4" fill="#ffffff" stroke="#d97706" stroke-width="1"/>
-  <text x="915" y="236" text-anchor="middle" class="tile-title">dispatch</text>
-  <text x="915" y="250" text-anchor="middle" class="tile-sub">phase → role → subagent</text>
+    <rect x="790" y="285" width="320" height="110" rx="6" class="tile"/>
+    <text x="950" y="312" text-anchor="middle" class="tile-strong">tasks/&lt;task_id&gt;/</text>
+    <text x="950" y="334" text-anchor="middle" class="tile-label">state.json · prompts/ · outputs/</text>
+    <text x="950" y="354" text-anchor="middle" class="tile-label">audit.jsonl  ·  hitl-queue entries</text>
+    <text x="950" y="374" text-anchor="middle" class="tile-label">only kernel-writable runtime path</text>
+  </g>
 
-  <!-- Arrow 2→3 -->
-  <line x1="600" y1="270" x2="600" y2="310" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <text x="610" y="294" class="arrow-label">invoke</text>
+  <!-- ────────────── LAYER 3 — Kernel ────────────── -->
+  <g>
+    <text x="40" y="465" class="layer-title">3. Kernel</text>
+    <text x="40" y="485" class="layer-tag">  skills/codenook-core/  (the v6 codenook-core skill)</text>
+    <rect x="60" y="500" width="1080" height="320" rx="8" class="kernel-box"/>
 
-  <!-- Layer 3: Kernel -->
-  <text x="60" y="330" class="layer-label">3 · Kernel</text>
-  <rect x="80" y="310" width="1040" height="240" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1.5"/>
-  <text x="600" y="334" text-anchor="middle" class="container-label">skills/codenook-core — builtin skills &amp; _lib/</text>
+    <!-- 3a — Builtin skills row -->
+    <text x="80" y="525" class="tile-strong">3a · Builtin skills</text>
+    <text x="80" y="544" class="layer-tag">skills/codenook-core/skills/builtin/</text>
+    <rect x="80" y="555" width="1040" height="100" rx="6" class="kernel-sub"/>
 
-  <!-- Kernel tiles: 4 cols x 3 rows = 12 tiles -->
-  <!-- Row 1 -->
-  <rect x="110" y="352" width="230" height="56" rx="4" fill="#ffffff" stroke="#059669" stroke-width="1"/>
-  <text x="225" y="374" text-anchor="middle" class="tile-title">router-agent</text>
-  <text x="225" y="390" text-anchor="middle" class="tile-sub">conversational entry point</text>
-  <text x="225" y="402" text-anchor="middle" class="tile-sub">(M8) render · confirm · spawn</text>
+    <g class="tile-label">
+      <rect x="100" y="572" width="160" height="64" rx="4" class="tile"/>
+      <text x="180" y="600" text-anchor="middle" class="tile-strong">router-agent</text>
+      <text x="180" y="620" text-anchor="middle">turn ingest · context</text>
 
-  <rect x="350" y="352" width="230" height="56" rx="4" fill="#ffffff" stroke="#059669" stroke-width="1"/>
-  <text x="465" y="374" text-anchor="middle" class="tile-title">orchestrator-tick</text>
-  <text x="465" y="390" text-anchor="middle" class="tile-sub">phase advancement loop</text>
-  <text x="465" y="402" text-anchor="middle" class="tile-sub">verdict · HITL · distiller gate</text>
+      <rect x="270" y="572" width="160" height="64" rx="4" class="tile"/>
+      <text x="350" y="600" text-anchor="middle" class="tile-strong">orchestrator-tick</text>
+      <text x="350" y="620" text-anchor="middle">phase advance</text>
 
-  <rect x="590" y="352" width="230" height="56" rx="4" fill="#ffffff" stroke="#059669" stroke-width="1"/>
-  <text x="705" y="374" text-anchor="middle" class="tile-title">spawn</text>
-  <text x="705" y="390" text-anchor="middle" class="tile-sub">task state bootstrap</text>
-  <text x="705" y="402" text-anchor="middle" class="tile-sub">slot resolution · lock · audit</text>
+      <rect x="440" y="572" width="100" height="64" rx="4" class="tile"/>
+      <text x="490" y="600" text-anchor="middle" class="tile-strong">spawn</text>
+      <text x="490" y="620" text-anchor="middle">new task</text>
 
-  <rect x="830" y="352" width="230" height="56" rx="4" fill="#ffffff" stroke="#059669" stroke-width="1"/>
-  <text x="945" y="374" text-anchor="middle" class="tile-title">dispatch_subagent</text>
-  <text x="945" y="390" text-anchor="middle" class="tile-sub">Task-tool invocation</text>
-  <text x="945" y="402" text-anchor="middle" class="tile-sub">sandboxed role execution</text>
+      <rect x="550" y="572" width="170" height="64" rx="4" class="tile"/>
+      <text x="635" y="600" text-anchor="middle" class="tile-strong">dispatch_subagent</text>
+      <text x="635" y="620" text-anchor="middle">role hand-off</text>
 
-  <!-- Row 2 -->
-  <rect x="110" y="418" width="230" height="56" rx="4" fill="#ffffff" stroke="#059669" stroke-width="1"/>
-  <text x="225" y="440" text-anchor="middle" class="tile-title">distiller</text>
-  <text x="225" y="456" text-anchor="middle" class="tile-sub">verdict extraction</text>
-  <text x="225" y="468" text-anchor="middle" class="tile-sub">phase summary → memory</text>
+      <rect x="730" y="572" width="120" height="64" rx="4" class="tile"/>
+      <text x="790" y="600" text-anchor="middle" class="tile-strong">distiller</text>
+      <text x="790" y="620" text-anchor="middle">post-phase ext</text>
 
-  <rect x="350" y="418" width="230" height="56" rx="4" fill="#ffffff" stroke="#059669" stroke-width="1"/>
-  <text x="465" y="440" text-anchor="middle" class="tile-title">task_chain</text>
-  <text x="465" y="456" text-anchor="middle" class="tile-sub">parent-child linking (M10)</text>
-  <text x="465" y="468" text-anchor="middle" class="tile-sub">two-pass LLM compression</text>
+      <rect x="860" y="572" width="160" height="64" rx="4" class="tile"/>
+      <text x="940" y="600" text-anchor="middle" class="tile-strong">claude_md_linter</text>
+      <text x="940" y="620" text-anchor="middle">lint workspace MD</text>
 
-  <rect x="590" y="418" width="230" height="56" rx="4" fill="#ffffff" stroke="#059669" stroke-width="1"/>
-  <text x="705" y="440" text-anchor="middle" class="tile-title">parent_suggester</text>
-  <text x="705" y="456" text-anchor="middle" class="tile-sub">Jaccard top-3 candidates</text>
-  <text x="705" y="468" text-anchor="middle" class="tile-sub">chain-root resolution</text>
+      <rect x="1030" y="572" width="80" height="32" rx="4" class="tile"/>
+      <text x="1070" y="592" text-anchor="middle" class="tile-strong">plugin</text>
+      <text x="1070" y="601" text-anchor="middle" font-size="11">_readonly</text>
 
-  <rect x="830" y="418" width="230" height="56" rx="4" fill="#ffffff" stroke="#059669" stroke-width="1"/>
-  <text x="945" y="440" text-anchor="middle" class="tile-title">memory_layer</text>
-  <text x="945" y="456" text-anchor="middle" class="tile-sub">patch-or-create writes (M9)</text>
-  <text x="945" y="468" text-anchor="middle" class="tile-sub">knowledge · skills · config</text>
+      <rect x="1030" y="608" width="80" height="32" rx="4" class="tile"/>
+      <text x="1070" y="624" text-anchor="middle" class="tile-strong">secret</text>
+      <text x="1070" y="633" text-anchor="middle" font-size="11">_scan</text>
+    </g>
 
-  <!-- Row 3 -->
-  <rect x="110" y="484" width="230" height="56" rx="4" fill="#ffffff" stroke="#059669" stroke-width="1"/>
-  <text x="225" y="506" text-anchor="middle" class="tile-title">memory_index</text>
-  <text x="225" y="522" text-anchor="middle" class="tile-sub">water-mark (80%) scan</text>
-  <text x="225" y="534" text-anchor="middle" class="tile-sub">distiller promotion queue</text>
+    <!-- 3b — _lib utilities row -->
+    <text x="80" y="685" class="tile-strong">3b · _lib utilities</text>
+    <text x="80" y="704" class="layer-tag">skills/codenook-core/skills/builtin/_lib/</text>
+    <rect x="80" y="715" width="1040" height="92" rx="6" class="kernel-sub"/>
 
-  <rect x="350" y="484" width="230" height="56" rx="4" fill="#ffffff" stroke="#059669" stroke-width="1"/>
-  <text x="465" y="506" text-anchor="middle" class="tile-title">claude_md_linter</text>
-  <text x="465" y="522" text-anchor="middle" class="tile-sub">forbidden-domain tokens</text>
-  <text x="465" y="534" text-anchor="middle" class="tile-sub">task-lifecycle §1–§8 check</text>
+    <g class="tile-label">
+      <rect x="100" y="730" width="120" height="60" rx="4" class="tile"/>
+      <text x="160" y="755" text-anchor="middle" class="tile-strong">task_chain</text>
+      <text x="160" y="773" text-anchor="middle">parent / child</text>
 
-  <rect x="590" y="484" width="230" height="56" rx="4" fill="#ffffff" stroke="#059669" stroke-width="1"/>
-  <text x="705" y="506" text-anchor="middle" class="tile-title">plugin_readonly</text>
-  <text x="705" y="522" text-anchor="middle" class="tile-sub">write-barrier enforcement</text>
-  <text x="705" y="534" text-anchor="middle" class="tile-sub">plugin immutability audit</text>
+      <rect x="226" y="730" width="140" height="60" rx="4" class="tile"/>
+      <text x="296" y="755" text-anchor="middle" class="tile-strong">parent_suggester</text>
+      <text x="296" y="773" text-anchor="middle">attach hints</text>
 
-  <rect x="830" y="484" width="230" height="56" rx="4" fill="#ffffff" stroke="#059669" stroke-width="1"/>
-  <text x="945" y="506" text-anchor="middle" class="tile-title">secret_scan</text>
-  <text x="945" y="522" text-anchor="middle" class="tile-sub">9 fail-close patterns</text>
-  <text x="945" y="534" text-anchor="middle" class="tile-sub">dispatch payload redaction</text>
+      <rect x="372" y="730" width="146" height="60" rx="4" class="tile"/>
+      <text x="445" y="755" text-anchor="middle" class="tile-strong">chain_summarize</text>
+      <text x="445" y="773" text-anchor="middle">slot rendering</text>
 
-  <!-- Arrow 3→4 -->
-  <line x1="400" y1="550" x2="400" y2="600" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <text x="410" y="580" class="arrow-label">resolve phase/role (read-only)</text>
+      <rect x="524" y="730" width="124" height="60" rx="4" class="tile"/>
+      <text x="586" y="755" text-anchor="middle" class="tile-strong">memory_layer</text>
+      <text x="586" y="773" text-anchor="middle">read / write</text>
 
-  <!-- Arrow 3→5 (runtime writes) -->
-  <line x1="900" y1="550" x2="900" y2="790" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <text x="910" y="620" class="arrow-label">write task/memory</text>
+      <rect x="654" y="730" width="124" height="60" rx="4" class="tile"/>
+      <text x="716" y="755" text-anchor="middle" class="tile-strong">memory_index</text>
+      <text x="716" y="773" text-anchor="middle">snapshot cache</text>
 
-  <!-- Layer 4: Plugins -->
-  <text x="60" y="620" class="layer-label">4 · Plugins</text>
-  <rect x="80" y="600" width="760" height="180" rx="6" fill="#fce7f3" stroke="#be185d" stroke-width="1.5"/>
-  <text x="460" y="624" text-anchor="middle" class="container-label">plugins/development — pipeline plugin (read-only)</text>
-  <text x="460" y="642" text-anchor="middle" class="box-sub">6 phases × 7 roles · declarative routing · verdict contract</text>
+      <rect x="784" y="730" width="146" height="60" rx="4" class="tile"/>
+      <text x="857" y="755" text-anchor="middle" class="tile-strong">workspace_overlay</text>
+      <text x="857" y="773" text-anchor="middle">user skills</text>
 
-  <!-- Phases row -->
-  <text x="110" y="670" class="tile-title">Phases</text>
-  <rect x="110" y="678" width="110" height="36" rx="3" fill="#ffffff" stroke="#be185d" stroke-width="1"/>
-  <text x="165" y="700" text-anchor="middle" class="tile-sub">analyze</text>
-  <rect x="230" y="678" width="110" height="36" rx="3" fill="#ffffff" stroke="#be185d" stroke-width="1"/>
-  <text x="285" y="700" text-anchor="middle" class="tile-sub">design</text>
-  <rect x="350" y="678" width="110" height="36" rx="3" fill="#ffffff" stroke="#be185d" stroke-width="1"/>
-  <text x="405" y="700" text-anchor="middle" class="tile-sub">code</text>
-  <rect x="470" y="678" width="110" height="36" rx="3" fill="#ffffff" stroke="#be185d" stroke-width="1"/>
-  <text x="525" y="700" text-anchor="middle" class="tile-sub">review</text>
-  <rect x="590" y="678" width="110" height="36" rx="3" fill="#ffffff" stroke="#be185d" stroke-width="1"/>
-  <text x="645" y="700" text-anchor="middle" class="tile-sub">test</text>
-  <rect x="710" y="678" width="110" height="36" rx="3" fill="#ffffff" stroke="#be185d" stroke-width="1"/>
-  <text x="765" y="700" text-anchor="middle" class="tile-sub">integrate</text>
+      <rect x="936" y="730" width="100" height="60" rx="4" class="tile"/>
+      <text x="986" y="755" text-anchor="middle" class="tile-strong">llm_call</text>
+      <text x="986" y="773" text-anchor="middle">unified API</text>
 
-  <!-- Roles row -->
-  <text x="110" y="738" class="tile-title">Roles (7)</text>
-  <rect x="110" y="746" width="100" height="26" rx="3" fill="#ffffff" stroke="#be185d" stroke-width="1"/>
-  <text x="160" y="763" text-anchor="middle" class="tile-sub">analyst</text>
-  <rect x="215" y="746" width="100" height="26" rx="3" fill="#ffffff" stroke="#be185d" stroke-width="1"/>
-  <text x="265" y="763" text-anchor="middle" class="tile-sub">architect</text>
-  <rect x="320" y="746" width="100" height="26" rx="3" fill="#ffffff" stroke="#be185d" stroke-width="1"/>
-  <text x="370" y="763" text-anchor="middle" class="tile-sub">implementer</text>
-  <rect x="425" y="746" width="100" height="26" rx="3" fill="#ffffff" stroke="#be185d" stroke-width="1"/>
-  <text x="475" y="763" text-anchor="middle" class="tile-sub">reviewer</text>
-  <rect x="530" y="746" width="100" height="26" rx="3" fill="#ffffff" stroke="#be185d" stroke-width="1"/>
-  <text x="580" y="763" text-anchor="middle" class="tile-sub">tester</text>
-  <rect x="635" y="746" width="100" height="26" rx="3" fill="#ffffff" stroke="#be185d" stroke-width="1"/>
-  <text x="685" y="763" text-anchor="middle" class="tile-sub">integrator</text>
-  <rect x="740" y="746" width="80" height="26" rx="3" fill="#ffffff" stroke="#be185d" stroke-width="1"/>
-  <text x="780" y="763" text-anchor="middle" class="tile-sub">release</text>
+      <rect x="1042" y="730" width="68" height="60" rx="4" class="tile"/>
+      <text x="1076" y="754" text-anchor="middle" class="tile-strong">render</text>
+      <text x="1076" y="769" text-anchor="middle" font-size="11">_prompt</text>
+      <text x="1076" y="784" text-anchor="middle" font-size="10">+ token_estimate</text>
 
-  <!-- Arrow 4→5 -->
-  <line x1="400" y1="780" x2="400" y2="830" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <text x="410" y="810" class="arrow-label">materialise into workspace</text>
+      <!-- second row strap: audit, snapshot -->
+      <rect x="100" y="795" width="120" height="0" class="tile" />
+    </g>
+    <!-- inline helpers list, second narrow row -->
+    <text x="80" y="817" class="layer-tag">  also: audit  ·  snapshot  ·  (full set in skills/codenook-core/skills/builtin/_lib/)</text>
+  </g>
 
-  <!-- Layer 5: Workspace -->
-  <text x="60" y="850" class="layer-label">5 · Per-workspace runtime</text>
-  <rect x="80" y="830" width="1040" height="260" rx="6" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
-  <text x="600" y="854" text-anchor="middle" class="container-label">.codenook/ — per-workspace state</text>
+  <!-- ────────────── LAYER 4 — Plugins ────────────── -->
+  <g>
+    <text x="40" y="870" class="layer-title">4. Plugins</text>
+    <text x="40" y="890" class="layer-tag">  plugins/&lt;id&gt;/  (source) — staged read-only into &lt;workspace&gt;/.codenook/plugins/&lt;id&gt;/</text>
+    <rect x="60" y="905" width="1080" height="240" rx="8" class="plug-box"/>
 
-  <!-- 3 sub-boxes -->
-  <rect x="110" y="876" width="320" height="190" rx="4" fill="#ffffff" stroke="#2563eb" stroke-width="1"/>
-  <text x="270" y="898" text-anchor="middle" class="box-title">plugins/</text>
-  <text x="270" y="914" text-anchor="middle" class="box-sub">installed pipeline plugins</text>
-  <text x="270" y="930" text-anchor="middle" class="box-sub">(read-only — write-barrier enforced)</text>
-  <line x1="130" y1="942" x2="410" y2="942" stroke="#cbd5e1" stroke-width="1"/>
-  <text x="130" y="962" class="tile-sub">• phases/</text>
-  <text x="130" y="980" class="tile-sub">• roles/</text>
-  <text x="130" y="998" class="tile-sub">• routing.yaml</text>
-  <text x="130" y="1016" class="tile-sub">• plugin.yaml (manifest)</text>
-  <text x="130" y="1040" class="note">audited by plugin_readonly.py</text>
+    <!-- development plugin -->
+    <rect x="90" y="930" width="700" height="200" rx="6" class="tile"/>
+    <text x="440" y="958" text-anchor="middle" class="tile-strong">plugins/development/</text>
+    <text x="440" y="978" text-anchor="middle" class="tile-label">6 phases · 7 roles · phase prompts + role bootstraps + validators</text>
 
-  <rect x="440" y="876" width="320" height="190" rx="4" fill="#ffffff" stroke="#2563eb" stroke-width="1"/>
-  <text x="600" y="898" text-anchor="middle" class="box-title">memory/</text>
-  <text x="600" y="914" text-anchor="middle" class="box-sub">persistent workspace knowledge</text>
-  <text x="600" y="930" text-anchor="middle" class="box-sub">(writable — patch-first policy)</text>
-  <line x1="460" y1="942" x2="740" y2="942" stroke="#cbd5e1" stroke-width="1"/>
-  <text x="460" y="962" class="tile-sub">• knowledge/ (facts, decisions)</text>
-  <text x="460" y="980" class="tile-sub">• skills/ (learned procedures)</text>
-  <text x="460" y="998" class="tile-sub">• config/ (user preferences)</text>
-  <text x="460" y="1016" class="tile-sub">• history/ (run-level audit)</text>
-  <text x="460" y="1040" class="note">caps: 3 / 1 / 5 per task</text>
+    <g class="tile-label">
+      <!-- phases row -->
+      <rect x="110" y="995" width="100" height="36" rx="4" class="tile"/>
+      <text x="160" y="1018" text-anchor="middle">analyze</text>
 
-  <rect x="770" y="876" width="320" height="190" rx="4" fill="#ffffff" stroke="#2563eb" stroke-width="1"/>
-  <text x="930" y="898" text-anchor="middle" class="box-title">tasks/&lt;id&gt;/</text>
-  <text x="930" y="914" text-anchor="middle" class="box-sub">one directory per task</text>
-  <text x="930" y="930" text-anchor="middle" class="box-sub">(writable — task-scoped)</text>
-  <line x1="790" y1="942" x2="1070" y2="942" stroke="#cbd5e1" stroke-width="1"/>
-  <text x="790" y="962" class="tile-sub">• state.json (phase, iteration)</text>
-  <text x="790" y="980" class="tile-sub">• config.yaml (resolved)</text>
-  <text x="790" y="998" class="tile-sub">• transcripts/ (per phase)</text>
-  <text x="790" y="1016" class="tile-sub">• artifacts/ (code, diffs)</text>
-  <text x="790" y="1040" class="note">parent_id · chain_root (M10)</text>
+      <rect x="216" y="995" width="100" height="36" rx="4" class="tile"/>
+      <text x="266" y="1018" text-anchor="middle">design</text>
 
-  <!-- Feedback loop: tasks → memory (extraction) -->
-  <path d="M 770 1000 C 700 1000, 700 1000, 760 1000" fill="none" stroke="#94a3b8" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#arrow-dashed)"/>
-  <text x="765" y="1085" text-anchor="middle" class="note">extraction ← tasks/&lt;id&gt;/ → memory/ (after-phase loop · 80% water-mark)</text>
-  <path d="M 930 1066 C 930 1110, 600 1110, 600 1066" fill="none" stroke="#94a3b8" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#arrow-dashed)"/>
+      <rect x="322" y="995" width="100" height="36" rx="4" class="tile"/>
+      <text x="372" y="1018" text-anchor="middle">code</text>
 
-  <!-- Legend (bottom) -->
-  <text x="80" y="1130" class="note">Colors indicate layer boundary (User · Router · Kernel · Plugins · Workspace). Solid arrows = synchronous invocation; dashed = after-phase extraction feedback.</text>
+      <rect x="428" y="995" width="100" height="36" rx="4" class="tile"/>
+      <text x="478" y="1018" text-anchor="middle">review</text>
+
+      <rect x="534" y="995" width="100" height="36" rx="4" class="tile"/>
+      <text x="584" y="1018" text-anchor="middle">test</text>
+
+      <rect x="640" y="995" width="130" height="36" rx="4" class="tile"/>
+      <text x="705" y="1018" text-anchor="middle">integrate</text>
+    </g>
+
+    <text x="440" y="1058" text-anchor="middle" class="layer-tag">7 roles: clarifier · designer · planner · implementer · tester · acceptor · validator · reviewer</text>
+    <text x="440" y="1078" text-anchor="middle" class="layer-tag">declared in plugin.yaml · phases.yaml · transitions.yaml · hitl-gates.yaml</text>
+    <text x="440" y="1112" text-anchor="middle" class="tile-label">staged read-only — kernel never writes here</text>
+
+    <!-- pointer plugins -->
+    <rect x="810" y="930" width="305" height="95" rx="6" class="tile"/>
+    <text x="962" y="958" text-anchor="middle" class="tile-strong">plugins/writing/</text>
+    <text x="962" y="980" text-anchor="middle" class="tile-label">long-form authoring loop</text>
+    <text x="962" y="1000" text-anchor="middle" class="layer-tag">phases + roles per plugin schema</text>
+
+    <rect x="810" y="1035" width="305" height="95" rx="6" class="tile"/>
+    <text x="962" y="1063" text-anchor="middle" class="tile-strong">plugins/generic/</text>
+    <text x="962" y="1085" text-anchor="middle" class="tile-label">single-shot tasks (analyse → ship)</text>
+    <text x="962" y="1105" text-anchor="middle" class="layer-tag">minimal phase set</text>
+  </g>
+
+  <!-- ────────────── Flow arrows ────────────── -->
+  <!-- Layer 1 → Kernel.router-agent (turn ingest) -->
+  <path class="flow-blue" marker-end="url(#arrow-blue)" d="M 600 160 C 600 220, 180 480, 180 572"/>
+  <text x="610" y="200" class="flow-label" fill="#2c5d87">turn ingest →</text>
+
+  <!-- Kernel → plugins (load active plugin's phase prompts) -->
+  <path class="flow" marker-end="url(#arrow)" d="M 640 655 C 640 760, 440 885, 440 928"/>
+  <text x="640" y="730" class="flow-label">load active plugin's phase prompts</text>
+
+  <!-- Kernel → workspace.tasks (spawn / dispatch / write state+audit) -->
+  <path class="flow" marker-end="url(#arrow)" d="M 950 555 C 950 460, 950 425, 950 397"/>
+  <text x="960" y="475" class="flow-label">spawn · dispatch · state+audit</text>
+
+  <!-- Kernel → workspace.memory (extract → patch/create after each phase) -->
+  <path class="flow" marker-end="url(#arrow)" d="M 590 555 C 590 460, 600 430, 600 397"/>
+  <text x="380" y="475" class="flow-label" text-anchor="end">extract → patch / create</text>
+
+  <!-- Workspace.memory → kernel.render_prompt (memory injection on next turn) -->
+  <path class="flow" marker-end="url(#arrow)" d="M 700 397 C 760 430, 1000 510, 1076 730"/>
+  <text x="970" y="535" class="flow-label">memory injection (next turn)</text>
+
+  <!-- ────────────── Legend ────────────── -->
+  <g transform="translate(60,1170)">
+    <rect width="1080" height="60" rx="6" fill="#fafbfc" stroke="#d3d8de" stroke-width="1"/>
+    <text x="20" y="22" class="layer-tag">Read-only at runtime: layer 4 (plugins/) + the kernel itself.  Read-write: layer 2 memory/ &amp; tasks/ via the kernel only.</text>
+    <text x="20" y="42" class="layer-tag">Cross-layer arrows: blue = user-driven turn ingest; black = kernel-driven internal flows (load / dispatch / extract / inject).</text>
+  </g>
 </svg>
