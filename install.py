@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CodeNook v0.14.0 installer entry point.
+"""CodeNook v0.15.0 installer entry point.
 
 Replaces the legacy ``install.sh`` (kept as ``install.sh.legacy`` for
 one release). Surface:
@@ -19,7 +19,7 @@ import os
 import sys
 from pathlib import Path
 
-VERSION = "0.14.0"
+VERSION = "0.15.0"
 
 os.environ.setdefault("PYTHONUTF8", "1")
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
