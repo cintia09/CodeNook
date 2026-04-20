@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.9] - Bootloader: prefer .cmd wrapper, drop raw bash invocations
+
+### Changed
+
+- **`_lib/claude_md_sync.py` `render_block`** — rewrite all
+  invocation examples to use the `.codenook/bin/codenook[.cmd]` CLI
+  wrapper instead of raw `bash spawn.sh` / `bash tick.sh` /
+  `bash terminal.sh`. Background: hosted-LLM sessions on Windows
+  (Copilot CLI, Cursor) typically don't have `bash` or `python3` on
+  `PATH`. Real Copilot session was observed wasting many turns
+  hunting `bash.exe` after CLAUDE.md said `bash spawn.sh ...`. The
+  `.cmd` shim (added in v0.13.5) auto-discovers Git-for-Windows bash
+  + python; LLM should always go through it.
+- Drop the manual "scan tasks/T-* and increment" id-allocation
+  instruction. `codenook task new --title "..."` allocates the next
+  T-NNN automatically.
+- Drop the now-redundant "Plain-shell alternative" section since the
+  wrapper IS the canonical path.
+- Adjust hard rules to reference `codenook` CLI subcommands instead
+  of underlying `spawn.sh` / `tick.sh`.
+
 ## [0.13.8] - Bootloader: explicit-trigger only + always-ask-next-step rule
 
 ### Changed

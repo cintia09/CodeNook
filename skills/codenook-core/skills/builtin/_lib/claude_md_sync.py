@@ -46,64 +46,84 @@ mentioning codenook, answer normally — do not auto-spawn a task. When
 unsure, ask the user whether they want a CodeNook task instead of
 guessing.
 
+### Invoking the orchestrator (env-portable form)
+
+**Always use the `.codenook/bin/codenook` CLI wrapper.** Do **not** call
+`spawn.sh`, `tick.sh`, or `terminal.sh` directly — those require `bash`
+and `python3` to be on `PATH`, which is often **not** the case in a
+Windows hosted-LLM session (Copilot CLI, Cursor, etc.). The wrapper
+auto-discovers Git-for-Windows bash and a working python3 for you.
+
+| Host shell        | How to invoke                                       |
+|-------------------|-----------------------------------------------------|
+| PowerShell / cmd  | `.codenook\\bin\\codenook.cmd <subcmd> ...`           |
+| bash / zsh / sh   | `.codenook/bin/codenook <subcmd> ...`               |
+
+Do **not** spend time hunting for `bash.exe` or installing python — if
+the wrapper can't find them it will print a clear error pointing to the
+fix. Just call the wrapper and surface its output.
+
 ### How to start a task
 
-Allocate a fresh `T-NNN` id (scan existing `.codenook/tasks/T-*` and
-increment the highest numeric suffix, zero-padded), then invoke:
+The wrapper allocates the next `T-NNN` for you. **Do not** scan
+`.codenook/tasks/` and increment ids by hand.
 
-```bash
-bash .codenook/codenook-core/skills/builtin/router-agent/spawn.sh \\
-    --workspace . --task-id <T-NNN>
+```powershell
+# 1. Create task scaffold (returns the new T-NNN on stdout)
+.codenook\\bin\\codenook.cmd task new --title "<short title>" --accept-defaults
+
+# 2. Hand the user's request to router-agent
+.codenook\\bin\\codenook.cmd router --task <T-NNN> --user-turn "<verbatim user text>"
 ```
 
-`spawn.sh` returns a single-line JSON envelope:
-`{{"action": "...", "task_id": "...", "prompt_path": "...", "reply_path": "...", ...}}`.
-Read `prompt_path` as the system prompt for a sub-agent, dispatch it,
-read `reply_path` after it returns, and relay that text **verbatim** to
-the user. Do not paraphrase or summarise.
+`router` prints the router-agent reply on stdout. Relay that text
+**verbatim** to the user. Do not paraphrase, summarise, or annotate.
 
 ### On user follow-ups during the drafting dialog
 
-Persist the user's exact reply to a scratch file (e.g.
-`.codenook/tasks/<T-NNN>/.user-turn.txt`) and call:
+Each follow-up is another `router` call with the user's exact words:
 
-```bash
-bash .codenook/codenook-core/skills/builtin/router-agent/spawn.sh \\
-    --workspace . --task-id <T-NNN> --user-turn-file <path>
+```powershell
+.codenook\\bin\\codenook.cmd router --task <T-NNN> --user-turn "<verbatim user reply>"
 ```
 
-Same dispatch/relay loop.
+Same relay rule: print the wrapper's stdout verbatim.
 
 ### On user confirmation ("go" / "confirm" / "approve")
 
-```bash
-bash .codenook/codenook-core/skills/builtin/router-agent/spawn.sh \\
-    --workspace . --task-id <T-NNN> --confirm
+The router-agent reply itself signals when confirmation is awaited
+(see `awaiting: confirmation` in its frontmatter). Pass the user's
+confirmation through as a normal `--user-turn`:
+
+```powershell
+.codenook\\bin\\codenook.cmd router --task <T-NNN> --user-turn "go"
 ```
 
-On `action == "handoff"`: enter the tick driver loop:
+When the router replies with handoff (its body will say so), drive
+the tick loop:
 
-```bash
-bash .codenook/codenook-core/skills/builtin/orchestrator-tick/tick.sh \\
-    --task <T-NNN> --workspace . --json
+```powershell
+.codenook\\bin\\codenook.cmd tick --task <T-NNN> --json
 ```
 
 Read `status` from the JSON. Loop on `advanced`. Stop on `done` /
 `blocked` and report verbatim. On `waiting`, scan
-`.codenook/hitl-queue/*.json` for entries with `decision == null`,
+`.codenook\\hitl-queue\\*.json` for entries with `decision == null`,
 relay each `prompt` field verbatim to the user, capture the answer,
 then:
 
-```bash
-bash .codenook/codenook-core/skills/builtin/hitl-adapter/terminal.sh \\
-    decide --id <hitl-entry-id> --decision <answer>
+```powershell
+.codenook\\bin\\codenook.cmd decide --task <T-NNN> --phase <phase> --decision <approve|reject|needs_changes> [--comment "..."]
 ```
 
 Resume the tick loop when all gates resolve.
 
-### Plain-shell alternative
+### Direct kernel-script form (bash environments only)
 
-Users without a hosted agent can use the wrapper directly:
+If you're already in bash/zsh on Linux/macOS or you've explicitly added
+Git-for-Windows bash + python3 to `PATH`, the underlying scripts can be
+called directly. **Do not attempt this from PowerShell as a fallback —
+use the `.cmd` wrapper instead.**
 
 ```bash
 .codenook/bin/codenook task new   --title "Implement X"
@@ -123,9 +143,11 @@ The wrapper resolves the kernel via `kernel_dir` in `.codenook/state.json`.
   happens inside router-agent.
 - MUST NOT mention plugin ids in prose ("development", "writing", etc).
 - MUST NOT modify `router-context.md`, `draft-config.yaml`, `state.json`
-  by hand — only via `spawn.sh`, `orchestrator-tick`, `hitl-adapter`.
+  by hand — only via the `codenook` CLI wrapper, which fronts
+  `spawn.sh`, `orchestrator-tick`, and `hitl-adapter`.
 - MUST NOT spawn phase agents (designer / implementer / tester /
-  reviewer / acceptor / validator) directly. That's `tick.sh`'s job.
+  reviewer / acceptor / validator) directly. That's `codenook tick`'s
+  job (which fronts `tick.sh`).
 - MUST NOT interpret, paraphrase, or summarise `router-reply.md`, the
   HITL `prompt` field, or per-phase outputs. Relay verbatim.
 - MUST end every reply by asking the user what their next step is
