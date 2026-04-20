@@ -15,7 +15,7 @@ one_line_job: "Carry out the analyzer's plan and produce the actual artefact (te
 
 ## Self-bootstrap
 
-Dispatched by `.codenook/skills/builtin/orchestrator-tick`. Read the
+Dispatched by `.codenook/codenook-core/skills/builtin/orchestrator-tick`. Read the
 manifest at `.codenook/tasks/<task>/prompts/phase-3-executor.md` first.
 
 ## Steps
@@ -41,4 +41,4 @@ summary: <=200 chars
 
 Plugin-shipped knowledge: `.codenook/plugins/generic/knowledge/`.
 Plugin-shipped skills:    `.codenook/plugins/generic/skills/`.
-Workspace-wide:           `.codenook/knowledge/` and `.codenook/skills/`.
+Workspace-wide:           `.codenook/memory/knowledge/` and `.codenook/memory/skills/`.

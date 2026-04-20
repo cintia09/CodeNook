@@ -15,7 +15,7 @@ one_line_job: "Turn the user's article topic into a structured outline the draft
 
 ## Self-bootstrap
 
-You were dispatched by `.codenook/skills/builtin/orchestrator-tick`.
+You were dispatched by `.codenook/codenook-core/skills/builtin/orchestrator-tick`.
 Read the manifest at
 `.codenook/tasks/<task>/prompts/phase-1-outliner.md` first.
 
@@ -46,4 +46,4 @@ The orchestrator reads ONLY the `verdict` to choose the next transition
 
 Plugin-shipped knowledge: `.codenook/plugins/writing/knowledge/`.
 Plugin-shipped skills:    `.codenook/plugins/writing/skills/`.
-Workspace-wide:           `.codenook/knowledge/` and `.codenook/skills/` (consume only).
+Workspace-wide:           `.codenook/memory/knowledge/` and `.codenook/memory/skills/` (consume only).

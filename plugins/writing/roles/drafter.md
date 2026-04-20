@@ -15,7 +15,7 @@ one_line_job: "Expand the outliner's outline into a complete first draft of the 
 
 ## Self-bootstrap
 
-You were dispatched by `.codenook/skills/builtin/orchestrator-tick`.
+You were dispatched by `.codenook/codenook-core/skills/builtin/orchestrator-tick`.
 Read the manifest at
 `.codenook/tasks/<task>/prompts/phase-2-drafter.md` first.
 
@@ -45,4 +45,4 @@ The body holds the full article draft (Markdown).
 
 Plugin-shipped knowledge: `.codenook/plugins/writing/knowledge/`.
 Plugin-shipped skills:    `.codenook/plugins/writing/skills/`.
-Workspace-wide:           `.codenook/knowledge/` and `.codenook/skills/` (consume only).
+Workspace-wide:           `.codenook/memory/knowledge/` and `.codenook/memory/skills/` (consume only).

@@ -16,7 +16,7 @@ one_line_job: "Decide whether to decompose, and produce the plan + dependency gr
 
 ## Self-bootstrap
 
-You were dispatched by `.codenook/skills/builtin/orchestrator-tick`. The
+You were dispatched by `.codenook/codenook-core/skills/builtin/orchestrator-tick`. The
 manifest you must follow lives at:
 
 ```
@@ -55,7 +55,7 @@ distiller).
 
 Plugin-shipped knowledge lives at
 `.codenook/plugins/development/knowledge/`. Workspace-shared knowledge
-(if any) lives at `.codenook/knowledge/`. Read lazily; never assume.
+(if any) lives at `.codenook/memory/knowledge/`. Read lazily; never assume.
 
 ## Skills
 

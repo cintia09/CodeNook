@@ -56,8 +56,8 @@ transition (per `.codenook/plugins/development/transitions.yaml`).
 
 - Plugin-shipped knowledge: `.codenook/plugins/development/knowledge/`.
 - Plugin-shipped skills:    `.codenook/plugins/development/skills/`.
-- Workspace-wide:           `.codenook/knowledge/` and
-                            `.codenook/skills/` (consume only —
+- Workspace-wide:           `.codenook/memory/knowledge/` and
+                            `.codenook/memory/skills/` (consume only —
                             do not write).
 
 ## Iteration cap

@@ -15,7 +15,7 @@ one_line_job: "Restate the user's request as 1-3 testable bullets and surface ev
 
 ## Self-bootstrap
 
-You were dispatched by `.codenook/skills/builtin/orchestrator-tick`.
+You were dispatched by `.codenook/codenook-core/skills/builtin/orchestrator-tick`.
 The dispatch manifest you must follow lives at:
 
 ```
@@ -51,5 +51,5 @@ The orchestrator reads ONLY the `verdict` to choose the next transition
 
 Plugin-shipped knowledge: `.codenook/plugins/generic/knowledge/`.
 Plugin-shipped skills:    `.codenook/plugins/generic/skills/`.
-Workspace-wide:           `.codenook/knowledge/` and
-                          `.codenook/skills/` (consume only).
+Workspace-wide:           `.codenook/memory/knowledge/` and
+                          `.codenook/memory/skills/` (consume only).

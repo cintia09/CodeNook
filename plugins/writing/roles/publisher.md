@@ -15,7 +15,7 @@ one_line_job: "Place the revised article on disk in its final form and emit a re
 
 ## Self-bootstrap
 
-You were dispatched by `.codenook/skills/builtin/orchestrator-tick`
+You were dispatched by `.codenook/codenook-core/skills/builtin/orchestrator-tick`
 AFTER the reviser's output was approved at the `pre_publish` HITL gate
 (see `.codenook/plugins/writing/hitl-gates.yaml`). Read the manifest
 at `.codenook/tasks/<task>/prompts/phase-5-publisher.md` first.
@@ -47,4 +47,4 @@ summary: <=200 chars
 
 Plugin-shipped knowledge: `.codenook/plugins/writing/knowledge/`.
 Plugin-shipped skills:    `.codenook/plugins/writing/skills/`.
-Workspace-wide:           `.codenook/knowledge/` and `.codenook/skills/` (consume only).
+Workspace-wide:           `.codenook/memory/knowledge/` and `.codenook/memory/skills/` (consume only).

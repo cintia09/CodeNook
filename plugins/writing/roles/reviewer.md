@@ -15,7 +15,7 @@ one_line_job: "Critique the draft for argument, structure, voice and factual acc
 
 ## Self-bootstrap
 
-You were dispatched by `.codenook/skills/builtin/orchestrator-tick`.
+You were dispatched by `.codenook/codenook-core/skills/builtin/orchestrator-tick`.
 Read the manifest at
 `.codenook/tasks/<task>/prompts/phase-3-reviewer.md` first.
 
@@ -45,4 +45,4 @@ list verbatim.
 
 Plugin-shipped knowledge: `.codenook/plugins/writing/knowledge/`.
 Plugin-shipped skills:    `.codenook/plugins/writing/skills/`.
-Workspace-wide:           `.codenook/knowledge/` and `.codenook/skills/` (consume only).
+Workspace-wide:           `.codenook/memory/knowledge/` and `.codenook/memory/skills/` (consume only).

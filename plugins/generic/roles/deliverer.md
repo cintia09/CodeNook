@@ -15,7 +15,7 @@ one_line_job: "Package the executor's artefact for the user, sanity-check it aga
 
 ## Self-bootstrap
 
-Dispatched by `.codenook/skills/builtin/orchestrator-tick`. Read the
+Dispatched by `.codenook/codenook-core/skills/builtin/orchestrator-tick`. Read the
 manifest at `.codenook/tasks/<task>/prompts/phase-4-deliverer.md` first.
 
 ## Steps
@@ -44,4 +44,4 @@ summary: <=200 chars
 
 Plugin-shipped knowledge: `.codenook/plugins/generic/knowledge/`.
 Plugin-shipped skills:    `.codenook/plugins/generic/skills/`.
-Workspace-wide:           `.codenook/knowledge/` and `.codenook/skills/`.
+Workspace-wide:           `.codenook/memory/knowledge/` and `.codenook/memory/skills/`.

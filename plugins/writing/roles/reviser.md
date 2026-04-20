@@ -15,7 +15,7 @@ one_line_job: "Apply the reviewer's revision list to the draft and produce a pub
 
 ## Self-bootstrap
 
-You were dispatched by `.codenook/skills/builtin/orchestrator-tick`.
+You were dispatched by `.codenook/codenook-core/skills/builtin/orchestrator-tick`.
 Read the manifest at
 `.codenook/tasks/<task>/prompts/phase-4-reviser.md` first.
 
@@ -46,4 +46,4 @@ opens here for human approval BEFORE the publisher writes to disk).
 
 Plugin-shipped knowledge: `.codenook/plugins/writing/knowledge/`.
 Plugin-shipped skills:    `.codenook/plugins/writing/skills/`.
-Workspace-wide:           `.codenook/knowledge/` and `.codenook/skills/` (consume only).
+Workspace-wide:           `.codenook/memory/knowledge/` and `.codenook/memory/skills/` (consume only).

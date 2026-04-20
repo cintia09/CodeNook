@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.17] - fix stale workspace knowledge / skills paths in role profiles
+
+### Fixed
+
+- **Plugin role profiles + manifest templates** referenced
+  `.codenook/knowledge/` and `.codenook/skills/` for workspace-shared
+  resources, but the actual layout puts those under
+  `.codenook/memory/knowledge/` and `.codenook/memory/skills/`. Sub-
+  agents reading the role profile during dispatch were chasing dead
+  paths. All 34 affected files (development + generic + writing roles
+  and manifest-templates) now point at the real locations.
+
+- Same files referenced `.codenook/skills/builtin/orchestrator-tick`
+  for the dispatcher. The kernel actually lives at
+  `.codenook/codenook-core/skills/builtin/orchestrator-tick`. Fixed
+  in 17 files.
+
 ## [0.13.16] - install all plugins by default + Windows path fixes
 
 ### Changed
