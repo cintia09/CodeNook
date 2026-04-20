@@ -2,6 +2,81 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.3] - 2026-04-20 · Usability fix-pack (E2E round 1)
+
+Round-1 follow-up to the v0.11.2 end-to-end report
+(`docs/e2e-report-v0.11.2.md`): 11 user-blocking findings closed
+(1 CRITICAL, 6 HIGH, 4 MEDIUM). Bats grows 885 → 895; pytest suite
+introduced with 21 new tests covering router driver, tick verdict
+parsing, entry-questions metadata, extractor frontmatter, linter modes,
+and workspace state schema.
+
+### Fixed
+
+- **E2E-001 (CRITICAL)** — `bash install.sh` now installs an executable
+  `.codenook/bin/codenook` wrapper exposing the canonical workflow:
+  `task new`, `router`, `tick`, `decide`, `status`, `chain link`. The
+  CLAUDE.md bootloader marker block lists literal commands instead of
+  vague "invoke the router-agent skill" prose.
+- **E2E-002** — added
+  `skills/codenook-core/skills/builtin/router-agent/host_driver.py` for
+  plain-shell / CI users without a hosted LLM driver. Reads
+  `.router-prompt.md`, calls `_lib/llm_call.py`, writes
+  `router-reply.md`. Wired into `codenook router`. Hosted agents
+  (Claude Code / Copilot CLI) still drive the loop natively.
+- **E2E-003** — installer now copies `task-state.schema.json`,
+  `installed.schema.json`, `hitl-entry.schema.json`,
+  `queue-entry.schema.json`, `locks-entry.schema.json` plus
+  `state.example.md` into `.codenook/schemas/` and `.codenook/`.
+- **E2E-005** — `_tick.read_verdict` now distinguishes `MISSING`,
+  `NO_FRONTMATTER`, `YAML_PARSE_ERROR`, and `BAD_VERDICT` via a new
+  `read_verdict_detailed()` API. Tick output reports
+  `{"awaiting":"<role>","reason":"yaml_parse_error","detail":"...","file":"..."}`
+  with a stderr warning instead of silently looking like the agent
+  never returned.
+- **E2E-006** — entry-questions blocked response now includes
+  `allowed_values` (from `entry-questions.yaml` `questions:` block or
+  the JSON-schema enum fallback for `dual_mode`) and a `recovery:`
+  hint pointing to `codenook task set …`.
+- **E2E-008** — `parent_id` / `chain_root` documented in
+  `plugins/development/README.md`. New `codenook chain link --child T-X
+  --parent T-Y` helper validates the relationship and echoes back the
+  written fields for traceability.
+- **E2E-009** — `knowledge-extractor` now consumes YAML frontmatter
+  `extract:` blocks emitted by role outputs in
+  `.codenook/tasks/<id>/outputs/*.md`. Falls back to LLM-driven
+  extraction only when no role outputs exist; an outputs-present-but-
+  no-`extract:` case yields `status: no_candidates` (not
+  `parse_failed`). New pytest fixture asserts ≥1 knowledge entry per
+  candidate.
+- **E2E-015** (partial) — `extractor-batch` deduplicates
+  `.extractor-*.err` lines so repeated runs don't grow unbounded.
+- **E2E-016** — `bash install.sh` is now strictly idempotent: when
+  `state.json` already records the same plugin id at the same version,
+  the installer skips the gates that would fire G03/G07/G04 and prints
+  `↻ already installed (idempotent)` with exit 0. Version mismatches
+  still require an explicit `--upgrade`.
+- **E2E-017** — `claude_md_linter` defaults to `--marker-only` mode
+  (scan only INSIDE `<!-- codenook:begin … end -->`); `--strict`
+  preserves the v0.11.2 whole-file behavior; new
+  `--outside-marker-only` mode powers the installer's friendly warning
+  about legacy v4.x tokens in user content.
+- **E2E-018** — installer seeds `.codenook/memory/{knowledge,skills,
+  history,_pending}/.gitkeep` plus a default `config.yaml` (`entries:
+  []`). Idempotent — never overwrites an existing config.
+- **E2E-019** — workspace `state.json` schema upgraded to v1:
+  `schema_version`, `kernel_version`, `installed_at`, `kernel_dir`,
+  `bin`, plus `installed_plugins[].{installed_at, files_sha256}`.
+  Backward-compatible read of pre-0.11.3 format. Schema published at
+  `.codenook/schemas/installed.schema.json`.
+
+### Deferred to v0.12 (see `docs/e2e-report-v0.11.2.md` follow-up section)
+
+E2E-004 (naming), E2E-007 (parent_suggester wrapper), E2E-010
+(time-window UX), E2E-011 (post-validate produced_files audit),
+E2E-012 (manifest expansion), E2E-013 (HITL silent), E2E-014 (workspace
+state rename — addressed by `schema_version` instead).
+
 ## [0.11.2] - 2026-04-20 · Fix-pack (deep-review DR-001..DR-014 subset)
 
 Fix-pack release applying the high-impact subset of the v0.11.1
