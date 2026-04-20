@@ -161,7 +161,7 @@ def _html_escape(s: str) -> str:
              .replace('"', "&quot;"))
 
 
-def cmd_render_html(ws: Path, eid: str, out_path: str) -> int:
+def cmd_render_html(ws: Path, eid: str, out_path: str, do_open: bool = False) -> int:
     """Render HITL entry as a self-contained HTML file for human review.
 
     The resulting file is static — submission still happens via
@@ -229,6 +229,32 @@ h1{{font-size:1.4em}}
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
     print(str(out))
+
+    if do_open:
+        url = out.resolve().as_uri()
+        opened = False
+        try:
+            import webbrowser
+            opened = webbrowser.open(url)
+        except Exception:
+            opened = False
+        if not opened:
+            import shutil, subprocess
+            opener = None
+            if sys.platform == "darwin" and shutil.which("open"):
+                opener = ["open", str(out)]
+            elif sys.platform.startswith("linux") and shutil.which("xdg-open"):
+                opener = ["xdg-open", str(out)]
+            elif sys.platform == "win32":
+                opener = ["cmd", "/c", "start", "", str(out)]
+            if opener is not None:
+                try:
+                    subprocess.Popen(opener, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    opened = True
+                except Exception:
+                    opened = False
+        if not opened:
+            print(f"html.sh: could not auto-open browser; open manually: {url}", file=sys.stderr)
     return 0
 
 
@@ -252,6 +278,7 @@ def main() -> None:
             ws,
             os.environ.get("CN_ID", ""),
             os.environ.get("CN_OUT", ""),
+            os.environ.get("CN_OPEN", "0") == "1",
         ))
     print(f"terminal.sh: unknown subcommand: {sub}", file=sys.stderr)
     sys.exit(2)

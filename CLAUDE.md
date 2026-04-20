@@ -143,15 +143,17 @@ When the tick returns `waiting`, scan
    - `terminal` — read the entry JSON and show the `prompt` field
      verbatim to the user. Do not interpret the gate, do not
      editorialise, do not suggest an answer.
-   - `html` — render the gate as a self-contained file and tell the
-     user to open it:
+   - `html` — render the gate as a self-contained file and
+     **auto-open it in the default browser** with `--open`:
 
      ```bash
      <ws>/.codenook/codenook-core/skills/builtin/hitl-adapter/html.sh render \
-         --id <hitl-entry-id>
+         --id <hitl-entry-id> --open
      ```
 
-     Then collect the decision back in the terminal as usual.
+     The script writes the file, prints its path, then opens it via
+     `open` (macOS) / `xdg-open` (Linux) / `start` (Windows). Then
+     collect the decision back in the terminal as usual.
 
 3. Capture the user's free-form answer and submit:
 

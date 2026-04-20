@@ -4,18 +4,19 @@
 # `terminal.sh decide` (or the `codenook decide` wrapper). See SKILL.md.
 #
 # Usage:
-#   html.sh render --id <hitl-entry-id> [--out <path>] [--workspace <dir>]
+#   html.sh render --id <hitl-entry-id> [--out <path>] [--open] [--workspace <dir>]
 set -euo pipefail
 
 SUBCMD="${1:-}"
 [ $# -ge 1 ] && shift || true
 
-ID=""; OUT=""; WORKSPACE="${CODENOOK_WORKSPACE:-}"
+ID=""; OUT=""; OPEN="0"; WORKSPACE="${CODENOOK_WORKSPACE:-}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --id)        ID="$2"; shift 2 ;;
     --out)       OUT="$2"; shift 2 ;;
+    --open)      OPEN="1"; shift ;;
     --workspace) WORKSPACE="$2"; shift 2 ;;
     -h|--help)
       sed -n '1,12p' "$0"; exit 0 ;;
@@ -37,7 +38,7 @@ fi
 
 case "$SUBCMD" in
   render)
-    CN_SUBCMD=render-html CN_WORKSPACE="$WORKSPACE" CN_ID="$ID" CN_OUT="$OUT" \
+    CN_SUBCMD=render-html CN_WORKSPACE="$WORKSPACE" CN_ID="$ID" CN_OUT="$OUT" CN_OPEN="$OPEN" \
       python3 "$(dirname "$0")/_hitl.py"
     ;;
   ""|-h|--help)

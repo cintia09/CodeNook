@@ -246,14 +246,15 @@ For each open entry:
 
    - `terminal` (default) — relay the `prompt` field verbatim via
      your normal `ask_user`-style facility.
-   - `html` — render the gate as a self-contained file the user
-     can open in a browser, then collect the decision back in the
-     terminal:
+   - `html` — render the gate as a self-contained file and **auto-open
+     it in the default browser** with `--open`, then collect the
+     decision back in the terminal:
 
      ```bash
-     <codenook> hitl render --id <entry-id>
-     # prints the file path; tell the user to open it (file://...)
-     # then ask for their decision + comment in the terminal as usual.
+     <codenook> hitl render --id <entry-id> --open
+     # writes the file, prints its path, then opens it via
+     # `open` (macOS) / `xdg-open` (Linux) / `start` (Windows).
+     # Ask for the user's decision + comment in the terminal as usual.
      ```
 
    The ONLY case in which you may skip the channel-choice ask is

@@ -17,7 +17,7 @@ HELP = """\
 codenook hitl <subcmd> [args...]
   list   [--json]
   show   --id <hitl-entry-id>
-  render --id <hitl-entry-id> [--out <path>]
+  render --id <hitl-entry-id> [--out <path>] [--open]
   decide --id <id> --decision <approve|reject|needs_changes>
          [--reviewer <name>] [--comment "..."]
 """
@@ -32,6 +32,9 @@ def _parse_kvargs(args: list[str]) -> dict[str, object]:
     for a in it:
         if a == "--json":
             out["__json__"] = True
+            continue
+        if a == "--open":
+            out["open"] = True
             continue
         if a.startswith("--"):
             try:
@@ -82,6 +85,7 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
             "CN_SUBCMD": "render-html",
             "CN_ID": str(kv.get("id") or ""),
             "CN_OUT": str(kv.get("out") or ""),
+            "CN_OPEN": "1" if kv.get("open") else "0",
             "CN_WORKSPACE": str(ctx.workspace),
         }
         return _exec(ctx, helper, extra)
