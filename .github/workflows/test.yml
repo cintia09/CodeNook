@@ -58,6 +58,7 @@ jobs:
 
       - name: Install (full) into temp workspace + verify self-contained
         run: |
+          mkdir -p /tmp/ws-full
           python3 install.py --target /tmp/ws-full --plugin development --yes
           test -f /tmp/ws-full/.codenook/state.json
           test -d /tmp/ws-full/.codenook/codenook-core/skills/builtin
