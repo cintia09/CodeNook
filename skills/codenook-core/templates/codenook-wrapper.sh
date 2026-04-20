@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# codenook — workspace CLI wrapper (v0.11.3, E2E-001 / E2E-008).
+# codenook — workspace CLI wrapper (v0.11.4, E2E-001 / E2E-008 / E2E-P-002,P-005,P-008).
 #
 # Installed by `bash install.sh` into <workspace>/.codenook/bin/codenook.
 # Resolves the kernel via `kernel_dir` recorded in <workspace>/.codenook/state.json
@@ -9,6 +9,10 @@
 # Subcommands:
 #   codenook task new --title "…" [--summary "…"] [--plugin <id>] [--target-dir <p>]
 #                     [--dual-mode serial|parallel] [--max-iterations N] [--parent T-X]
+#                     [--priority P0|P1|P2|P3] [--accept-defaults]
+#   codenook task set --task T-NNN --field <field> --value <val>
+#                     # writable fields: dual_mode, target_dir, priority,
+#                     # max_iterations, summary, title
 #   codenook router   --task T-NNN --user-turn "…"
 #   codenook tick     --task T-NNN [--json]
 #   codenook decide   --task T-NNN --phase <id> --decision approve|reject|needs_changes [--comment "…"]
@@ -17,7 +21,7 @@
 #   codenook chain    show <task>
 #   codenook chain    detach <task>
 #
-# Exit codes: 0 ok | 1 runtime error | 2 usage | 3 already attached / not modified.
+# Exit codes: 0 ok | 1 runtime error | 2 entry-question / usage | 3 already attached / not modified.
 
 set -euo pipefail
 
@@ -74,22 +78,27 @@ cmd_task() {
   local sub="${1:-}"; shift || true
   case "$sub" in
     new) cmd_task_new "$@" ;;
-    *) echo "codenook task: unknown subcommand: ${sub:-<none>}" >&2; exit 2 ;;
+    set) cmd_task_set "$@" ;;
+    *) echo "codenook task: unknown subcommand: ${sub:-<none>}" >&2;
+       echo "  use: new | set" >&2; exit 2 ;;
   esac
 }
 
 cmd_task_new() {
-  local title="" summary="" plugin="" target_dir="" dual_mode="serial"
-  local max_iter=3 parent="" task_id=""
+  local title="" summary="" plugin="" target_dir="" dual_mode=""
+  local dual_mode_set="0" priority="P2" max_iter=3 parent="" task_id=""
+  local accept_defaults="0"
   while [ $# -gt 0 ]; do
     case "$1" in
       --title) title="$2"; shift 2 ;;
       --summary) summary="$2"; shift 2 ;;
       --plugin) plugin="$2"; shift 2 ;;
       --target-dir) target_dir="$2"; shift 2 ;;
-      --dual-mode) dual_mode="$2"; shift 2 ;;
+      --dual-mode) dual_mode="$2"; dual_mode_set="1"; shift 2 ;;
       --max-iterations) max_iter="$2"; shift 2 ;;
       --parent) parent="$2"; shift 2 ;;
+      --priority) priority="$2"; shift 2 ;;
+      --accept-defaults) accept_defaults="1"; shift ;;
       --id) task_id="$2"; shift 2 ;;
       *) echo "codenook task new: unknown arg: $1" >&2; exit 2 ;;
     esac
@@ -97,6 +106,18 @@ cmd_task_new() {
   if [ -z "$title" ]; then
     echo "codenook task new: --title is required" >&2; exit 2
   fi
+
+  # E2E-P-008 — validate --priority enum.
+  case "$priority" in
+    P0|P1|P2|P3) : ;;
+    *) echo "codenook task new: invalid --priority '$priority' (allowed: P0|P1|P2|P3)" >&2; exit 2 ;;
+  esac
+
+  # E2E-P-005 — default target_dir to src/ when not provided.
+  if [ -z "$target_dir" ]; then
+    target_dir="src/"
+  fi
+
   if [ -z "$plugin" ]; then
     plugin="$(python3 -c "import json; d=json.load(open('$STATE_JSON')); ip=d.get('installed_plugins') or []; print((ip[0].get('id') if ip else '') or '')")"
   fi
@@ -110,7 +131,8 @@ cmd_task_new() {
 
   CN_NEW_TID="$task_id" CN_NEW_TITLE="$title" CN_NEW_SUMMARY="$summary" \
   CN_NEW_PLUGIN="$plugin" CN_NEW_TARGET="$target_dir" CN_NEW_DUAL="$dual_mode" \
-  CN_NEW_MAX="$max_iter" CN_NEW_PARENT="$parent" \
+  CN_NEW_DUAL_SET="$dual_mode_set" CN_NEW_ACCEPT="$accept_defaults" \
+  CN_NEW_MAX="$max_iter" CN_NEW_PARENT="$parent" CN_NEW_PRIORITY="$priority" \
   python3 - "$tdir/state.json" <<'PY'
 import json, os, sys
 state = {
@@ -120,10 +142,17 @@ state = {
   "phase":    None,
   "iteration": 0,
   "max_iterations": int(os.environ.get("CN_NEW_MAX","3") or "3"),
-  "dual_mode": os.environ.get("CN_NEW_DUAL","serial") or "serial",
   "status":   "in_progress",
   "history":  [],
+  "priority": os.environ.get("CN_NEW_PRIORITY","P2") or "P2",
 }
+# E2E-P-002: only set dual_mode when explicitly provided OR when
+# --accept-defaults was supplied. Otherwise leave it unset so the entry-
+# question gate fires below.
+if os.environ.get("CN_NEW_DUAL_SET") == "1":
+    state["dual_mode"] = os.environ.get("CN_NEW_DUAL","serial") or "serial"
+elif os.environ.get("CN_NEW_ACCEPT") == "1":
+    state["dual_mode"] = "serial"
 for src, dst in (("CN_NEW_TITLE","title"),
                  ("CN_NEW_SUMMARY","summary"),
                  ("CN_NEW_TARGET","target_dir")):
@@ -139,7 +168,70 @@ PY
   if [ -n "$parent" ]; then
     python3 -m task_chain --workspace "$CODENOOK_WORKSPACE" attach "$task_id" "$parent" || true
   fi
+
+  # E2E-P-002 — surface entry-question for missing --dual-mode (exit 2).
+  if [ "$dual_mode_set" = "0" ] && [ "$accept_defaults" = "0" ]; then
+    cat <<EOF
+{"action":"entry_question","task":"$task_id","field":"dual_mode","allowed_values":["serial","parallel"],"recovery":"codenook task set --task $task_id --field dual_mode --value <serial|parallel>"}
+EOF
+    exit 2
+  fi
+
   echo "$task_id"
+}
+
+cmd_task_set() {
+  if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+    cat <<'HELP'
+Usage: codenook task set --task T-NNN --field <field> --value <val>
+
+Writable fields:
+  dual_mode       serial | parallel
+  target_dir      directory path (e.g. src/)
+  priority        P0 | P1 | P2 | P3
+  max_iterations  positive integer
+  summary         free text
+  title           free text
+HELP
+    exit 0
+  fi
+  local task="" field="" value="" value_set="0"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --task)  task="$2"; shift 2 ;;
+      --field) field="$2"; shift 2 ;;
+      --value) value="$2"; value_set="1"; shift 2 ;;
+      *) echo "codenook task set: unknown arg: $1" >&2; exit 2 ;;
+    esac
+  done
+  [ -n "$task" ] && [ -n "$field" ] && [ "$value_set" = "1" ] || {
+    echo "codenook task set: --task, --field, --value all required" >&2; exit 2; }
+  local sf="$CODENOOK_WORKSPACE/.codenook/tasks/$task/state.json"
+  [ -f "$sf" ] || { echo "codenook task set: no such task: $task" >&2; exit 1; }
+
+  CN_SET_FILE="$sf" CN_SET_FIELD="$field" CN_SET_VALUE="$value" python3 - <<'PY'
+import json, os, sys
+sf = os.environ["CN_SET_FILE"]; field = os.environ["CN_SET_FIELD"]
+value = os.environ["CN_SET_VALUE"]
+ALLOWED = {"dual_mode": ("serial","parallel"),
+           "priority":  ("P0","P1","P2","P3")}
+INT_FIELDS = {"max_iterations"}
+WRITABLE = {"dual_mode","target_dir","priority","max_iterations","summary","title"}
+if field not in WRITABLE:
+    print(f"codenook task set: field '{field}' is not writable (allowed: {sorted(WRITABLE)})", file=sys.stderr)
+    sys.exit(2)
+if field in ALLOWED and value not in ALLOWED[field]:
+    print(f"codenook task set: invalid value '{value}' for {field} (allowed: {ALLOWED[field]})", file=sys.stderr)
+    sys.exit(2)
+if field in INT_FIELDS:
+    try: value = int(value)
+    except ValueError:
+        print(f"codenook task set: {field} must be an integer", file=sys.stderr); sys.exit(2)
+with open(sf) as f: state = json.load(f)
+state[field] = value
+with open(sf, "w") as f: json.dump(state, f, indent=2)
+print(json.dumps({"task": state.get("task_id"), "field": field, "value": value}))
+PY
 }
 
 cmd_router() {

@@ -18,6 +18,7 @@
     "iteration": {"type": "integer", "minimum": 0},
     "max_iterations": {"type": "integer", "minimum": 0},
     "dual_mode": {"enum": ["serial", "parallel"]},
+    "priority": {"enum": ["P0", "P1", "P2", "P3"]},
     "status": {"enum": ["pending", "in_progress", "waiting", "blocked", "done",
                          "cancelled", "error"]},
     "subtasks": {"type": "array", "items": {"type": "string"}},
