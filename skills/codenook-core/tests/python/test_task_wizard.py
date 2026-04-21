@@ -109,20 +109,16 @@ def test_input_persists_and_in_envelope(installed_ws: Path) -> None:
 
     cp = _run(_bin_cmd(installed_ws) + [
         "tick", "--task", tid, "--json"
-    ], check=False)
-    if cp.returncode == 0 and cp.stdout.strip():
-        try:
-            env = json.loads(cp.stdout.strip().splitlines()[-1])
-            envelope = env.get("envelope") or {}
-            # task_input is only included once a phase is in flight; if
-            # the kernel returned a dispatch envelope we expect it
-            # there. If not (e.g. waiting / done), at least the
-            # state.json copy survived (asserted above).
-            if envelope:
-                assert envelope.get("task_input") == \
-                    "PR 12345 — fix auth race"
-        except json.JSONDecodeError:
-            pass
+    ])
+    assert cp.returncode == 0, (
+        f"tick failed (rc={cp.returncode})\n"
+        f"--- stdout ---\n{cp.stdout}\n--- stderr ---\n{cp.stderr}"
+    )
+    # task_input must round-trip into the dispatch envelope.
+    env = json.loads(cp.stdout.strip().splitlines()[-1])
+    envelope = env.get("envelope") or {}
+    if envelope:
+        assert envelope.get("task_input") == "PR 12345 — fix auth race"
 
 
 # 4. --input-file reads file content.
@@ -230,3 +226,49 @@ def test_plugin_info(installed_ws: Path) -> None:
     # At least one of the well-known development profile names appears.
     assert any(name in cp.stdout for name in
                ("feature", "hotfix", "refactor"))
+
+
+# 10. v0.20.1 regression — the v0.18-v0.20 fields (model_override,
+# execution_mode, profile, task_input) MUST be accepted by the
+# task-state schema. Pre-fix, the schema's
+# ``additionalProperties: false`` rejected them and the very first
+# tick crashed with a schema violation. This test asserts that a task
+# created with the full set of new flags can `tick` end-to-end without
+# a schema error and that the envelope reflects the inputs.
+def test_v0201_new_flags_tick_without_schema_violation(
+    installed_ws: Path,
+) -> None:
+    tid = _new_task(
+        installed_ws,
+        "--title", "v0201-regression",
+        "--plugin", "development",
+        "--profile", "hotfix",
+        "--input", "seed text",
+        "--exec", "inline",
+        "--model", "claude-opus-4.7",
+        "--accept-defaults",
+    )
+    s = _state(installed_ws, tid)
+    assert s.get("execution_mode") == "inline"
+    assert s.get("profile") == "hotfix"
+    assert s.get("task_input") == "seed text"
+    assert s.get("model_override") == "claude-opus-4.7"
+
+    # The critical assertion: tick MUST NOT crash with a schema
+    # violation. Pre-v0.20.1 this was sys.exit(1) with
+    # "$: unexpected properties ['execution_mode']".
+    cp = _run(_bin_cmd(installed_ws) + ["tick", "--task", tid, "--json"])
+    assert cp.returncode == 0, (
+        f"tick failed (rc={cp.returncode})\n"
+        f"--- stdout ---\n{cp.stdout}\n--- stderr ---\n{cp.stderr}"
+    )
+    assert "schema" not in cp.stderr.lower(), (
+        f"unexpected schema error in stderr:\n{cp.stderr}"
+    )
+    env = json.loads(cp.stdout.strip().splitlines()[-1])
+    envelope = env.get("envelope") or {}
+    # Inline mode must surface as inline_dispatch with model + task_input.
+    if envelope:
+        assert envelope.get("execution_mode") in (None, "inline")
+        if envelope.get("task_input") is not None:
+            assert envelope["task_input"] == "seed text"

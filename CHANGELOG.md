@@ -1,3 +1,49 @@
+## v0.20.1 (2026-04-25) — hotfix: schema accepts new fields, tests no longer mask tick failures
+
+### Fixed
+- **CRIT-1 — task-state schema rejected new fields → first tick crashed.**
+  `schemas/task-state.schema.json` declares
+  `"additionalProperties": false`, but v0.19's `execution_mode` and
+  v0.20's `task_input` were never added to the schema. The result:
+  *every* task created with `--exec`, `--input`, `--input-file`, or
+  via `--interactive` (the wizard always writes `task_input`) crashed
+  the very first `tick` with
+  `$: unexpected properties ['execution_mode']` (or `['task_input']`)
+  and exited 1. Schema now lists `execution_mode`, `task_input`,
+  `model_override`, and `profile` explicitly. Pure additive — no
+  `schema_version` bump required.
+- **CRIT-2 — tests masked the schema crash.**
+  `tests/python/test_task_wizard.py::test_input_persists_and_in_envelope`
+  ran `tick` with `check=False` and then guarded every assertion
+  behind `if cp.returncode == 0: ...`, so the crash slipped past
+  green CI. Replaced with hard
+  `assert cp.returncode == 0, f"stderr={...}"` and added a new
+  end-to-end regression test
+  (`test_v0201_new_flags_tick_without_schema_violation`) that
+  exercises `--profile` + `--input` + `--exec inline` + `--model`
+  together and asserts `tick` exits cleanly with no schema error.
+- **HIGH-1 — `task new --interactive` infinite-looped on stdin EOF
+  for the required title prompt.** When the wizard's stdin closed
+  while the user was at the "Title (required)" prompt, the loop
+  spammed "title cannot be empty." forever because `_prompt` could
+  not distinguish "user pressed enter" from "stdin at EOF". `_prompt`
+  now returns a sentinel on EOF; the wizard checks for it at every
+  prompt and aborts with a clear `stdin closed; aborting wizard`
+  message and `rc=1`. Wizard top level also catches `KeyboardInterrupt`
+  for graceful Ctrl+C.
+
+### Known issues — queued for v0.20.2 / v0.21.0
+The deep code review surfaced four additional items that are NOT
+fixed in this hotfix because they are benign or low-frequency. They
+are tracked for the next release:
+
+- **HIGH-2** — augmentation transactional gap (idempotent / benign).
+- **MED-1** — inline envelope omits `prior_outputs`.
+- **MED-2** — `task set-profile` allowed while `in_flight_agent` is set.
+- **MED-3** — `task new --input ""` silently dropped (empty string).
+
+
+
 ## v0.20.0 (2026-04-25) — task-creation entry points
 
 ### Added

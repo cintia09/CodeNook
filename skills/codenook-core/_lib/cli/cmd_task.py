@@ -587,15 +587,25 @@ def _task_set_profile(ctx: CodenookContext, args: list[str]) -> int:
     return 0
 
 
-def _prompt(prompt: str, default: str = "") -> str:
+_PROMPT_EOF = object()
+
+
+def _prompt(prompt: str, default: str = ""):
     """Plain stdin/stdout prompt. No readline; works on cmd / PowerShell
-    / POSIX shells alike."""
+    / POSIX shells alike.
+
+    Returns the user-entered string (or ``default`` if the user just hit
+    enter). Returns the sentinel :data:`_PROMPT_EOF` when stdin is at
+    EOF (``readline()`` returned ``""``) so callers can distinguish
+    "user pressed enter" from "stdin closed" — the wizard relies on
+    this to abort instead of spinning forever.
+    """
     suffix = f" [{default}]" if default else ""
     sys.stdout.write(f"{prompt}{suffix}: ")
     sys.stdout.flush()
     line = sys.stdin.readline()
-    if not line:
-        return default
+    if line == "":
+        return _PROMPT_EOF
     line = line.rstrip("\r\n")
     return line if line else default
 
@@ -642,57 +652,92 @@ def _task_new_interactive(ctx: CodenookContext, args: list[str]) -> int:
             "codenook task new: no installed plugin found in state.json\n")
         return 1
 
-    sys.stdout.write("codenook task new — interactive wizard\n\n")
-    sys.stdout.write(f"Installed plugins: {', '.join(installed)}\n")
-    plugin = _prompt("Plugin", default=installed[0])
-    while plugin not in installed:
-        sys.stdout.write(f"  ! '{plugin}' is not installed.\n")
+    def _abort_eof() -> int:
+        sys.stderr.write(
+            "codenook task new: stdin closed; aborting wizard.\n")
+        return 1
+
+    try:
+        sys.stdout.write("codenook task new — interactive wizard\n\n")
+        sys.stdout.write(f"Installed plugins: {', '.join(installed)}\n")
         plugin = _prompt("Plugin", default=installed[0])
+        if plugin is _PROMPT_EOF:
+            return _abort_eof()
+        while plugin not in installed:
+            sys.stdout.write(f"  ! '{plugin}' is not installed.\n")
+            plugin = _prompt("Plugin", default=installed[0])
+            if plugin is _PROMPT_EOF:
+                return _abort_eof()
 
-    profiles = _load_plugin_profiles(ctx, plugin)
-    profile = ""
-    if profiles:
-        default_profile = "default" if "default" in profiles else profiles[0]
-        sys.stdout.write(
-            f"Profiles for '{plugin}': {', '.join(profiles)}\n")
-        profile = _prompt("Profile", default=default_profile)
-        while profile not in profiles:
+        profiles = _load_plugin_profiles(ctx, plugin)
+        profile = ""
+        if profiles:
+            default_profile = "default" if "default" in profiles else profiles[0]
             sys.stdout.write(
-                f"  ! '{profile}' is not a valid profile (valid: "
-                f"{', '.join(profiles)})\n")
+                f"Profiles for '{plugin}': {', '.join(profiles)}\n")
             profile = _prompt("Profile", default=default_profile)
-    else:
-        sys.stdout.write(
-            f"(plugin '{plugin}' has no profiles block — skipping)\n")
+            if profile is _PROMPT_EOF:
+                return _abort_eof()
+            while profile not in profiles:
+                sys.stdout.write(
+                    f"  ! '{profile}' is not a valid profile (valid: "
+                    f"{', '.join(profiles)})\n")
+                profile = _prompt("Profile", default=default_profile)
+                if profile is _PROMPT_EOF:
+                    return _abort_eof()
+        else:
+            sys.stdout.write(
+                f"(plugin '{plugin}' has no profiles block — skipping)\n")
 
-    title = ""
-    while not title:
-        title = _prompt("Title (required)").strip()
-        if not title:
-            sys.stdout.write("  ! title cannot be empty.\n")
+        title = ""
+        eof_streak = 0
+        while not title:
+            raw = _prompt("Title (required)")
+            if raw is _PROMPT_EOF:
+                eof_streak += 1
+                if eof_streak >= 1:
+                    return _abort_eof()
+                continue
+            eof_streak = 0
+            title = raw.strip()
+            if not title:
+                sys.stdout.write("  ! title cannot be empty.\n")
 
-    task_input = _prompt_multiline("Input (multi-line)")
+        task_input = _prompt_multiline("Input (multi-line)")
 
-    model = _prompt("Model (empty = use plugin/phase defaults)")
+        model = _prompt("Model (empty = use plugin/phase defaults)")
+        if model is _PROMPT_EOF:
+            return _abort_eof()
 
-    exec_mode = _prompt("Exec mode (sub-agent | inline)", default="sub-agent")
-    while exec_mode not in ("sub-agent", "inline"):
-        sys.stdout.write("  ! exec mode must be 'sub-agent' or 'inline'.\n")
         exec_mode = _prompt(
             "Exec mode (sub-agent | inline)", default="sub-agent")
+        if exec_mode is _PROMPT_EOF:
+            return _abort_eof()
+        while exec_mode not in ("sub-agent", "inline"):
+            sys.stdout.write("  ! exec mode must be 'sub-agent' or 'inline'.\n")
+            exec_mode = _prompt(
+                "Exec mode (sub-agent | inline)", default="sub-agent")
+            if exec_mode is _PROMPT_EOF:
+                return _abort_eof()
 
-    # Summary
-    sys.stdout.write("\nSummary:\n")
-    sys.stdout.write(f"  plugin     : {plugin}\n")
-    sys.stdout.write(f"  profile    : {profile or '(default)'}\n")
-    sys.stdout.write(f"  title      : {title}\n")
-    sys.stdout.write(
-        f"  input      : {(task_input[:60] + '...') if len(task_input) > 60 else (task_input or '(none)')}\n")
-    sys.stdout.write(f"  model      : {model or '(plugin/phase default)'}\n")
-    sys.stdout.write(f"  exec mode  : {exec_mode}\n")
-    confirm = _prompt("Create? [Y/n]", default="Y").strip().lower()
-    if confirm and confirm not in ("y", "yes"):
-        sys.stdout.write("aborted.\n")
+        # Summary
+        sys.stdout.write("\nSummary:\n")
+        sys.stdout.write(f"  plugin     : {plugin}\n")
+        sys.stdout.write(f"  profile    : {profile or '(default)'}\n")
+        sys.stdout.write(f"  title      : {title}\n")
+        sys.stdout.write(
+            f"  input      : {(task_input[:60] + '...') if len(task_input) > 60 else (task_input or '(none)')}\n")
+        sys.stdout.write(f"  model      : {model or '(plugin/phase default)'}\n")
+        sys.stdout.write(f"  exec mode  : {exec_mode}\n")
+        confirm_raw = _prompt("Create? [Y/n]", default="Y")
+        if confirm_raw is _PROMPT_EOF:
+            return _abort_eof()
+        confirm = confirm_raw.strip().lower()
+        if confirm and confirm not in ("y", "yes"):
+            sys.stdout.write("aborted.\n")
+            return 1
+    except KeyboardInterrupt:
+        sys.stderr.write("\ncodenook task new: interrupted; aborting wizard.\n")
         return 1
 
     # Build the equivalent argv and dispatch through _task_new so we
