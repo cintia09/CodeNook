@@ -257,6 +257,27 @@ For each open entry:
 
 Resume the tick loop when all gates resolve.
 
+### Model selection in dispatch envelope
+
+When `tick --json` returns a phase-dispatch envelope, it MAY
+include an optional `"model"` field (e.g. `"claude-opus-4.7"`).
+
+When the field is present, you MUST pass that exact string as the
+`model:` parameter when dispatching the phase sub-agent via your
+task tool. Do not substitute, prefer, or omit the value — pass it
+through verbatim.
+
+When the field is absent, dispatch with no `model:` parameter
+(use your tool's platform default).
+
+This is the only mechanism by which CodeNook controls model
+selection. The user configures models declaratively in
+`plugins/<id>/plugin.yaml`, `plugins/<id>/phases.yaml`,
+`<workspace>/.codenook/config.yaml`, or per-task via
+`<codenook> task new --model <name>` / `task set-model`. The
+kernel resolves the priority chain (task > phase > plugin >
+workspace) and surfaces the result here.
+
 ### CLI is the ONLY sanctioned entry point
 
 The `codenook` CLI is the canonical contract. Internal kernel scripts

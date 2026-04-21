@@ -1,4 +1,47 @@
-## v0.17.1 (2026-04-21)
+## v0.18.0 (2026-04-22)
+
+### Added
+- **End-to-end LLM model selection through a four-layer priority chain.**
+  CodeNook now controls which model the conductor passes to its sub-agent
+  task tool when dispatching a phase agent. Resolution order, first match
+  wins:
+  1. **C — Task override** — `tasks/<T-NNN>/state.json :: model_override`
+  2. **B — Phase default** — `plugins/<id>/phases.yaml :: phases[*].model`
+  3. **A — Plugin default** — `plugins/<id>/plugin.yaml :: default_model`
+  4. **D — Workspace default** — `<ws>/.codenook/config.yaml :: default_model`
+
+  When all four are absent the dispatch envelope omits the `model` key
+  entirely, so the conductor falls back to its platform default
+  (backward compatible — v0.17.1 envelopes look identical).
+- New helper `_lib/models.py :: resolve_model(workspace, plugin_id,
+  phase_id, task_state)` implements the chain. Model strings are opaque
+  — the kernel does not validate or whitelist them.
+- `cmd_tick` calls `resolve_model` when augmenting the phase-dispatch
+  envelope and emits `"model": "<name>"` only when resolution returns
+  a non-empty string.
+- **CLI: `task new --model <name>`** writes `model_override` into the
+  new task's `state.json`.
+- **CLI: `task set-model --task T-NNN (--model <name> | --clear)`**
+  changes the per-task override on an existing task.
+- Installer now seeds a placeholder `<ws>/.codenook/config.yaml` with
+  a commented-out `default_model:` hint when none exists. Idempotent;
+  never overwrites a user-provided file.
+- `task-state.schema.json` accepts the optional `model_override` field
+  (`string | null`).
+- CLAUDE.md bootloader gains a new "Model selection in dispatch
+  envelope" section telling the conductor to forward the envelope's
+  optional `model` field verbatim to its task tool.
+
+### Tests
+- 13 new pytest cases in `tests/python/test_model_resolve.py` covering
+  every layer of the chain, the empty-string sentinel, envelope
+  construction (present + absent), and the new CLI flow
+  (`task new --model`, `task set-model`, `--clear`, mutual-exclusion
+  validation, help-text contains `--model`).
+
+---
+
+
 
 ### Fixed
 - **Windows shim now finds Python when it is not on `PATH`.** `install.py`

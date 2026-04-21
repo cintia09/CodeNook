@@ -12,6 +12,7 @@ from typing import Sequence
 
 from . import _subproc
 from .config import CodenookContext
+from .. import models
 
 
 def run(ctx: CodenookContext, args: Sequence[str]) -> int:
@@ -189,7 +190,7 @@ def _augment_envelope(ctx: CodenookContext, task: str, tick_out: str) -> str:
     prompt_rel = f".codenook/tasks/{task}/prompts/{prompt_p.name}"
     system_rel = f".codenook/plugins/{plugin}/roles/{role}.md"
 
-    summary["envelope"] = {
+    envelope = {
         "action": "phase_prompt",
         "task_id": task,
         "plugin": plugin,
@@ -199,4 +200,10 @@ def _augment_envelope(ctx: CodenookContext, task: str, tick_out: str) -> str:
         "prompt_path": prompt_rel,
         "reply_path": reply_rel,
     }
+    # v0.18 — resolve model via C/B/A/D chain; omit key entirely when None
+    # so the conductor falls back to its platform default (backward compat).
+    resolved = models.resolve_model(ctx.workspace, plugin, phase, state)
+    if resolved:
+        envelope["model"] = resolved
+    summary["envelope"] = envelope
     return json.dumps(summary, ensure_ascii=False)

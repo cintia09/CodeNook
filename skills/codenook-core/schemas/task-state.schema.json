@@ -106,6 +106,10 @@
     "chain_root": {
       "type": ["string", "null"],
       "description": "M10 cached terminal ancestor of the chain (O(1) root lookup); MUST equal walk_ancestors(...).last when parent_id != null, else null."
+    },
+    "model_override": {
+      "type": ["string", "null"],
+      "description": "v0.18 — per-task LLM model override. Highest-priority layer in the C/B/A/D resolution chain (task > phase > plugin > workspace). Opaque string forwarded verbatim to the conductor."
     }
   }
 }

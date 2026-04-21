@@ -14,10 +14,11 @@ from .config import CodenookContext, next_task_id
 
 
 HELP_TASK = """\
-codenook task <new|set>
+codenook task <new|set|set-model>
 
-  new   create a new T-NNN under .codenook/tasks/
-  set   mutate a writable field on an existing task
+  new        create a new T-NNN under .codenook/tasks/
+  set        mutate a writable field on an existing task
+  set-model  set or clear the per-task LLM model_override
 """
 
 HELP_SET = """\
@@ -30,6 +31,33 @@ Writable fields:
   max_iterations  positive integer
   summary         free text
   title           free text
+"""
+
+HELP_NEW = """\
+Usage: codenook task new --title "..." [options]
+
+Options:
+  --title <str>           required
+  --summary <str>
+  --plugin <id>           defaults to first installed plugin
+  --target-dir <p>        defaults to src/
+  --dual-mode <m>         serial | parallel
+  --max-iterations <N>    positive integer (default: 3)
+  --parent <T-NNN>
+  --priority <P>          P0 | P1 | P2 | P3 (default: P2)
+  --accept-defaults
+  --id <T-NNN>            override generated task id
+  --model <name>          v0.18 — set per-task model_override (highest layer
+                          in the C/B/A/D model resolution chain). Opaque
+                          string forwarded verbatim to the conductor.
+"""
+
+HELP_SET_MODEL = """\
+Usage: codenook task set-model --task T-NNN (--model <name> | --clear)
+
+  --model <name>   set the per-task model_override (opaque string).
+  --clear          remove model_override; resolution falls through to the
+                   phase / plugin / workspace defaults.
 """
 
 ALLOWED = {
@@ -49,12 +77,17 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
         return _task_new(ctx, rest)
     if sub == "set":
         return _task_set(ctx, rest)
+    if sub == "set-model":
+        return _task_set_model(ctx, rest)
     sys.stderr.write(f"codenook task: unknown subcommand: {sub}\n")
     sys.stderr.write(HELP_TASK)
     return 2
 
 
 def _task_new(ctx: CodenookContext, args: list[str]) -> int:
+    if args and args[0] in ("-h", "--help"):
+        print(HELP_NEW)
+        return 0
     title = summary = plugin = target_dir = ""
     dual_mode = ""
     dual_mode_set = False
@@ -63,6 +96,7 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
     parent = ""
     accept_defaults = False
     task_id = ""
+    model = ""
 
     it = iter(args)
     try:
@@ -87,6 +121,8 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
                 accept_defaults = True
             elif a == "--id":
                 task_id = next(it)
+            elif a == "--model":
+                model = next(it)
             else:
                 sys.stderr.write(f"codenook task new: unknown arg: {a}\n")
                 return 2
@@ -146,6 +182,8 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
         state["target_dir"] = target_dir
     if parent:
         state["parent_id"] = parent
+    if model:
+        state["model_override"] = model
 
     (tdir / "state.json").write_text(
         json.dumps(state, indent=2), encoding="utf-8")
@@ -240,6 +278,63 @@ def _task_set(ctx: CodenookContext, args: list[str]) -> int:
         "task": state.get("task_id"),
         "field": field,
         "value": typed_value,
+    }))
+    return 0
+
+
+def _task_set_model(ctx: CodenookContext, args: list[str]) -> int:
+    if args and args[0] in ("-h", "--help"):
+        print(HELP_SET_MODEL)
+        return 0
+
+    task = model = ""
+    model_set = False
+    clear = False
+    it = iter(args)
+    try:
+        for a in it:
+            if a == "--task":
+                task = next(it)
+            elif a == "--model":
+                model = next(it); model_set = True
+            elif a == "--clear":
+                clear = True
+            else:
+                sys.stderr.write(f"codenook task set-model: unknown arg: {a}\n")
+                return 2
+    except StopIteration:
+        sys.stderr.write("codenook task set-model: missing value for last flag\n")
+        return 2
+
+    if not task:
+        sys.stderr.write("codenook task set-model: --task is required\n")
+        return 2
+    if model_set and clear:
+        sys.stderr.write(
+            "codenook task set-model: --model and --clear are mutually exclusive\n")
+        return 2
+    if not model_set and not clear:
+        sys.stderr.write(
+            "codenook task set-model: one of --model <name> or --clear is required\n")
+        return 2
+
+    sf = ctx.workspace / ".codenook" / "tasks" / task / "state.json"
+    if not sf.is_file():
+        sys.stderr.write(f"codenook task set-model: no such task: {task}\n")
+        return 1
+
+    state = json.loads(sf.read_text(encoding="utf-8"))
+    if clear:
+        state.pop("model_override", None)
+        result_value: object = None
+    else:
+        state["model_override"] = model
+        result_value = model
+    sf.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    print(json.dumps({
+        "task": state.get("task_id"),
+        "field": "model_override",
+        "value": result_value,
     }))
     return 0
 

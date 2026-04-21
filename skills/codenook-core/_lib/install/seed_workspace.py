@@ -65,6 +65,27 @@ def seed_memory(staged_kernel: Path, workspace: Path) -> None:
         )
 
 
+def seed_config(workspace: Path) -> None:
+    """Seed ``<ws>/.codenook/config.yaml`` with a commented model hint.
+
+    Idempotent: never overwrite an existing config.yaml.
+    """
+    cfg = workspace / ".codenook" / "config.yaml"
+    if cfg.is_file():
+        return
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+    cfg.write_text(
+        "# CodeNook workspace config\n"
+        "#\n"
+        "# default_model: claude-sonnet-4.6   # uncomment to set workspace default\n"
+        "#\n"
+        "# Lowest-priority layer (D) in the model resolution chain. Higher\n"
+        "# layers (in order): plugin.yaml :: default_model (A),\n"
+        "# phases.yaml :: phases[*].model (B), task state.json :: model_override (C).\n",
+        encoding="utf-8",
+    )
+
+
 def seed_bin(staged_kernel: Path, workspace: Path,
              python_exe: str | None = None) -> None:
     """Render the bin shims with the recorded python interpreter path.
