@@ -23,6 +23,7 @@ out of M4 scope — see SKILL.md "M4 scope" section.
 """
 from __future__ import annotations
 
+import copy
 import datetime
 import json
 import os
@@ -885,7 +886,58 @@ def dispatch_or_skip(
 
 # ── tick (M4 algorithm) ─────────────────────────────────────────────────
 def tick(workspace: Path, state_file: Path) -> tuple[dict, dict]:
-    state = read_json(state_file)
+    """Run one tick of the state machine.
+
+    Transactional state-mutation contract (v0.18.1 hotfix)
+    ------------------------------------------------------
+    The on-disk ``state.json`` is mutated AT MOST ONCE per ``tick``
+    invocation, by the caller (``main``), using the dict returned from
+    this function. Internally:
+
+    1. ``state.json`` is read once at entry into ``original_state``.
+    2. A deep copy of that snapshot becomes the ``working_state`` that
+       the algorithm body (``_tick_body``) is allowed to mutate freely.
+    3. On the SUCCESS path, ``working_state`` is returned. The caller
+       persists it.
+    4. On any failure path — either ``_tick_body`` raises an
+       exception, or it returns a summary envelope with
+       ``status == "error"`` — the ORIGINAL pre-tick state is returned
+       instead, so persisting it is a byte-for-byte no-op. This
+       guarantees that a mid-tick failure cannot leave ``state.json``
+       in a partially-mutated state (verdict consumed +
+       ``in_flight_agent`` cleared but ``phase`` not advanced) that
+       would cause the next tick to enter the recovery branch and
+       re-dispatch the just-completed phase.
+
+    The error envelope returned to the caller still describes what
+    went wrong so the operator can fix the underlying issue (e.g. add
+    a missing ``transitions.yaml``); the next tick can then resume
+    cleanly from the unchanged state.
+    """
+    original_state = read_json(state_file)
+    working_state = copy.deepcopy(original_state)
+    try:
+        summary = _tick_body(workspace, working_state)
+    except Exception as exc:
+        return original_state, {
+            "status": "error",
+            "next_action": (
+                f"exception: {type(exc).__name__}: {exc}"
+            ),
+        }
+    if summary.get("status") == "error":
+        # Body returned an error envelope after partial mutation.
+        # Roll back by handing the original snapshot to the caller.
+        return original_state, summary
+    return working_state, summary
+
+
+def _tick_body(workspace: Path, state: dict) -> dict:
+    """Algorithm body — mutates ``state`` in place, returns summary.
+
+    MUST NOT be called directly by ``main`` — go through ``tick`` so
+    the transactional snapshot/rollback wrapper is in effect.
+    """
     plugin = state["plugin"]
     phases, trans_doc, profile = _load_pipeline(workspace, state)
     cfg = state.get("config_overrides", {})  # M5 will full-merge; M4 uses task-only
@@ -896,7 +948,7 @@ def tick(workspace: Path, state_file: Path) -> tuple[dict, dict]:
     # ── 0. terminal / waiting short-circuit ──
     if status_in in ("done", "cancelled", "error"):
         del state["last_tick_ts"]
-        return state, {"status": status_in, "next_action": "noop"}
+        return {"status": status_in, "next_action": "noop"}
 
     if status_in == "waiting":
         cur_w = find_phase(phases, state.get("phase")) if state.get("phase") else None
@@ -907,24 +959,24 @@ def tick(workspace: Path, state_file: Path) -> tuple[dict, dict]:
                 decided = True
         if not decided:
             del state["last_tick_ts"]
-            return state, {"status": "waiting", "next_action": "noop"}
+            return {"status": "waiting", "next_action": "noop"}
         # else: fall through to step 3.5 via main flow.
 
     # ── 1. phase=null → dispatch first ──
     if state.get("phase") in (None, ""):
         if not phases:
-            return state, {"status": "error", "next_action": "no phases defined"}
+            return {"status": "error", "next_action": "no phases defined"}
         first = phases[0]
         pre_check = check_entry_questions(workspace, plugin, first.get("id"), state)
         if pre_check:
-            return state, _missing_field_response(workspace, plugin,
+            return _missing_field_response(workspace, plugin,
                                                   first.get("id"), pre_check)
         result = dispatch_or_skip(workspace, state, first, cfg, phases, trans_doc, profile=profile)
-        return state, result
+        return result
 
     cur = find_phase(phases, state["phase"])
     if cur is None:
-        return state, {"status": "error", "next_action": f"unknown phase {state['phase']}"}
+        return {"status": "error", "next_action": f"unknown phase {state['phase']}"}
 
     # ── 2. in_flight present ──
     in_flight = state.get("in_flight_agent")
@@ -936,7 +988,7 @@ def tick(workspace: Path, state_file: Path) -> tuple[dict, dict]:
         if v is None:
             del state["last_tick_ts"]
             if vstatus == _OutputState.MISSING:
-                return state, {
+                return {
                     "status": "waiting",
                     "next_action": f"awaiting {in_flight.get('role')}",
                 }
@@ -953,7 +1005,7 @@ def tick(workspace: Path, state_file: Path) -> tuple[dict, dict]:
                 f"present but unusable ({reason}): {vdetail}",
                 file=sys.stderr,
             )
-            return state, {
+            return {
                 "status": "blocked",
                 "next_action": f"awaiting {in_flight.get('role')}",
                 "reason": reason,
@@ -992,58 +1044,58 @@ def tick(workspace: Path, state_file: Path) -> tuple[dict, dict]:
                 {"ts": now_iso(), "phase": cur.get("id"),
                  "_warning": "hitl_rejected"}
             )
-            return state, {"status": "blocked",
+            return {"status": "blocked",
                            "next_action": "hitl_rejected"}
         elif resolution == "needs_changes":
             hitl_consume_entry(workspace, state, cur)
             state["iteration"] = state.get("iteration", 0) + 1
             if state["iteration"] > state.get("max_iterations", 0):
                 state["status"] = "blocked"
-                return state, {"status": "blocked",
+                return {"status": "blocked",
                                "next_action": "max_iterations exceeded"}
             state["status"] = "in_progress"
             state["history"].append(
                 {"ts": now_iso(), "phase": cur.get("id"),
                  "_warning": "hitl_needs_changes"}
             )
-            return state, dispatch_or_skip(workspace, state, cur, cfg, phases, trans_doc, profile=profile)
+            return dispatch_or_skip(workspace, state, cur, cfg, phases, trans_doc, profile=profile)
         else:
             # pending or not_found
             if just_consumed_verdict is not None:
                 write_hitl_entry(workspace, state, cur, just_consumed_verdict)
                 state["status"] = "waiting"
-                return state, {
+                return {
                     "status": "waiting",
                     "next_action": f"hitl:{cur.get('gate') or cur.get('id')}",
                 }
             # waiting + still pending → noop
             del state["last_tick_ts"]
-            return state, {"status": "waiting", "next_action": "noop"}
+            return {"status": "waiting", "next_action": "noop"}
 
     # ── 5. transition (only when we have a verdict to act on) ──
     if verdict_for_transition is not None:
         nxt = lookup_transition(trans_doc, cur.get("id"), verdict_for_transition,
                                 profile=profile)
         if nxt is None:
-            return state, {"status": "error",
+            return {"status": "error",
                            "next_action": f"no transition from {cur.get('id')}/{verdict_for_transition}"}
         if nxt == "complete":
             state["status"] = "done"
             state["phase"] = "complete"
             dispatch_distiller(workspace, state["task_id"])
-            return state, {"status": "done", "next_action": "noop"}
+            return {"status": "done", "next_action": "noop"}
         if nxt == cur.get("id"):
             state["iteration"] = state.get("iteration", 0) + 1
             if state["iteration"] > state.get("max_iterations", 0):
                 state["status"] = "blocked"
-                return state, {"status": "blocked",
+                return {"status": "blocked",
                                "next_action": "max_iterations exceeded"}
-            return state, dispatch_or_skip(workspace, state, cur, cfg, phases, trans_doc, profile=profile)
+            return dispatch_or_skip(workspace, state, cur, cfg, phases, trans_doc, profile=profile)
         nxt_phase = find_phase(phases, nxt)
         if nxt_phase is None:
-            return state, {"status": "error",
+            return {"status": "error",
                            "next_action": f"transition target unknown: {nxt}"}
-        return state, dispatch_or_skip(workspace, state, nxt_phase, cfg, phases, trans_doc, profile=profile)
+        return dispatch_or_skip(workspace, state, nxt_phase, cfg, phases, trans_doc, profile=profile)
 
     # ── 6. recovery (only when status==in_progress + phase set + no in_flight) ──
     if state.get("status") == "in_progress":
@@ -1051,11 +1103,11 @@ def tick(workspace: Path, state_file: Path) -> tuple[dict, dict]:
             {"ts": now_iso(), "phase": cur.get("id"),
              "_warning": "recover: re-dispatch (no in_flight)"}
         )
-        return state, dispatch_or_skip(workspace, state, cur, cfg, phases, trans_doc, profile=profile)
+        return dispatch_or_skip(workspace, state, cur, cfg, phases, trans_doc, profile=profile)
 
     # Default: nothing to do (e.g., status=blocked + phase set + no in_flight).
     del state["last_tick_ts"]
-    return state, {"status": state.get("status", "noop"), "next_action": "noop"}
+    return {"status": state.get("status", "noop"), "next_action": "noop"}
 
 
 # ── legacy stub mode (M1) ────────────────────────────────────────────────
@@ -1226,7 +1278,12 @@ def main() -> None:
                   and prior_state.get("status") in
                   ("done", "cancelled", "error", "blocked", "waiting")
                   and prior_state.get("status") == new_state.get("status"))
-    if not (waiting_noop or inert_noop):
+    # v0.18.1 — never persist on error: tick() guarantees new_state ==
+    # prior_state in that case (transactional rollback), so the write
+    # would be a byte-for-byte no-op anyway. Skipping it is both faster
+    # and a clearer signal that error paths leave on-disk state intact.
+    error_noop = summary.get("status") == "error"
+    if not (waiting_noop or inert_noop or error_noop):
         new_state["updated_at"] = now_iso()
         persist_state(state_file, new_state)
     # M9.2 — after_phase hook (best-effort; never blocks tick exit).

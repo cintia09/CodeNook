@@ -1,3 +1,50 @@
+## v0.18.1 (2026-04-23) — hotfix
+
+### Fixed
+- **Transactional state mutation in `orchestrator-tick`.** Previously,
+  a single `tick` invocation could mutate the in-memory state dict
+  (clear `in_flight_agent`, append a verdict to `history`) and then
+  hit a downstream branch that returned an error envelope (typically
+  `lookup_transition` returning `None` because `transitions.yaml` was
+  missing or malformed). The mutated dict was still persisted to
+  `state.json`, so the next `tick` saw `in_flight_agent=None` +
+  `status=in_progress` + `phase` unchanged → recovery branch →
+  re-dispatched the same phase, overwriting the completed output and
+  losing the verdict. The result was an infinite re-dispatch loop on
+  any tick that errored after consuming a verdict.
+- `tick(workspace, state_file)` now operates transactionally:
+  1. The on-disk state is read once at entry and snapshotted.
+  2. All algorithm body work runs against a `copy.deepcopy` working
+     copy.
+  3. On the success path the working copy is returned to the caller
+     for persistence.
+  4. On any failure path — either the body raises or it returns a
+     summary envelope with `status == "error"` — the original
+     snapshot is returned instead, so persisting it is a byte-for-byte
+     no-op. `state.json` is guaranteed unchanged when an error
+     occurs mid-tick.
+- The error envelope returned to the caller is unchanged in shape and
+  content; only the on-disk side effect is fixed. After the operator
+  fixes the underlying issue (e.g. adds the missing
+  `transitions.yaml`), the next `tick` resumes cleanly from the
+  preserved in-flight state and advances to the correct next phase.
+- `main()` additionally short-circuits the `persist_state` call when
+  `summary["status"] == "error"` (defense in depth on top of the
+  rollback).
+
+### Tests
+- `skills/codenook-core/tests/python/test_tick_transactional.py`
+  (4 cases): happy path, error mid-tick → byte-identical state.json,
+  recovery after fix does not re-dispatch, and "no phantom history
+  entry on errored tick".
+
+### Compatibility
+- No external contract change. Tick still returns the same
+  `(state, summary)` tuple shape on success and the same error
+  envelope shape on error. CLI exit codes unchanged.
+
+---
+
 ## v0.18.0 (2026-04-22)
 
 ### Added
