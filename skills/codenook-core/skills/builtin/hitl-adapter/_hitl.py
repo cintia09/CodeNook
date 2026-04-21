@@ -446,8 +446,6 @@ body{{font:15px/1.6 -apple-system,Segoe UI,sans-serif;max-width:880px;margin:2em
 .prompt a:hover,.ctx a:hover{{text-decoration:underline}}
 .prompt p,.ctx p{{margin:.5em 0}}
 </style></head><body>
-<div class="hint">{_html_escape(task_id)} · {_html_escape(gate)}</div>
-<div class="prompt">{_render_markdown(prompt)}</div>
 <div class="ctx">{_render_markdown(ctx_text) if ctx_text else '<p><em>(no context)</em></p>'}</div>
 </body></html>
 """
