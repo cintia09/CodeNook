@@ -248,6 +248,23 @@ For each open entry:
    when no shell wrapper is reachable in your runtime (so `html`
    cannot be honoured anyway); in that case use `terminal`
    unconditionally.
+
+   **Optional polish step (best-effort, before relaying):** if the
+   `view-renderer` skill is available, invoke it once per new
+   pending HITL entry to produce a reviewer-friendly rewrite. The
+   render-html / show commands will automatically prefer the
+   rewritten artefact when present, and silently fall back to the
+   stdlib renderer when absent — so failure here is non-blocking.
+
+   ```bash
+   .codenook/codenook-core/skills/builtin/view-renderer/render.sh \
+       prepare --id <entry-id> --workspace .
+   # prints a JSON envelope with html_out, ansi_out, prompt_template.
+   # Read prompt_template, substitute the {{...}} slots, run it
+   # through your LLM, then atomically write the produced HTML body
+   # (wrapped via templates/reviewer.html.template) to html_out and
+   # the ANSI text to ansi_out. Skip on any error.
+   ```
 2. Relay the prompt (verbatim if terminal; via the rendered file if
    html), capture the user's answer, then submit the decision:
 

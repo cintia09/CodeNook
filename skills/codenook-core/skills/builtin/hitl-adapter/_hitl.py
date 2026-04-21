@@ -235,6 +235,12 @@ def cmd_show(ws: Path, eid: str, raw: bool = False) -> int:
               file=sys.stderr); return 2
     if not target.is_file():
         print(f"terminal.sh: context file missing: {cp}", file=sys.stderr); return 1
+    # Prefer the LLM-rendered .reviewer.ansi if view-renderer has produced one.
+    if not raw:
+        reviewer_ansi = queue_dir(ws) / f"{eid}.reviewer.ansi"
+        if reviewer_ansi.is_file():
+            sys.stdout.write(reviewer_ansi.read_text(encoding="utf-8"))
+            return 0
     text = target.read_text(encoding="utf-8")
     if raw or not target.suffix.lower() in (".md", ".markdown"):
         sys.stdout.write(text)
@@ -460,6 +466,20 @@ def cmd_render_html(ws: Path, eid: str, out_path: str, do_open: bool = False) ->
         except ValueError:
             pass
 
+    # Prefer the LLM-rendered .reviewer.html when view-renderer has
+    # produced one. The reviewer artefact is already a self-contained
+    # page (mermaid CDN included by the wrapper template); we just copy
+    # it to the requested out path verbatim.
+    reviewer_html = queue_dir(ws) / f"{eid}.reviewer.html"
+    if reviewer_html.is_file():
+        out = Path(out_path) if out_path else queue_dir(ws) / f"{eid}.html"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(reviewer_html.read_bytes())
+        print(str(out))
+        if do_open:
+            _open_in_browser(out)
+        return 0
+
     prompt = entry.get("prompt") or "(no prompt)"
     task_id = entry.get("task_id") or "?"
     gate = entry.get("gate") or "?"
@@ -542,31 +562,35 @@ body{{font:15px/1.6 -apple-system,Segoe UI,sans-serif;max-width:880px;margin:2em
     print(str(out))
 
     if do_open:
-        url = out.resolve().as_uri()
-        opened = False
-        try:
-            import webbrowser
-            opened = webbrowser.open(url)
-        except Exception:
-            opened = False
-        if not opened:
-            import shutil, subprocess
-            opener = None
-            if sys.platform == "darwin" and shutil.which("open"):
-                opener = ["open", str(out)]
-            elif sys.platform.startswith("linux") and shutil.which("xdg-open"):
-                opener = ["xdg-open", str(out)]
-            elif sys.platform == "win32":
-                opener = ["cmd", "/c", "start", "", str(out)]
-            if opener is not None:
-                try:
-                    subprocess.Popen(opener, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    opened = True
-                except Exception:
-                    opened = False
-        if not opened:
-            print(f"html.sh: could not auto-open browser; open manually: {url}", file=sys.stderr)
+        _open_in_browser(out)
     return 0
+
+
+def _open_in_browser(out: Path) -> None:
+    url = out.resolve().as_uri()
+    opened = False
+    try:
+        import webbrowser
+        opened = webbrowser.open(url)
+    except Exception:
+        opened = False
+    if not opened:
+        import shutil, subprocess
+        opener = None
+        if sys.platform == "darwin" and shutil.which("open"):
+            opener = ["open", str(out)]
+        elif sys.platform.startswith("linux") and shutil.which("xdg-open"):
+            opener = ["xdg-open", str(out)]
+        elif sys.platform == "win32":
+            opener = ["cmd", "/c", "start", "", str(out)]
+        if opener is not None:
+            try:
+                subprocess.Popen(opener, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                opened = True
+            except Exception:
+                opened = False
+    if not opened:
+        print(f"html.sh: could not auto-open browser; open manually: {url}", file=sys.stderr)
 
 
 def main() -> None:

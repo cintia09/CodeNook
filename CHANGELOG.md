@@ -1,3 +1,25 @@
+## v0.16.0 (2026-04-21)
+
+### Added
+- **`view-renderer` builtin skill** — LLM-side rewriter that turns a
+  rigid role-output markdown file into reviewer-friendly HTML + ANSI
+  artefacts dropped into `.codenook/hitl-queue/<eid>.reviewer.{html,ansi}`.
+  The skill itself ships only the orchestration script + prompt
+  template + HTML wrapper (mermaid CDN preloaded so inline
+  `<pre class="mermaid">flowchart …</pre>` blocks render in the
+  browser); the actual content rewrite is performed by the host's
+  LLM, following the contract in `templates/prompt.md`.
+- `_hitl.py` `cmd_render_html` and `cmd_show` now prefer the
+  reviewer artefact when present and silently fall back to the
+  stdlib renderer (v0.15.2 behaviour) when missing — so the
+  feature is best-effort and never blocks the gate.
+- `codenook hitl prepare --id <eid>` thin wrapper that emits the
+  view-renderer envelope; `codenook hitl show` learnt `--raw`
+  to bypass both the reviewer artefact and the stdlib styling.
+- CLAUDE.md bootloader gained an optional polish step instructing
+  the host to invoke `view-renderer prepare` for each new pending
+  HITL gate before relaying it to the user.
+
 ## v0.15.2 (2026-04-21)
 
 ### Fixed
