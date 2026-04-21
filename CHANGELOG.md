@@ -1,3 +1,42 @@
+## v0.15.2 (2026-04-21)
+
+### Fixed
+- **HITL HTML preview rendered raw markdown as text** (`e655fcb`).
+  `_hitl.py` `cmd_render_html` injected role-output markdown into a
+  `<div class="ctx">` with `white-space:pre-wrap`, so headers, lists,
+  code blocks and links were displayed as literal source. Added a
+  stdlib-only `_render_markdown()` (ATX headers, fenced code,
+  blockquote, ordered/unordered lists, paragraphs + inline code,
+  bold, italic, links) and the matching `<style>` rules so the
+  preview is now actually readable.
+- **`hitl show` dumped raw markdown to the terminal** (`e91f3f4`).
+  Added `_render_terminal()` — ANSI-styled headers, fenced code blocks
+  with separator rules, blockquote rail, bullet/ordered markers,
+  inline code/bold/italic/link styling. Honors `NO_COLOR`; falls back
+  to raw bytes when stdout is not a TTY or when the new `--raw` flag
+  is set on `terminal.sh show`.
+
+### Changed
+- **HITL preview is now reviewer-first** (`6865df7`, `7e1fc52`,
+  `8b31dcc`, `798d5d4`). Stripped YAML front-matter from the
+  rendered context; removed the redundant page chrome (H1 title,
+  meta line, "How to answer" footer with stale `--id` syntax, and
+  the decisions badges); the orchestrator no longer emits the
+  `# Approval requested:` H1 nor the duplicated "Decide one of" /
+  "Submit via" prompt blocks (the gate name and CLI contract are
+  already first-class). The HTML page now shows only the markdown
+  the reviewer needs to read.
+- **Reader / Spec view toggle on the HITL preview** (`f56c281`,
+  `21d6aaa`). Added a tiny client-side toggle (top-right) that
+  hides chrome only the distiller cares about: the leading
+  `Role — T-XXX` identification header, parenthetical hints in
+  section titles (`Goal (user vocabulary)` → `Goal`), and any
+  `## ... rationale` section intended for the distiller. Default is
+  Reader view; Spec view restores the full source. Same transform
+  is applied in the terminal renderer; `--raw` keeps the bytes as-is.
+
+
+
 ## v0.15.1 (2026-04-21)
 
 ### Changed
