@@ -549,8 +549,16 @@ invokes any other skill.
 3. Update `router-context.md` frontmatter:
    `state: confirmed`, `last_router_action: handoff`,
    append `decisions[]` entry kind `handoff`.
-4. Invoke `skills/codenook-core/skills/builtin/orchestrator-tick/tick.sh
-   --task <tid>` **exactly once**.
+4. Invoke the orchestrator-tick entry point **exactly once**:
+
+   * On Windows or any host where bash is not on PATH:
+     `python skills/codenook-core/skills/builtin/orchestrator-tick/tick.py --task <tid>`
+   * On Linux / macOS (or any host with bash):
+     `skills/codenook-core/skills/builtin/orchestrator-tick/tick.sh --task <tid>`
+
+   Both entry points are equivalent and delegate to `_tick.py`. Pick
+   whichever is more convenient for your shell environment; the kernel
+   itself never requires bash.
 5. Capture the tick's stdout — specifically the `status` field
    (`advanced` | `waiting` | `done` | `blocked`) and any `next_phase`.
 6. Write `router-reply.md` with a brief handoff summary

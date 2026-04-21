@@ -568,37 +568,34 @@ def cmd_confirm(args: argparse.Namespace) -> int:
             task_dir, state="confirmed", last_router_action="handoff"
         )
 
-    tick_sh = _HERE.parent / "orchestrator-tick" / "tick.sh"
+    # v0.24.0: invoke _tick.py directly via the Python interpreter (no
+    # bash subprocess) so handoff works on Windows hosts without bash.
+    tick_py = _HERE.parent / "orchestrator-tick" / "_tick.py"
     tick_status = "unknown"
     tick_stderr = ""
-    if tick_sh.is_file():
+    if tick_py.is_file():
         try:
-            from sh_run import find_bash  # noqa: E402  (_lib already on sys.path)
-            bash = find_bash()
-            if bash is None:
-                tick_status = "bash_missing"
-                tick_stderr = (
-                    "no bash interpreter found; set CN_BASH or install Git for Windows"
+            task_state = task_dir / "state.json"
+            env = os.environ.copy()
+            env["CN_TASK"] = args.task_id
+            env["CN_STATE_FILE"] = str(task_state)
+            env["CN_WORKSPACE"] = str(workspace)
+            env["CN_DRY_RUN"] = "0"
+            env["CN_JSON"] = "1"
+            env["CN_DISPATCH_CMD"] = os.environ.get("CODENOOK_DISPATCH_CMD", "")
+            env["PYTHONIOENCODING"] = "utf-8"
+            proc = subprocess.run(
+                [sys.executable, str(tick_py)],
+                capture_output=True, text=True, timeout=60, env=env,
+            )
+            tick_stderr = proc.stderr
+            try:
+                tick_json = json.loads(proc.stdout.strip().splitlines()[-1])
+                tick_status = tick_json.get("status", "unknown")
+            except Exception:
+                tick_status = (
+                    "ok" if proc.returncode == 0 else f"rc={proc.returncode}"
                 )
-                proc = None  # type: ignore[assignment]
-            else:
-                proc = subprocess.run(
-                    [
-                        bash, str(tick_sh),
-                        "--task", args.task_id,
-                        "--workspace", str(workspace),
-                        "--json",
-                    ],
-                    capture_output=True, text=True, timeout=60,
-                )
-                tick_stderr = proc.stderr
-                try:
-                    tick_json = json.loads(proc.stdout.strip().splitlines()[-1])
-                    tick_status = tick_json.get("status", "unknown")
-                except Exception:
-                    tick_status = (
-                        "ok" if proc.returncode == 0 else f"rc={proc.returncode}"
-                    )
         except Exception as e:
             tick_status = f"error: {type(e).__name__}: {e}"
     else:

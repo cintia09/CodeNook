@@ -412,11 +412,13 @@ are returned unchanged. See `docs/memory-and-extraction.md` §8.
   back what the user said. Pick the plugin silently via
   `--plugin <id>`.
 - MUST NOT modify `draft-config.yaml`, `state.json` by hand — only via
-  the `codenook` CLI wrapper, which fronts `orchestrator-tick`, and
-  `hitl-adapter`.
+  the `codenook` CLI wrapper, which fronts `orchestrator-tick` (via
+  `tick.py` / `tick.sh`), and `hitl-adapter` (via `terminal.py` /
+  `terminal.sh`).
 - MUST NOT spawn phase agents (designer / implementer / tester /
   reviewer / acceptor / validator) directly. That's `codenook tick`'s
-  job (which fronts `tick.sh`).
+  job (which fronts `tick.py` on Windows hosts and `tick.sh` on
+  Linux/macOS — both are equivalent entry points to `_tick.py`).
 - MUST run the `clarifier` phase **inline** in the conductor session
   (read role profile + per-call prompt yourself, drive the Q&A with
   the user, write the reply file, then call `tick`). Do **not**

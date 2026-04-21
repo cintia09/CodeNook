@@ -68,21 +68,26 @@ def main() -> int:
     # 5 — model preference via config-resolve (sentinel __router__).
     # Use the *default* core root for the resolver script — overriding
     # CN_CORE_ROOT must not break the kernel's own skill lookups.
-    resolver = default_core / "skills" / "builtin" / "config-resolve" / "resolve.sh"
+    # v0.24.0: invoke the Python helper directly (no bash subprocess).
+    resolver_py = (default_core / "skills" / "builtin" / "config-resolve"
+                   / "_resolve.py")
     model = None
-    if not resolver.is_file():
+    if not resolver_py.is_file():
         return fail("router model unresolved (decision #44 violated)",
-                    [str(resolver)])
+                    [str(resolver_py)])
     try:
-        import sys as _sys; from pathlib import Path as _P
-        _sys.path.insert(0, str(_P(__file__).resolve().parent.parent / "_lib"))
-        from sh_run import sh_run as _sh_run
-        res = _sh_run(
-            [str(resolver),
-             "--plugin", "__router__",
-             "--workspace", str(ws),
-             "--catalog", str(state_path)],
-            capture_output=True, text=True, check=False,
+        import sys as _sys
+        env = os.environ.copy()
+        env.update({
+            "CN_PLUGIN": "__router__",
+            "CN_TASK": "",
+            "CN_WORKSPACE": str(ws),
+            "CN_CATALOG": str(state_path),
+            "PYTHONIOENCODING": "utf-8",
+        })
+        res = subprocess.run(
+            [_sys.executable, str(resolver_py)],
+            capture_output=True, text=True, check=False, env=env,
         )
     except OSError as e:
         return fail("router model unresolved (decision #44 violated)",

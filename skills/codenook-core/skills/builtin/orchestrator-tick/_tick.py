@@ -415,13 +415,18 @@ def render_manifest(state: dict, phase: dict) -> str:
 
 
 def append_dispatch_log(workspace: Path, role: str, payload: str) -> None:
-    audit_sh = Path(__file__).resolve().parent.parent / "dispatch-audit" / "emit.sh"
-    if audit_sh.is_file():
-        _sh_run(
-            [str(audit_sh), "--role", role, "--payload", payload,
-             "--workspace", str(workspace)],
-            check=False, capture_output=True,
-        )
+    # v0.24.0: direct in-process call to dispatch-audit emitter — avoids
+    # spawning emit.sh on Windows hosts where bash is not on PATH.
+    try:
+        import sys as _sys
+        _da = Path(__file__).resolve().parent.parent / "dispatch-audit"
+        if str(_da) not in _sys.path:
+            _sys.path.insert(0, str(_da))
+        import _emit  # type: ignore
+        _emit.run(role=role, payload=payload, workspace=workspace)
+    except Exception:
+        # Best-effort audit; never block dispatch on emitter failure.
+        pass
 
 
 def _phase_artifact_basename(phase: dict) -> str:
@@ -558,6 +563,12 @@ def run_post_validate(workspace: Path, plugin: str, script_rel: str,
         if last is not None:
             last["_warning"] = f"post_validate script missing: {script_rel}"
         return
+    # External plugin-provided post_validate script. Its language is plugin-
+    # defined (POSIX shell, Python, batch, etc.); kernel keeps using
+    # ``sh_run`` here so .sh scripts still work where bash is available, and
+    # native executables (.py / .exe / .cmd) work everywhere. v0.24.0 only
+    # eliminates kernel-internal subprocess to .sh — plugin scripts are
+    # explicitly out of scope (see CHANGELOG v0.24.0).
     _sh_run([str(sp), state["task_id"]], cwd=str(workspace),
             check=False, capture_output=True)
 
@@ -1166,24 +1177,24 @@ def _legacy_tick(workspace: Path, state_file: Path, dry_run: bool,
             atomic_write_json(str(state_file), state)
         return 1
 
-    preflight = os.path.join(core_root, "skills/builtin/preflight/preflight.sh")
-    res = _sh_run(
-        [preflight, "--task", task, "--workspace", str(workspace), "--json"],
-        capture_output=True, text=True,
+    # v0.24.0: direct in-process preflight call (no bash subprocess).
+    import sys as _sys
+    _pf_dir = Path(core_root) / "skills/builtin/preflight"
+    if str(_pf_dir) not in _sys.path:
+        _sys.path.insert(0, str(_pf_dir))
+    import _preflight  # type: ignore
+    state_file_str = str(state_file)
+    rc, _phase, reasons = _preflight.run(
+        task=task, state_file=state_file_str,
+        workspace=str(workspace), json_out=True,
     )
-    if res.returncode != 0:
-        reasons: list[str] = []
-        try:
-            reasons = json.loads(res.stdout).get("reasons", [])
-        except Exception:
-            pass
+    if rc != 0:
         _legacy_log(state, "preflight",
                     f"blocked: {', '.join(reasons) if reasons else 'failed'}")
         if not dry_run:
             atomic_write_json(str(state_file), state)
-        for line in (res.stderr or "").strip().split("\n"):
-            if line:
-                print(line, file=sys.stderr)
+        for r in reasons:
+            print(r, file=sys.stderr)
         return 1
 
     if dry_run:
@@ -1195,10 +1206,15 @@ def _legacy_tick(workspace: Path, state_file: Path, dry_run: bool,
     if len(payload) > 500:
         payload = payload[:497] + "..."
 
-    audit = os.path.join(core_root, "skills/builtin/dispatch-audit/emit.sh")
-    if os.path.exists(audit):
-        _sh_run([audit, "--role", "executor", "--payload", payload,
-                 "--workspace", str(workspace)], check=False)
+    # v0.24.0: direct in-process dispatch-audit emit (no bash subprocess).
+    try:
+        _da_dir = Path(core_root) / "skills/builtin/dispatch-audit"
+        if str(_da_dir) not in _sys.path:
+            _sys.path.insert(0, str(_da_dir))
+        import _emit  # type: ignore
+        _emit.run(role="executor", payload=payload, workspace=workspace)
+    except Exception:
+        pass
 
     if dispatch_cmd:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json",
@@ -1208,6 +1224,11 @@ def _legacy_tick(workspace: Path, state_file: Path, dry_run: bool,
             env = os.environ.copy()
             env["CODENOOK_DISPATCH_PAYLOAD"] = payload
             env["CODENOOK_DISPATCH_SUMMARY"] = sf
+            # External user-set dispatch hook (CN_DISPATCH_CMD env). Its
+            # language is operator-defined (.sh / .py / .exe / .cmd), so the
+            # kernel uses sh_run here for backward compat with POSIX hooks;
+            # this is NOT a kernel-internal .sh subprocess and is therefore
+            # outside the v0.24.0 "no kernel bash" guarantee.
             r = _sh_run([dispatch_cmd], env=env, capture_output=True, text=True)
             ok = r.returncode == 0
         finally:
@@ -1236,43 +1257,44 @@ def after_phase(workspace_root: Path, task_id: str, phase: str | None,
     """M9.2 hook: dispatch extractor-batch when a tick produces a phase
     transition or terminal status.  Best-effort — never raises (FR-EXT-5 /
     AC-TRG-4).  Default batch path can be overridden via CN_EXTRACTOR_BATCH
-    (used by tests to inject a stub)."""
-    import subprocess
+    (used by tests to inject a stub).
+
+    v0.24.0 — direct in-process call to ``_extractor_batch.run`` so the
+    kernel works on Windows hosts without bash on PATH. The legacy
+    ``CN_EXTRACTOR_BATCH`` env-override (used by tests to inject a stub
+    .sh) is still honoured via sh_run when set, since the override
+    intentionally targets an external script.
+    """
     if summary_status not in ("done", "blocked", "advanced"):
         return
-    batch = os.environ.get("CN_EXTRACTOR_BATCH", "")
-    if not batch:
-        core = _find_core_root()
-        if not core:
+    override = os.environ.get("CN_EXTRACTOR_BATCH", "")
+    if override:
+        # Test/operator override path — preserve historical behaviour.
+        if not os.path.exists(override):
             return
-        batch = os.path.join(core, "skills", "builtin",
-                             "extractor-batch", "extractor-batch.sh")
-    if not os.path.exists(batch):
-        return
-    from sh_run import find_bash  # noqa: E402  (lazy: _lib already on sys.path)
-    bash = find_bash()
-    if bash is None:
-        print("orchestrator-tick: extractor batch skipped "
-              "(no bash interpreter found; set CN_BASH or install Git for Windows)",
-              file=sys.stderr)
-        return
-    cmd = [bash, batch,
-           "--task-id", task_id,
-           "--reason", "after_phase",
-           "--workspace", str(workspace_root),
-           "--phase", phase or ""]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        if proc.returncode != 0:
-            print(f"orchestrator-tick: extractor batch failed (exit={proc.returncode})",
+        try:
+            _sh_run([override,
+                     "--task-id", task_id,
+                     "--reason", "after_phase",
+                     "--workspace", str(workspace_root),
+                     "--phase", phase or ""],
+                    capture_output=True, text=True, timeout=10)
+        except Exception as e:
+            print(f"orchestrator-tick: extractor batch override failed: {e}",
                   file=sys.stderr)
-            if proc.stderr:
-                print(proc.stderr.rstrip(), file=sys.stderr)
-    except subprocess.TimeoutExpired:
-        print("orchestrator-tick: extractor batch failed (exit=timeout)",
-              file=sys.stderr)
-    except Exception as exc:  # noqa: BLE001 - best-effort
-        print(f"orchestrator-tick: extractor batch failed (exit=exception:{exc})",
+        return
+
+    # In-process path (no subprocess, no bash).
+    try:
+        import sys as _sys
+        _eb_dir = Path(__file__).resolve().parent.parent / "extractor-batch"
+        if str(_eb_dir) not in _sys.path:
+            _sys.path.insert(0, str(_eb_dir))
+        import _extractor_batch  # type: ignore
+        _extractor_batch.run(task_id=task_id, reason="after_phase",
+                             workspace=workspace_root, phase=phase or "")
+    except Exception as e:
+        print(f"orchestrator-tick: extractor batch failed: {e}",
               file=sys.stderr)
 
 

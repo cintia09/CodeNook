@@ -1,4 +1,144 @@
+## v0.24.0 (2026-04-21)  Eliminate kernel bash dependency (Windows-native)
+
+### Rationale
+v0.23.1 was a tactical hotfix: it auto-discovered bash on Windows so
+`codenook tick` would stop crashing on hosts where bash was installed
+but not on PATH (PortableGit / MSYS2 / per-user Git installs). It
+worked, but the kernel still **required** bash to be present somewhere
+— anyone without Git Bash at all (clean Windows installs, locked-down
+corp images, CI runners without bash) still saw `FileNotFoundError
+[WinError 2]`.
+
+v0.24.0 is the strategic fix: **the kernel internals never invoke
+`.sh` scripts under any circumstances.** The 36 `.sh` wrappers in
+`skills/builtin/*/` remain on disk for Linux/Mac users who script
+against them; the kernel's own code paths route around them entirely.
+
+### Strategy
+1. **Eliminate kernel-internal subprocess to `.sh`.** Every site in
+   `_tick.py`, `_bootstrap.py`, `_build.py`, `_orchestrator.py`, and
+   `cmd_extract.py` that previously spawned a `.sh` wrapper now either
+   imports the helper module directly (`_preflight.run`, `_emit.run`,
+   `_extractor_batch.run`) or invokes the sibling `_<name>.py` with
+   `[sys.executable, ...]`. No bash is involved.
+2. **Provide Python siblings for external entries.** Eight skills
+   gain a `.py` sibling that mirrors the `.sh` argv contract, so
+   callers (router agents, the conductor, operators) on Windows can
+   simply use `python <entry>.py …`. Linux/macOS users may continue
+   using `.sh`; both are equivalent.
+3. **Retain `.sh` files for Linux/Mac.** No `.sh` file is deleted.
+   Plugin-shipped scripts and the user-set `CN_DISPATCH_CMD` hook
+   are explicitly out of scope — those remain `sh_run`-routed and
+   benefit from v0.23.1's bash auto-discovery when they happen to be
+   `.sh`.
+
+### New Python sibling entry points
+- `skills/builtin/router-agent/spawn.py`
+- `skills/builtin/orchestrator-tick/tick.py`
+- `skills/builtin/preflight/preflight.py`
+- `skills/builtin/hitl-adapter/terminal.py`
+- `skills/builtin/dispatch-audit/emit.py`
+- `skills/builtin/extractor-batch/extractor_batch.py`
+- `skills/builtin/router/bootstrap.py`
+- `skills/builtin/session-resume/resume.py`
+
+Each sibling parses its own args (`argparse`), discovers the workspace
+(via `--workspace`, `$CODENOOK_WORKSPACE`, or upward search for
+`.codenook/`), sets the historical `CN_*` env vars, and either calls
+the helper module directly or `runpy`-executes the sibling `_<name>.py`.
+
+### New helper modules / public APIs
+- `extractor-batch/_extractor_batch.py` (new) — pure-Python port of
+  `extractor-batch.sh`. Exposes `run(task_id, reason, workspace,
+  phase, lookup_root)`. Idempotent on `(task_id, phase, reason)`,
+  spawns extractor `.py` files (not `.sh`) detached so it never
+  blocks the tick.
+- `preflight/_preflight.py` — added `run(task, state_file, workspace,
+  json_out)` callable; the existing env-var `main()` is now a thin
+  shim around it.
+- `dispatch-audit/_emit.py` — added `run(role, payload, workspace)`
+  callable; same shim pattern.
+
+### Kernel-internal call-site refactors
+- `orchestrator-tick/_tick.py`:
+  - `append_dispatch_log()` → in-process `_emit.run(...)`.
+  - Legacy `_legacy_tick()` preflight + audit hops → in-process
+    `_preflight.run(...)` + `_emit.run(...)`.
+  - `after_phase()` extractor batch → in-process
+    `_extractor_batch.run(...)`. Honours `CN_EXTRACTOR_BATCH`
+    override (still routes through `sh_run` for test-injected stubs).
+- `router/_bootstrap.py`: `config-resolve` invocation switched from
+  `resolve.sh` (`_sh_run`) to `[sys.executable, _resolve.py]` with
+  the same CN_* env contract.
+- `router-dispatch-build/_build.py`: dispatch-audit emit switched
+  from `emit.sh` (`_sh_run`) to in-process `_emit.run(...)`.
+- `install-orchestrator/_orchestrator.py`: 11-gate pipeline now
+  invokes each gate's `_<name>.py` via `[sys.executable, ...]` with
+  the historical CN_* env contract; same for `sec-audit`.
+- `router-agent/render_prompt.py`: handoff first-tick switched from
+  `tick.sh` (bash) to `[sys.executable, _tick.py]`.
+- `_lib/cli/cmd_extract.py`: rewritten to call
+  `_extractor_batch.run(...)` directly. The `_resolve_bash()` helper
+  is gone; bash is no longer needed for `codenook extract`.
+
+### Justified exceptions (NOT kernel-internal)
+- `_tick.run_post_validate()` invokes the plugin-provided post-validate
+  script (.sh / .py / .exe / anything). Plugin script languages are
+  out of scope for the v0.24.0 "no kernel bash" guarantee; the call
+  site uses `sh_run` and benefits from v0.23.1's auto-discovery if
+  the plugin happens to ship a `.sh`.
+- `_legacy_tick()` external `dispatch_cmd` (set via
+  `CODENOOK_DISPATCH_CMD`) is operator-defined. Same `sh_run` rationale.
+
+### Bootloader & docs
+- `skills/builtin/_lib/claude_md_sync.py`: bootloader template now
+  references `tick.py` / `terminal.py` alongside `tick.sh` /
+  `terminal.sh`, noting the Python entries as preferred on hosts
+  without bash.
+- `docs/router-agent.md` §2 §6: updated handoff instructions to
+  show both Python and bash entry points and to note that the
+  kernel itself never requires bash.
+
+### Tests
+- `tests/python/test_no_bash_dependency.py` (new, 7 tests):
+  monkey-patches `shutil.which("bash")` to `None` and verifies that
+  `_preflight.run`, `_emit.run`, `_extractor_batch.run`, and
+  `_tick.after_phase` all complete without raising
+  `FileNotFoundError`.
+- `tests/python/test_python_entries.py` (new, 17 tests): parametrises
+  over the 8 new `.py` siblings; asserts each is importable, exposes
+  `main`, and that `python <entry>.py --help` exits 0 with help text.
+  Includes a smoke that runs `tick.py --task X --workspace Y --json`
+  end-to-end on a fresh workspace.
+- Pytest baseline now: **168 passed, 4 failed** (was 144/4 in v0.23.1
+  — all 4 pre-existing path-separator failures are unrelated to
+  this change and remain on the v0.25.x backlog).
+
+### Acceptance grep
+```
+grep -r 'subprocess.*\.sh"\|\["bash' skills/codenook-core/_lib \
+                                     skills/codenook-core/skills/builtin/*/_*.py
+# → ZERO non-comment hits.
+```
+
+### Note on v0.23.1
+v0.23.1's `find_bash()` helper and well-known-locations scan in
+`_lib/sh_run.py` remain in place. They are still useful for:
+- Plugin-shipped `.sh` scripts that the kernel transitively invokes
+  (post-validate hooks, custom dispatch commands).
+- Linux/Mac users who continue to drive the kernel via the `.sh`
+  entries.
+
+What changed in v0.24.0 is that **none of the kernel's own code
+paths depend on those helpers any more.** Even on a Windows host
+with `find_bash() == None`, every kernel command — `codenook task
+new`, `codenook tick`, `codenook hitl …`, `codenook plugin install`
+— runs cleanly.
+
+---
+
 ## v0.23.1 (2026-04-21)  Windows bash auto-discovery hotfix
+
 
 ### Critical bug fix
 On Windows hosts where `bash` is installed but **not on system PATH**

@@ -44,16 +44,19 @@ def redact(s: str) -> str:
     return s
 
 
-def main() -> int:
-    role = os.environ["CN_ROLE"]
-    payload = os.environ["CN_PAYLOAD"]
-    ws = Path(os.environ["CN_WORKSPACE"])
+def run(*, role: str, payload: str, workspace: "str | Path") -> int:
+    """Programmatic entry: append a redacted dispatch-audit entry.
 
+    v0.24.0 — kernel-internal callers (orchestrator-tick, router-dispatch-build)
+    use this in-process function instead of spawning emit.sh, so the kernel
+    works on Windows hosts without bash on PATH. Returns 0 on success, 1 on
+    payload validation failure (matches the .sh exit code contract).
+    """
+    ws = Path(workspace)
     size = len(payload.encode("utf-8"))
     if size > PAYLOAD_LIMIT:
         print(f"emit.sh: payload {size} bytes exceeds 500 byte limit", file=sys.stderr)
         return 1
-
     try:
         json.loads(payload)
     except json.JSONDecodeError as e:
@@ -71,15 +74,10 @@ def main() -> int:
         "payload_sha256": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
         "payload_preview": redact(payload)[:PREVIEW_LEN],
     }
-
     line = json.dumps(entry, ensure_ascii=False) + "\n"
-    # Single-line append — atomic enough at M1 for typical `write()` sizes
-    # well under PIPE_BUF. No locking needed for the 1-line case.
     with log_path.open("a", encoding="utf-8") as f:
         f.write(line)
 
-    # E2E-P-007 — also tee into per-task audit.jsonl when payload carries
-    # a task id. Best-effort; failures must never block the dispatch.
     try:
         task_id = json.loads(payload).get("task")
     except Exception:
@@ -94,6 +92,13 @@ def main() -> int:
             pass
 
     return 0
+
+
+def main() -> int:
+    role = os.environ["CN_ROLE"]
+    payload = os.environ["CN_PAYLOAD"]
+    ws = Path(os.environ["CN_WORKSPACE"])
+    return run(role=role, payload=payload, workspace=ws)
 
 
 if __name__ == "__main__":

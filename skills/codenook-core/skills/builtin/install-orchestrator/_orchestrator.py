@@ -37,17 +37,17 @@ from atomic import atomic_write_json  # noqa: E402
 from sh_run import sh_run as _sh_run  # noqa: E402
 
 GATE_SEQ = [
-    ("G01", "plugin-format",          "format-check.sh",     False),
-    ("G02", "plugin-schema",          "schema-check.sh",     False),
-    ("G03", "plugin-id-validate",     "id-validate.sh",      True),  # workspace-aware
-    ("G04", "plugin-version-check",   "version-check.sh",    True),
-    ("G05", "plugin-signature",       "signature-check.sh",  False),
-    ("G06", "plugin-deps-check",      "deps-check.sh",       False),
-    ("G07", "plugin-subsystem-claim", "subsystem-claim.sh",  True),
+    ("G01", "plugin-format",          "_format_check.py",     False),
+    ("G02", "plugin-schema",          "_schema_check.py",     False),
+    ("G03", "plugin-id-validate",     "_id_validate.py",      True),
+    ("G04", "plugin-version-check",   "_version_check.py",    True),
+    ("G05", "plugin-signature",       "_signature_check.py",  False),
+    ("G06", "plugin-deps-check",      "_deps_check.py",       False),
+    ("G07", "plugin-subsystem-claim", "_subsystem_claim.py",  True),
     # G08 sec-audit handled inline below
     # G09 size handled inline below
-    ("G10", "plugin-shebang-scan",    "shebang-scan.sh",     False),
-    ("G11", "plugin-path-normalize",  "path-normalize.sh",   False),
+    ("G10", "plugin-shebang-scan",    "_shebang_scan.py",     False),
+    ("G11", "plugin-path-normalize",  "_path_normalize.py",   False),
 ]
 
 MAX_TOTAL_BYTES = 10 * 1024 * 1024
@@ -115,31 +115,47 @@ def stage_source(src: Path, staging_root: Path) -> Path:
     raise RuntimeError(f"unsupported --src kind: {src}")
 
 
-def run_gate(skill_sh: Path, staged: Path, workspace: Path,
+def run_gate(gate_py: Path, staged: Path, workspace: Path,
              upgrade: bool, extra_env: dict | None = None,
              ws_aware: bool = False) -> dict:
-    cmd = [str(skill_sh), "--src", str(staged), "--json"]
-    if ws_aware:
-        cmd += ["--workspace", str(workspace)]
-        if upgrade:
-            cmd += ["--upgrade"]
+    """v0.24.0: invoke the gate's Python module directly via
+    ``[sys.executable, _<name>.py]`` with the same CN_* env contract
+    the .sh wrapper used to set. No bash subprocess required."""
+    gate_dir = gate_py.parent
     env = os.environ.copy()
+    env["CN_SRC"] = str(staged)
+    env["CN_JSON"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
+    if ws_aware:
+        env["CN_WORKSPACE"] = str(workspace)
+        env["CN_UPGRADE"] = "1" if upgrade else "0"
+    # Per-gate extras that the .sh wrappers used to materialise:
+    if gate_dir.name == "plugin-schema":
+        env["CN_SCHEMA"] = str(gate_dir / "plugin-schema.yaml")
     if extra_env:
         env.update(extra_env)
-    proc = _sh_run(cmd, env=env, capture_output=True, text=True)
+    proc = subprocess.run(
+        [sys.executable, str(gate_py)],
+        env=env, capture_output=True, text=True,
+    )
     try:
         out = json.loads(proc.stdout.strip().splitlines()[-1])
     except (ValueError, IndexError):
-        out = {"ok": False, "gate": skill_sh.parent.name,
+        out = {"ok": False, "gate": gate_dir.name,
                "reasons": [f"gate did not emit JSON (stderr={proc.stderr!r})"]}
     return out
 
 
 def run_sec_audit(builtin_dir: Path, staged: Path) -> dict:
-    audit_sh = builtin_dir / "sec-audit" / "audit.sh"
-    proc = _sh_run(
-        [str(audit_sh), "--workspace", str(staged), "--json"],
-        capture_output=True, text=True,
+    audit_py = builtin_dir / "sec-audit" / "_audit.py"
+    env = os.environ.copy()
+    env["CN_WORKSPACE"] = str(staged)
+    env["CN_JSON"] = "1"
+    env["CN_PATTERNS"] = str(builtin_dir / "sec-audit" / "patterns.txt")
+    env["PYTHONIOENCODING"] = "utf-8"
+    proc = subprocess.run(
+        [sys.executable, str(audit_py)],
+        env=env, capture_output=True, text=True,
     )
     reasons: list[str] = []
     # sec-audit emits {"ok": bool, "findings": [...]} on stdout when --json.
@@ -399,9 +415,9 @@ def main() -> int:
                                                   "G05", "G06", "G07")]
         late = [g for g in GATE_SEQ if g[0] in ("G10", "G11")]
         for code, name, sh, ws_aware in early:
-            skill_sh = builtin_dir / name / sh
+            gate_py = builtin_dir / name / sh
             env = extra_env if name == "plugin-signature" else None
-            results.append(run_gate(skill_sh, staged, workspace, upgrade,
+            results.append(run_gate(gate_py, staged, workspace, upgrade,
                                     extra_env=env, ws_aware=ws_aware))
 
         # G08 sec-audit
@@ -410,8 +426,8 @@ def main() -> int:
         results.append(check_size(staged))
 
         for code, name, sh, ws_aware in late:
-            skill_sh = builtin_dir / name / sh
-            results.append(run_gate(skill_sh, staged, workspace, upgrade,
+            gate_py = builtin_dir / name / sh
+            results.append(run_gate(gate_py, staged, workspace, upgrade,
                                     ws_aware=ws_aware))
 
         failed = [r for r in results if not r.get("ok")]

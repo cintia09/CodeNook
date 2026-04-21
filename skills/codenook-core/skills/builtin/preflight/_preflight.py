@@ -76,6 +76,80 @@ def _discover_known_phases(workspace: str, state: dict) -> list[str]:
         return []
 
 
+def run(*, task: str, state_file: str, workspace: str,
+        json_out: bool = False) -> tuple[int, str, list[str]]:
+    """Programmatic entry: returns (exit_code, phase, reasons).
+
+    v0.24.0 — kernel-internal callers (orchestrator-tick, codenook tick)
+    use this in-process function instead of spawning the .sh wrapper, so
+    the kernel works on Windows hosts without bash on PATH. The .sh /
+    env-var entry remains supported via :func:`main` for backward compat.
+    """
+    reasons: list[str] = []
+    try:
+        with open(state_file, "r", encoding="utf-8") as f:
+            state = json.load(f)
+    except Exception as e:
+        return 1, "", [f"invalid state.json: {e}"]
+    phase = state.get("phase", "")
+    reasons = _compute_reasons(workspace, state, task)
+    return (0 if not reasons else 1), phase, reasons
+
+
+def _compute_reasons(workspace: str, state: dict, task: str) -> list[str]:
+    reasons: list[str] = []
+    phase = state.get("phase", "")
+    total_iterations = state.get("total_iterations", 0)
+    dual_mode = state.get("dual_mode")
+    config_overrides = state.get("config_overrides", {})
+
+    if dual_mode is None and total_iterations <= 1:
+        reasons.append("needs dual_mode")
+
+    LEGACY_FALLBACK_PHASES = [
+        "start", "implement", "test", "review", "distill", "accept", "done",
+        "clarify", "design", "plan", "validate", "ship",
+    ]
+    KNOWN_PHASES = _discover_known_phases(workspace, state) or LEGACY_FALLBACK_PHASES
+    if phase not in KNOWN_PHASES:
+        reasons.append(f"unknown_phase: {phase}")
+
+    hitl_queue = os.path.join(workspace, ".codenook/queues/hitl.jsonl")
+    if os.path.exists(hitl_queue):
+        with open(hitl_queue, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    entry = json.loads(line.strip())
+                    if entry.get("task") == task and entry.get("status") == "pending":
+                        reasons.append("HITL gate blocking")
+                        break
+                except Exception:
+                    pass
+
+    ALLOWED_OVERRIDE_KEYS = {
+        "models.default", "models.router", "models.planner", "models.executor",
+        "models.reviewer", "models.distiller", "hitl.mode",
+    }
+
+    def walk_paths(node, prefix=""):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                child_prefix = f"{prefix}.{k}" if prefix else k
+                if isinstance(v, dict) and v:
+                    yield from walk_paths(v, child_prefix)
+                else:
+                    yield child_prefix
+        else:
+            if prefix:
+                yield prefix
+
+    for path in walk_paths(config_overrides):
+        if path not in ALLOWED_OVERRIDE_KEYS:
+            reasons.append(f"invalid config override key: {path}")
+
+    return sorted(set(reasons))
+
+
 def main():
     task = os.environ["CN_TASK"]
     state_file = os.environ["CN_STATE_FILE"]

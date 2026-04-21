@@ -1,11 +1,13 @@
 """``codenook extract`` — fan out memory extractors for a task phase
 or a context-pressure event.
 
-This is a thin wrapper around ``extractor-batch/extractor-batch.sh``
-so the main session never needs to invoke the bash script directly.
-The underlying contract is unchanged (idempotent on
-``(task, phase, reason)``, exit 0 best-effort, single JSON object on
-stdout).
+v0.24.0 — calls the in-process Python helper
+``extractor-batch._extractor_batch.run`` directly. The legacy bash
+``extractor-batch.sh`` is still present for Linux/Mac users who script
+against it, but the kernel CLI no longer requires bash on PATH.
+
+The contract is unchanged (idempotent on ``(task, phase, reason)``,
+exit 0 best-effort, single JSON object on stdout).
 
 Usage::
 
@@ -14,28 +16,13 @@ Usage::
 """
 from __future__ import annotations
 
+import json
 import os
-import shutil
-import subprocess
 import sys
 from typing import Sequence
 
 from .config import CodenookContext
 
-
-def _resolve_bash() -> str | None:
-    """Locate bash via the kernel's sh_run.find_bash helper, with a
-    PATH fallback if the helper module is not importable."""
-    try:
-        from pathlib import Path as _P
-        import sys as _sys
-        _lib = _P(__file__).resolve().parents[2] / "skills" / "builtin" / "_lib"
-        if str(_lib) not in _sys.path:
-            _sys.path.insert(0, str(_lib))
-        from sh_run import find_bash  # type: ignore
-        return find_bash()
-    except Exception:
-        return shutil.which("bash")
 
 HELP = """\
 codenook extract — fan out memory extractors
@@ -81,33 +68,22 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
         sys.stderr.write("codenook extract: --reason required\n")
         return 2
 
-    helper = ctx.kernel_dir / "extractor-batch" / "extractor-batch.sh"
-    if not helper.is_file():
-        sys.stderr.write(f"codenook extract: helper missing: {helper}\n")
+    helper_py = ctx.kernel_dir / "extractor-batch" / "_extractor_batch.py"
+    if not helper_py.is_file():
+        sys.stderr.write(f"codenook extract: helper missing: {helper_py}\n")
         return 1
 
-    bash = _resolve_bash()
-    if bash is None:
-        sys.stderr.write(
-            "codenook extract: bash not found (tried $CN_BASH, PATH, and "
-            "well-known Windows install locations); install Git for Windows "
-            "or set CN_BASH to a bash.exe path\n"
+    # Direct in-process call (no bash subprocess).
+    eb_dir = str(helper_py.parent)
+    if eb_dir not in sys.path:
+        sys.path.insert(0, eb_dir)
+    try:
+        import _extractor_batch  # type: ignore
+        result = _extractor_batch.run(
+            task_id=task, reason=reason, workspace=ctx.workspace, phase=phase,
         )
+        sys.stdout.write(json.dumps(result, ensure_ascii=False) + "\n")
+        return 0
+    except Exception as e:
+        sys.stderr.write(f"codenook extract: {type(e).__name__}: {e}\n")
         return 1
-
-    cmd = [
-        bash,
-        str(helper),
-        "--task-id", task,
-        "--reason", reason,
-        "--workspace", str(ctx.workspace),
-    ]
-    if phase:
-        cmd += ["--phase", phase]
-
-    env = os.environ.copy()
-    env["CODENOOK_WORKSPACE"] = str(ctx.workspace)
-    env["CN_WORKSPACE"] = str(ctx.workspace)
-
-    cp = subprocess.run(cmd, env=env, text=True)
-    return cp.returncode

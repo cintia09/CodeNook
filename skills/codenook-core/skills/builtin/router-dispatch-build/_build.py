@@ -43,7 +43,9 @@ def main() -> int:
     user_input = os.environ["CN_USER_INPUT"]
     task       = os.environ.get("CN_TASK", "")
     ws         = Path(os.environ["CN_WORKSPACE"]).resolve()
-    emit_sh    = os.environ["CN_EMIT_SH"]
+    # Legacy env var; no longer used since v0.24.0 uses in-process emit.
+    # Read with a default so the .sh wrapper doesn't have to set it.
+    emit_sh    = os.environ.get("CN_EMIT_SH", "")
 
     # Reject path-traversal in --target before any filesystem access.
     if (not target
@@ -101,20 +103,20 @@ def main() -> int:
     out = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
     # Audit — must succeed; surface as exit 1 if it doesn't.
+    # v0.24.0: in-process call to dispatch-audit emitter (no bash subprocess).
     try:
-        import sys as _sys; from pathlib import Path as _P
-        _sys.path.insert(0, str(_P(__file__).resolve().parent.parent / "_lib"))
-        from sh_run import sh_run as _sh_run
-        res = _sh_run(
-            [emit_sh, "--role", role, "--payload", out, "--workspace", str(ws)],
-            capture_output=True, text=True, check=False,
-        )
-        if res.returncode != 0:
-            sys.stderr.write(res.stderr)
-            print(f"build.sh: dispatch-audit emit failed (rc={res.returncode})",
+        import sys as _sys
+        from pathlib import Path as _P
+        _da = _P(__file__).resolve().parent.parent / "dispatch-audit"
+        if str(_da) not in _sys.path:
+            _sys.path.insert(0, str(_da))
+        import _emit  # type: ignore
+        rc = _emit.run(role=role, payload=out, workspace=ws)
+        if rc != 0:
+            print(f"build.sh: dispatch-audit emit failed (rc={rc})",
                   file=sys.stderr)
             return 1
-    except OSError as e:
+    except Exception as e:
         print(f"build.sh: cannot exec dispatch-audit: {e}", file=sys.stderr)
         return 1
 
