@@ -88,6 +88,10 @@ def _render_terminal(md: str, color: bool = True) -> str:
     """
     if not md:
         return ""
+    md = md.replace("\r\n", "\n").replace("\r", "\n")
+    fm = re.match(r"^---\n.*?\n---\n?", md, re.DOTALL)
+    if fm:
+        md = md[fm.end():]
 
     if not color or os.environ.get("NO_COLOR"):
         BOLD = DIM = RESET = ITAL = UND = ""
@@ -288,7 +292,12 @@ def _render_markdown(md: str) -> str:
     """
     if not md:
         return ""
-    lines = md.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    md = md.replace("\r\n", "\n").replace("\r", "\n")
+    # Strip YAML front-matter (--- ... ---) from the very top.
+    fm = re.match(r"^---\n.*?\n---\n?", md, re.DOTALL)
+    if fm:
+        md = md[fm.end():]
+    lines = md.split("\n")
     out: list[str] = []
     i = 0
     in_ul = in_ol = False
@@ -434,9 +443,6 @@ h1{{font-size:1.4em}} h2{{font-size:1.15em;margin-top:1.6em;border-bottom:1px so
 .ctx ul,.ctx ol{{padding-left:1.6em}}
 .ctx a{{color:#06f;text-decoration:none}} .ctx a:hover{{text-decoration:underline}}
 .ctx p{{margin:.5em 0}}
-.cmd{{background:#1e1e1e;color:#d4d4d4;padding:.8em 1em;border-radius:4px;font-family:Menlo,Consolas,monospace;font-size:13px;white-space:pre-wrap;overflow-x:auto}}
-.decisions span{{display:inline-block;margin:.3em .5em .3em 0;padding:.25em .6em;border-radius:3px;color:#fff;font-size:.85em}}
-.decisions .a{{background:#2e8b57}} .decisions .r{{background:#c0392b}} .decisions .n{{background:#d68910}}
 </style></head><body>
 <h1>HITL gate · {_html_escape(eid)}</h1>
 <div class="meta">task <b>{_html_escape(task_id)}</b> · gate <b>{_html_escape(gate)}</b> · created {_html_escape(created)}</div>
@@ -446,15 +452,6 @@ h1{{font-size:1.4em}} h2{{font-size:1.15em;margin-top:1.6em;border-bottom:1px so
 
 <h2>Context ({_html_escape(cp) if cp else 'none'})</h2>
 <div class="ctx">{_render_markdown(ctx_text) if ctx_text else '<p><em>(no context)</em></p>'}</div>
-
-<h2>How to answer</h2>
-<p>This page is read-only. Decide from the terminal:</p>
-<div class="cmd">codenook decide --id {_html_escape(eid)} \\
-        --decision &lt;approve|reject|needs_changes&gt; \\
-        --reviewer "&lt;your name&gt;" \\
-        --comment "&lt;optional&gt;"</div>
-<p class="decisions">Possible decisions:
-<span class="a">approve</span><span class="r">reject</span><span class="n">needs_changes</span></p>
 </body></html>
 """
 
