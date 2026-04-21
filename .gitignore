@@ -49,3 +49,4 @@ __pycache__/
 *.bak-*
 .scratch/
 .e2e-scratch/
+docs/*.pptx
