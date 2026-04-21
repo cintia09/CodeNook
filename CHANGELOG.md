@@ -1,3 +1,18 @@
+## v0.25.3 (2026-04-21)
+
+### Changed
+- **`--task T-NNN` now resolves to its slugged dir.** Previously
+  every CLI subcommand that took `--task` required the *exact* dir
+  name (e.g. `T-003-写blog`), so when `task new` returned
+  `T-003-foo` the conductor's natural follow-up
+  `tick --task T-003` failed with `state.json not found`. The
+  resolver now walks `.codenook/tasks/`: exact match wins, else
+  a unique `T-NNN-*` directory wins, else the user gets either
+  `no such task` or an `ambiguous` error listing candidates.
+  Wired into `tick`, `status`, `decide`, `task set`, `task set-model`,
+  `task set-exec`, `task set-profile` (7 sites) via a single
+  `resolve_task_id()` helper in `_lib/cli/config.py`.
+
 ## v0.25.2 (2026-04-21)
 
 ### Fixed

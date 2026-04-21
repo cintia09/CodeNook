@@ -13,7 +13,7 @@ from typing import Sequence
 import yaml  # type: ignore[import-untyped]
 
 from . import _subproc
-from .config import CodenookContext
+from .config import CodenookContext, resolve_task_id
 
 
 def run(ctx: CodenookContext, args: Sequence[str]) -> int:
@@ -41,6 +41,16 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
             "codenook decide: --task, --phase, --decision required\n")
         return 2
 
+    resolved, candidates = resolve_task_id(ctx.workspace, task)
+    if resolved is None:
+        if candidates:
+            sys.stderr.write(
+                f"codenook decide: ambiguous --task {task}; candidates: "
+                f"{', '.join(candidates)}\n")
+        else:
+            sys.stderr.write(f"codenook decide: no such task: {task}\n")
+        return 1
+    task = resolved
     state_p = ctx.workspace / ".codenook" / "tasks" / task / "state.json"
     if not state_p.is_file():
         sys.stderr.write(f"codenook decide: no such task: {task}\n")

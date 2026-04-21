@@ -5,7 +5,7 @@ import json
 import sys
 from typing import Sequence
 
-from .config import CodenookContext, iter_active_task_dirs
+from .config import CodenookContext, iter_active_task_dirs, resolve_task_id
 
 
 def run(ctx: CodenookContext, args: Sequence[str]) -> int:
@@ -23,7 +23,16 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
         return 2
 
     if task:
-        f = ctx.workspace / ".codenook" / "tasks" / task / "state.json"
+        resolved, candidates = resolve_task_id(ctx.workspace, task)
+        if resolved is None:
+            if candidates:
+                sys.stderr.write(
+                    f"codenook status: ambiguous --task {task}; candidates: "
+                    f"{', '.join(candidates)}\n")
+            else:
+                sys.stderr.write(f"codenook status: no such task: {task}\n")
+            return 1
+        f = ctx.workspace / ".codenook" / "tasks" / resolved / "state.json"
         if not f.is_file():
             sys.stderr.write(f"codenook status: no such task: {task}\n")
             return 1

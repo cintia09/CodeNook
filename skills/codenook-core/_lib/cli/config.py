@@ -233,6 +233,39 @@ def compose_task_id(n: int, slug: str) -> str:
     return f"{base}-{slug}"
 
 
+def resolve_task_id(workspace: Path, partial: str) -> tuple[str | None, list[str]]:
+    """Resolve a (possibly bare) ``T-NNN`` to its full slugged dir name.
+
+    Returns ``(resolved_id, candidates)``:
+
+    * ``(name, [])`` — exact dir match (caller passes through unchanged).
+    * ``(slugged, [])`` — single ``T-NNN-*`` match for a bare ``T-NNN``.
+    * ``(None, [])`` — no match.
+    * ``(None, [a, b, ...])`` — ambiguous; caller should print candidates.
+
+    Used by every CLI subcommand that takes ``--task <id>`` so the
+    conductor can pass the short ``T-003`` even when the dir is
+    ``T-003-写blog``.
+    """
+    if not partial:
+        return None, []
+    tasks_dir = workspace / ".codenook" / "tasks"
+    if not tasks_dir.is_dir():
+        return None, []
+    # 1. exact match
+    if (tasks_dir / partial).is_dir():
+        return partial, []
+    # 2. bare T-NNN -> single T-NNN-* match
+    prefix = partial + "-"
+    matches = [c.name for c in tasks_dir.iterdir()
+               if c.is_dir() and c.name.startswith(prefix)]
+    if len(matches) == 1:
+        return matches[0], []
+    if len(matches) > 1:
+        return None, sorted(matches)
+    return None, []
+
+
 def is_active_task_dir(p: Path) -> bool:
     """True iff *p* is an active task directory worth iterating.
 

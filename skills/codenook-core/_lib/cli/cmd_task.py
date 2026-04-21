@@ -10,7 +10,9 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from .config import CodenookContext, compose_task_id, next_task_id, slugify
+from .config import (
+    CodenookContext, compose_task_id, next_task_id, resolve_task_id, slugify,
+)
 
 # atomic_write_json_validated lives in skills/builtin/_lib/atomic.py;
 # load_context() prepends that dir to sys.path, so the import resolves
@@ -120,6 +122,28 @@ ALLOWED = {
 }
 INT_FIELDS = {"max_iterations"}
 WRITABLE = {"dual_mode", "target_dir", "priority", "max_iterations", "summary", "title"}
+
+
+def _resolve_or_error(
+    ctx: CodenookContext, task: str, subcmd: str,
+) -> tuple[str | None, int]:
+    """Resolve a (possibly bare) ``T-NNN`` to the actual dir name.
+
+    Returns ``(resolved_id, exit_code)`` — when ``resolved_id`` is
+    ``None`` the caller must return ``exit_code`` immediately. Writes
+    a uniformly-formatted error to stderr.
+    """
+    resolved, candidates = resolve_task_id(ctx.workspace, task)
+    if resolved is None:
+        if candidates:
+            sys.stderr.write(
+                f"codenook task {subcmd}: ambiguous --task {task}; "
+                f"candidates: {', '.join(candidates)}\n")
+        else:
+            sys.stderr.write(
+                f"codenook task {subcmd}: no such task: {task}\n")
+        return None, 1
+    return resolved, 0
 
 
 def run(ctx: CodenookContext, args: Sequence[str]) -> int:
@@ -432,8 +456,11 @@ def _task_set(ctx: CodenookContext, args: list[str]) -> int:
 
     sf = ctx.workspace / ".codenook" / "tasks" / task / "state.json"
     if not sf.is_file():
-        sys.stderr.write(f"codenook task set: no such task: {task}\n")
-        return 1
+        resolved, rc = _resolve_or_error(ctx, task, "set")
+        if resolved is None:
+            return rc
+        task = resolved
+        sf = ctx.workspace / ".codenook" / "tasks" / task / "state.json"
 
     if field not in WRITABLE:
         sys.stderr.write(
@@ -504,8 +531,11 @@ def _task_set_model(ctx: CodenookContext, args: list[str]) -> int:
 
     sf = ctx.workspace / ".codenook" / "tasks" / task / "state.json"
     if not sf.is_file():
-        sys.stderr.write(f"codenook task set-model: no such task: {task}\n")
-        return 1
+        resolved, rc = _resolve_or_error(ctx, task, "set-model")
+        if resolved is None:
+            return rc
+        task = resolved
+        sf = ctx.workspace / ".codenook" / "tasks" / task / "state.json"
 
     state = json.loads(sf.read_text(encoding="utf-8"))
     if clear:
@@ -553,8 +583,11 @@ def _task_set_exec(ctx: CodenookContext, args: list[str]) -> int:
 
     sf = ctx.workspace / ".codenook" / "tasks" / task / "state.json"
     if not sf.is_file():
-        sys.stderr.write(f"codenook task set-exec: no such task: {task}\n")
-        return 1
+        resolved, rc = _resolve_or_error(ctx, task, "set-exec")
+        if resolved is None:
+            return rc
+        task = resolved
+        sf = ctx.workspace / ".codenook" / "tasks" / task / "state.json"
 
     state = json.loads(sf.read_text(encoding="utf-8"))
     state["execution_mode"] = mode
@@ -594,8 +627,11 @@ def _task_set_profile(ctx: CodenookContext, args: list[str]) -> int:
 
     sf = ctx.workspace / ".codenook" / "tasks" / task / "state.json"
     if not sf.is_file():
-        sys.stderr.write(f"codenook task set-profile: no such task: {task}\n")
-        return 1
+        resolved, rc = _resolve_or_error(ctx, task, "set-profile")
+        if resolved is None:
+            return rc
+        task = resolved
+        sf = ctx.workspace / ".codenook" / "tasks" / task / "state.json"
 
     state = json.loads(sf.read_text(encoding="utf-8"))
     plugin = state.get("plugin", "")
