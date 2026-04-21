@@ -1249,7 +1249,14 @@ def after_phase(workspace_root: Path, task_id: str, phase: str | None,
                              "extractor-batch", "extractor-batch.sh")
     if not os.path.exists(batch):
         return
-    cmd = ["bash", batch,
+    from sh_run import find_bash  # noqa: E402  (lazy: _lib already on sys.path)
+    bash = find_bash()
+    if bash is None:
+        print("orchestrator-tick: extractor batch skipped "
+              "(no bash interpreter found; set CN_BASH or install Git for Windows)",
+              file=sys.stderr)
+        return
+    cmd = [bash, batch,
            "--task-id", task_id,
            "--reason", "after_phase",
            "--workspace", str(workspace_root),

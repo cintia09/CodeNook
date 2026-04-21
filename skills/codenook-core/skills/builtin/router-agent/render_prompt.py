@@ -573,23 +573,32 @@ def cmd_confirm(args: argparse.Namespace) -> int:
     tick_stderr = ""
     if tick_sh.is_file():
         try:
-            proc = subprocess.run(
-                [
-                    "bash", str(tick_sh),
-                    "--task", args.task_id,
-                    "--workspace", str(workspace),
-                    "--json",
-                ],
-                capture_output=True, text=True, timeout=60,
-            )
-            tick_stderr = proc.stderr
-            try:
-                tick_json = json.loads(proc.stdout.strip().splitlines()[-1])
-                tick_status = tick_json.get("status", "unknown")
-            except Exception:
-                tick_status = (
-                    "ok" if proc.returncode == 0 else f"rc={proc.returncode}"
+            from sh_run import find_bash  # noqa: E402  (_lib already on sys.path)
+            bash = find_bash()
+            if bash is None:
+                tick_status = "bash_missing"
+                tick_stderr = (
+                    "no bash interpreter found; set CN_BASH or install Git for Windows"
                 )
+                proc = None  # type: ignore[assignment]
+            else:
+                proc = subprocess.run(
+                    [
+                        bash, str(tick_sh),
+                        "--task", args.task_id,
+                        "--workspace", str(workspace),
+                        "--json",
+                    ],
+                    capture_output=True, text=True, timeout=60,
+                )
+                tick_stderr = proc.stderr
+                try:
+                    tick_json = json.loads(proc.stdout.strip().splitlines()[-1])
+                    tick_status = tick_json.get("status", "unknown")
+                except Exception:
+                    tick_status = (
+                        "ok" if proc.returncode == 0 else f"rc={proc.returncode}"
+                    )
         except Exception as e:
             tick_status = f"error: {type(e).__name__}: {e}"
     else:

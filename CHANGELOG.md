@@ -1,3 +1,51 @@
+## v0.23.1 (2026-04-21)  Windows bash auto-discovery hotfix
+
+### Critical bug fix
+On Windows hosts where `bash` is installed but **not on system PATH**
+(typical PortableGit / Git for Windows / MSYS2 setups), every
+`codenook tick` raised `FileNotFoundError [WinError 2]`:
+
+- `skills/builtin/_lib/sh_run.py` resolved bash with
+  `shutil.which("bash") or os.environ.get("CN_BASH", "bash")` and
+  passed the literal `"bash"` string through to `subprocess` when
+  both lookups missed.
+- `skills/builtin/orchestrator-tick/_tick.py` (extractor-batch
+  dispatch) bypassed `sh_run` entirely with `cmd = ["bash", batch, ]`
+  and crashed the whole tick instead of skipping a best-effort hop.
+
+Real-world impact: tasks T-012 and T-015 stuck in production on a
+Windows machine with bash at
+`C:\openclaw-pro\PortableGit\bin\bash.exe`.
+
+### Fix
+- New `find_bash() -> str | None` helper in `sh_run.py` with a
+  cached priority chain:
+  1. `` if it points to an existing file.
+  2. `shutil.which("bash")`.
+  3. Scan well-known Windows install locations (PortableGit,
+     `Program Files\Git`, `Program Files (x86)\Git`,
+     `Git\usr\bin`, `msys64`, `cygwin64`, `System32\bash.exe`
+     for WSL) plus a glob over per-user
+     `C:\Users\*\AppData\Local\Programs\Git\bin\bash.exe` installs.
+- `sh_run` raises a clear `RuntimeError` listing every location
+  tried when no interpreter is found, instead of letting
+  `subprocess` raise an opaque `FileNotFoundError`.
+- `orchestrator-tick` extractor-batch dispatch now uses
+  `find_bash()` and **logs-and-skips** when bash is unavailable
+  (extraction is best-effort; ticks no longer crash).
+- `codenook extract` and `router-agent` `render_prompt` tick
+  dispatch routed through `find_bash()` for the same reason.
+
+### Workaround for hosts still on v0.23.0
+Either install Git for Windows (https://git-scm.com/download/win) so
+`bash` is on PATH, or set `CN_BASH` to an absolute `bash.exe`
+path before invoking the CLI.
+
+### Tests
+- New `tests/python/test_sh_run_discovery.py` (8 cases) covering
+  the priority chain, glob scan, `RuntimeError` message, cache
+  behaviour, and POSIX passthrough.
+
 ## v0.23.0 (2026-04-21) — auto-derived slug suffix on task IDs
 
 ### Added
@@ -3389,5 +3437,6 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - Violation response template: shows role, blocked action, and switch suggestion
 - agent-init Step 7a: CLAUDE.md template includes enforcement rules
 - Works in both Claude Code (hook-enforced) and Copilot CLI (self-check enforced)
+
 
 

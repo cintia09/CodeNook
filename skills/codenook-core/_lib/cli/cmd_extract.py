@@ -22,6 +22,21 @@ from typing import Sequence
 
 from .config import CodenookContext
 
+
+def _resolve_bash() -> str | None:
+    """Locate bash via the kernel's sh_run.find_bash helper, with a
+    PATH fallback if the helper module is not importable."""
+    try:
+        from pathlib import Path as _P
+        import sys as _sys
+        _lib = _P(__file__).resolve().parents[2] / "skills" / "builtin" / "_lib"
+        if str(_lib) not in _sys.path:
+            _sys.path.insert(0, str(_lib))
+        from sh_run import find_bash  # type: ignore
+        return find_bash()
+    except Exception:
+        return shutil.which("bash")
+
 HELP = """\
 codenook extract — fan out memory extractors
 
@@ -71,11 +86,12 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
         sys.stderr.write(f"codenook extract: helper missing: {helper}\n")
         return 1
 
-    bash = shutil.which("bash")
+    bash = _resolve_bash()
     if bash is None:
         sys.stderr.write(
-            "codenook extract: bash not found on PATH; install bash or "
-            "Git Bash to use this subcommand on Windows\n"
+            "codenook extract: bash not found (tried $CN_BASH, PATH, and "
+            "well-known Windows install locations); install Git for Windows "
+            "or set CN_BASH to a bash.exe path\n"
         )
         return 1
 
