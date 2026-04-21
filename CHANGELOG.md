@@ -1,3 +1,25 @@
+## v0.24.2 (2026-04-21)
+
+### Fixed
+- **Task IDs missing slug suffix on the most common entrypoint**
+  (`task new --title X --summary Y --accept-defaults`, no `--input`).
+  v0.23 only consulted `task_input` when composing the slug, so any
+  invocation that did not pass `--input` silently produced bare
+  `T-NNN` ids — defeating the whole point of v0.23. Slug source
+  preference is now `--input` → `--title` → `--summary` (first
+  non-empty wins). CJK and ASCII titles both yield slugs.
+  (`cmd_task.py:286-294`)
+
+### Changed
+- Bootloader now mandates a **pre-task interview**: 2-4 short
+  clarifying questions via `ask_user` before `task new`, with the
+  answers concatenated into `--input`. The task is created with
+  rich first-phase context instead of the role having to ask
+  basic questions post-dispatch (which felt jarring — outliner
+  asking "what's the topic?" right after task creation). Plugin
+  selection still drives the question set: look at the first
+  phase's role and ask what it would otherwise ask.
+
 ## v0.24.1 (2026-04-21)
 
 ### Added

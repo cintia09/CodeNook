@@ -158,21 +158,40 @@ artifact interpretation, not orientation reads.
 #    against the user request, choose the best fit. If two tie or
 #    none fits well, ask the user which one.
 #
-# 2. Create the task. Pass --plugin explicitly. --summary carries
-#    the user's request verbatim; --accept-defaults fills
-#    dual_mode/priority/target_dir with sane defaults so no
-#    entry-question gate fires. Returns the new T-NNN on stdout.
+# 2. Pre-task interview (mandatory, ~2-4 questions). Before
+#    creating the task, ask the user 2-4 short clarifying
+#    questions via your `ask_user` tool to gather concrete
+#    context. The exact questions depend on the chosen plugin —
+#    look at the plugin's first phase (typically `clarify`,
+#    `outline`, or `intake`) and ask what its role would
+#    otherwise need to ask. Aim for: scope, audience / target,
+#    style / constraints, and any inputs the user already has.
+#    Concatenate the answers (one Q+A per line) into a single
+#    multi-line string — that becomes --input. Skip ONLY when
+#    the user explicitly says "just go" / "你看着办" / passes a
+#    pre-filled brief.
+#
+# 3. Create the task. Pass --plugin explicitly. --title is a
+#    short label for filesystem / UI use (drives the task-id
+#    slug). --summary carries the user's verbatim original
+#    request. --input carries the gathered interview answers
+#    (richer context the first role consumes). --accept-defaults
+#    fills dual_mode/priority/target_dir with sane values so no
+#    entry-question gate fires. Returns the new T-NNN-<slug> on
+#    stdout (slug derived from --input → --title → --summary in
+#    that order; CJK preserved).
 <codenook> task new --title "<short title>" \
                     --summary "<verbatim user request>" \
+                    --input "<multi-line interview answers>" \
                     --plugin <chosen-plugin-id> \
                     --accept-defaults
 
-# 3. Drive the tick loop. Each call advances at most one phase and
+# 4. Drive the tick loop. Each call advances at most one phase and
 #    returns a JSON envelope with the new status.
 <codenook> tick --task <T-NNN> --json
 ```
 
-Loop step 3 on `status: advanced`. Stop on `done` / `blocked` and
+Loop step 4 on `status: advanced`. Stop on `done` / `blocked` and
 report verbatim. On `waiting`, scan `.codenook/hitl-queue/*.json`
 for entries with `decision == null`, relay each `prompt` field
 verbatim to the user, capture the answer, then:

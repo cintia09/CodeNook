@@ -285,7 +285,15 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
 
     if not task_id:
         n = next_task_id(ctx.workspace)
-        slug = slugify(task_input) if task_input else ""
+        # Slug source preference: --input > --title > --summary. The
+        # original v0.23 implementation only consulted task_input, so
+        # the most common entrypoint (`task new --title X --summary Y
+        # --accept-defaults`, with no --input) silently produced bare
+        # T-NNN ids. Falling back through title and summary makes
+        # every task get a meaningful slug; slugify() handles
+        # CJK / ASCII / empty-result cases.
+        slug_source = task_input or title or summary
+        slug = slugify(slug_source) if slug_source else ""
         task_id = compose_task_id(n, slug)
 
     tdir = ctx.workspace / ".codenook" / "tasks" / task_id
