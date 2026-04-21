@@ -43,9 +43,11 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
             ph = s.get("phase") or "<none>"
             st = s.get("status") or "?"
             ex = s.get("execution_mode") or "sub-agent"
+            pr = s.get("profile") or "<auto>"
         except Exception:
-            ph, st, ex = "?", "?", "?"
-        rows.append(f"  {d.name} phase={ph} status={st} exec={ex}")
+            ph, st, ex, pr = "?", "?", "?", "?"
+        rows.append(
+            f"  {d.name} phase={ph} status={st} exec={ex} profile={pr}")
     if rows:
         print("Tasks:")
         print("\n".join(rows))

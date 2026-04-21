@@ -14,12 +14,13 @@ from .config import CodenookContext, next_task_id
 
 
 HELP_TASK = """\
-codenook task <new|set|set-model|set-exec>
+codenook task <new|set|set-model|set-exec|set-profile>
 
-  new        create a new T-NNN under .codenook/tasks/
-  set        mutate a writable field on an existing task
-  set-model  set or clear the per-task LLM model_override
-  set-exec   set the per-task execution_mode (sub-agent | inline)
+  new          create a new T-NNN under .codenook/tasks/
+  set          mutate a writable field on an existing task
+  set-model    set or clear the per-task LLM model_override
+  set-exec     set the per-task execution_mode (sub-agent | inline)
+  set-profile  set the per-task profile (must match plugin's phases.yaml)
 """
 
 HELP_SET = """\
@@ -38,9 +39,24 @@ HELP_NEW = """\
 Usage: codenook task new --title "..." [options]
 
 Options:
-  --title <str>           required
+  --title <str>           required (unless --interactive)
   --summary <str>
   --plugin <id>           defaults to first installed plugin
+  --profile <name>        v0.20 — pick a profile from the plugin's
+                          phases.yaml :: profiles. Validated against
+                          declared profile keys; rejected with a list
+                          of valid choices if unknown. When omitted,
+                          falls back to the kernel's profile resolution
+                          (clarifier output, then default).
+  --input <text>          v0.20 — seed the initial task description
+                          (used by phase agents / inline conductor as
+                          additional context).
+  --input-file <path>     v0.20 — read --input contents from a file.
+                          Mutually exclusive with --input.
+  --interactive           v0.20 — wizard mode: prompt for plugin /
+                          profile / title / input / model / exec mode
+                          via stdin/stdout. Mutually exclusive with
+                          --accept-defaults.
   --target-dir <p>        defaults to src/
   --dual-mode <m>         serial | parallel
   --max-iterations <N>    positive integer (default: 3)
@@ -80,6 +96,17 @@ Usage: codenook task set-exec --task T-NNN --mode <sub-agent|inline>
                      spawn.
 """
 
+HELP_SET_PROFILE = """\
+Usage: codenook task set-profile --task T-NNN --profile <name>
+
+  --profile <name>   one of the keys declared under `profiles:` in the
+                     plugin's phases.yaml. Rejected with a list of valid
+                     choices when invalid. Rejected when the task has
+                     already advanced past phase 1 (clarify) — set the
+                     profile up-front via `task new --profile <name>`
+                     instead.
+"""
+
 ALLOWED = {
     "dual_mode": ("serial", "parallel"),
     "priority": ("P0", "P1", "P2", "P3"),
@@ -101,15 +128,55 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
         return _task_set_model(ctx, rest)
     if sub == "set-exec":
         return _task_set_exec(ctx, rest)
+    if sub == "set-profile":
+        return _task_set_profile(ctx, rest)
     sys.stderr.write(f"codenook task: unknown subcommand: {sub}\n")
     sys.stderr.write(HELP_TASK)
     return 2
+
+
+def _load_plugin_profiles(ctx: CodenookContext, plugin: str) -> list[str]:
+    """Return the ordered list of profile names declared in the plugin's
+    phases.yaml, or [] when the plugin has no top-level ``profiles:``
+    block (legacy single-pipeline layout)."""
+    phases_yaml = (
+        ctx.workspace / ".codenook" / "plugins" / plugin / "phases.yaml"
+    )
+    if not phases_yaml.is_file():
+        return []
+    try:
+        import yaml  # type: ignore[import-untyped]
+        doc = yaml.safe_load(phases_yaml.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return []
+    profiles = doc.get("profiles")
+    if not isinstance(profiles, dict):
+        return []
+    return [str(k) for k in profiles.keys()]
+
+
+def _read_input_file(path: str) -> tuple[str | None, str | None]:
+    """Return (text, error_message). At most one is non-None."""
+    p = Path(path).expanduser()
+    if not p.is_file():
+        return None, f"--input-file not found: {path}"
+    try:
+        return p.read_text(encoding="utf-8"), None
+    except Exception as exc:
+        return None, f"--input-file read error: {exc}"
 
 
 def _task_new(ctx: CodenookContext, args: list[str]) -> int:
     if args and args[0] in ("-h", "--help"):
         print(HELP_NEW)
         return 0
+    if "--interactive" in args:
+        if "--accept-defaults" in args:
+            sys.stderr.write(
+                "codenook task new: --interactive and --accept-defaults "
+                "are mutually exclusive\n")
+            return 2
+        return _task_new_interactive(ctx, args)
     title = summary = plugin = target_dir = ""
     dual_mode = ""
     dual_mode_set = False
@@ -120,6 +187,10 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
     task_id = ""
     model = ""
     exec_mode_val = ""
+    profile = ""
+    task_input = ""
+    task_input_set = False
+    input_file = ""
 
     it = iter(args)
     try:
@@ -148,12 +219,31 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
                 model = next(it)
             elif a == "--exec":
                 exec_mode_val = next(it)
+            elif a == "--profile":
+                profile = next(it)
+            elif a == "--input":
+                task_input = next(it); task_input_set = True
+            elif a == "--input-file":
+                input_file = next(it)
             else:
                 sys.stderr.write(f"codenook task new: unknown arg: {a}\n")
                 return 2
     except StopIteration:
         sys.stderr.write("codenook task new: missing value for last flag\n")
         return 2
+
+    if task_input_set and input_file:
+        sys.stderr.write(
+            "codenook task new: --input and --input-file are mutually "
+            "exclusive\n")
+        return 2
+    if input_file:
+        text, err = _read_input_file(input_file)
+        if err:
+            sys.stderr.write(f"codenook task new: {err}\n")
+            return 2
+        task_input = text or ""
+        task_input_set = True
 
     if not title:
         sys.stderr.write("codenook task new: --title is required\n")
@@ -179,6 +269,16 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
         sys.stderr.write(
             "codenook task new: no installed plugin found in state.json\n")
         return 1
+
+    if profile:
+        valid = _load_plugin_profiles(ctx, plugin)
+        if valid and profile not in valid:
+            sys.stderr.write(
+                f"codenook task new: invalid --profile '{profile}' for "
+                f"plugin '{plugin}' (valid: {', '.join(valid)})\n")
+            return 2
+        # When the plugin has no profiles block, accept silently — the
+        # field becomes a no-op for legacy pipelines.
 
     if not task_id:
         task_id = next_task_id(ctx.workspace)
@@ -216,6 +316,10 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
         state["model_override"] = model
     if exec_mode_val:
         state["execution_mode"] = exec_mode_val
+    if profile:
+        state["profile"] = profile
+    if task_input_set and task_input:
+        state["task_input"] = task_input
 
     (tdir / "state.json").write_text(
         json.dumps(state, indent=2), encoding="utf-8")
@@ -413,6 +517,214 @@ def _task_set_exec(ctx: CodenookContext, args: list[str]) -> int:
         "value": mode,
     }))
     return 0
+
+
+def _task_set_profile(ctx: CodenookContext, args: list[str]) -> int:
+    if args and args[0] in ("-h", "--help"):
+        print(HELP_SET_PROFILE)
+        return 0
+
+    task = profile = ""
+    it = iter(args)
+    try:
+        for a in it:
+            if a == "--task":
+                task = next(it)
+            elif a == "--profile":
+                profile = next(it)
+            else:
+                sys.stderr.write(f"codenook task set-profile: unknown arg: {a}\n")
+                return 2
+    except StopIteration:
+        sys.stderr.write("codenook task set-profile: missing value for last flag\n")
+        return 2
+
+    if not task or not profile:
+        sys.stderr.write(
+            "codenook task set-profile: --task and --profile are both required\n")
+        return 2
+
+    sf = ctx.workspace / ".codenook" / "tasks" / task / "state.json"
+    if not sf.is_file():
+        sys.stderr.write(f"codenook task set-profile: no such task: {task}\n")
+        return 1
+
+    state = json.loads(sf.read_text(encoding="utf-8"))
+    plugin = state.get("plugin", "")
+    valid = _load_plugin_profiles(ctx, plugin)
+    if valid and profile not in valid:
+        sys.stderr.write(
+            f"codenook task set-profile: invalid --profile '{profile}' for "
+            f"plugin '{plugin}' (valid: {', '.join(valid)})\n")
+        return 2
+
+    # Reject when the task has already advanced past the first phase.
+    # The history is appended once per phase verdict (done/skipped/...);
+    # when len(history) > 0 OR state.phase is set to anything other than
+    # the very first phase, the task is "in flight" and switching the
+    # profile would silently change the pipeline mid-walk.
+    history = state.get("history") or []
+    cur_phase = state.get("phase")
+    if history or (cur_phase and cur_phase not in (None, "", "complete")):
+        # Allow when we're still parked on the very first phase with no
+        # history (i.e. tick has resolved & dispatched but no verdict yet).
+        # The conservative check: any non-empty history means past phase 1.
+        if history:
+            sys.stderr.write(
+                f"codenook task set-profile: task {task} has already "
+                f"advanced past phase 1 (history has "
+                f"{len(history)} entries); profile is locked. Create a "
+                f"new task with --profile <name> instead.\n")
+            return 2
+
+    state["profile"] = profile
+    sf.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    print(json.dumps({
+        "task": state.get("task_id"),
+        "field": "profile",
+        "value": profile,
+    }))
+    return 0
+
+
+def _prompt(prompt: str, default: str = "") -> str:
+    """Plain stdin/stdout prompt. No readline; works on cmd / PowerShell
+    / POSIX shells alike."""
+    suffix = f" [{default}]" if default else ""
+    sys.stdout.write(f"{prompt}{suffix}: ")
+    sys.stdout.flush()
+    line = sys.stdin.readline()
+    if not line:
+        return default
+    line = line.rstrip("\r\n")
+    return line if line else default
+
+
+def _prompt_multiline(prompt: str) -> str:
+    """Multi-line stdin reader. Termination: empty line or EOF."""
+    sys.stdout.write(f"{prompt}\n")
+    sys.stdout.write("(end with empty line; Ctrl-D / Ctrl-Z+Enter for EOF)\n")
+    sys.stdout.flush()
+    lines: list[str] = []
+    while True:
+        try:
+            line = sys.stdin.readline()
+        except KeyboardInterrupt:
+            return ""
+        if not line:  # EOF
+            break
+        stripped = line.rstrip("\r\n")
+        if stripped == "":
+            break
+        lines.append(stripped)
+    return "\n".join(lines)
+
+
+def _task_new_interactive(ctx: CodenookContext, args: list[str]) -> int:
+    """Wizard for `task new --interactive`.
+
+    Walks the user through the minimum set of fields needed to create a
+    task: plugin, profile, title, input, model, execution mode.
+    Validates as we go (rejects empty title, validates profile against
+    the chosen plugin). Final summary + Y/n confirmation, then dispatches
+    to ``_task_new`` with the equivalent flag set.
+    """
+    # Filter --interactive out of args so any other flags the user passed
+    # alongside it (e.g. --id) are forwarded to _task_new verbatim.
+    forwarded: list[str] = [a for a in args if a != "--interactive"]
+
+    installed = [
+        p.get("id") for p in (ctx.state.get("installed_plugins") or [])
+        if isinstance(p, dict) and p.get("id")
+    ]
+    if not installed:
+        sys.stderr.write(
+            "codenook task new: no installed plugin found in state.json\n")
+        return 1
+
+    sys.stdout.write("codenook task new — interactive wizard\n\n")
+    sys.stdout.write(f"Installed plugins: {', '.join(installed)}\n")
+    plugin = _prompt("Plugin", default=installed[0])
+    while plugin not in installed:
+        sys.stdout.write(f"  ! '{plugin}' is not installed.\n")
+        plugin = _prompt("Plugin", default=installed[0])
+
+    profiles = _load_plugin_profiles(ctx, plugin)
+    profile = ""
+    if profiles:
+        default_profile = "default" if "default" in profiles else profiles[0]
+        sys.stdout.write(
+            f"Profiles for '{plugin}': {', '.join(profiles)}\n")
+        profile = _prompt("Profile", default=default_profile)
+        while profile not in profiles:
+            sys.stdout.write(
+                f"  ! '{profile}' is not a valid profile (valid: "
+                f"{', '.join(profiles)})\n")
+            profile = _prompt("Profile", default=default_profile)
+    else:
+        sys.stdout.write(
+            f"(plugin '{plugin}' has no profiles block — skipping)\n")
+
+    title = ""
+    while not title:
+        title = _prompt("Title (required)").strip()
+        if not title:
+            sys.stdout.write("  ! title cannot be empty.\n")
+
+    task_input = _prompt_multiline("Input (multi-line)")
+
+    model = _prompt("Model (empty = use plugin/phase defaults)")
+
+    exec_mode = _prompt("Exec mode (sub-agent | inline)", default="sub-agent")
+    while exec_mode not in ("sub-agent", "inline"):
+        sys.stdout.write("  ! exec mode must be 'sub-agent' or 'inline'.\n")
+        exec_mode = _prompt(
+            "Exec mode (sub-agent | inline)", default="sub-agent")
+
+    # Summary
+    sys.stdout.write("\nSummary:\n")
+    sys.stdout.write(f"  plugin     : {plugin}\n")
+    sys.stdout.write(f"  profile    : {profile or '(default)'}\n")
+    sys.stdout.write(f"  title      : {title}\n")
+    sys.stdout.write(
+        f"  input      : {(task_input[:60] + '...') if len(task_input) > 60 else (task_input or '(none)')}\n")
+    sys.stdout.write(f"  model      : {model or '(plugin/phase default)'}\n")
+    sys.stdout.write(f"  exec mode  : {exec_mode}\n")
+    confirm = _prompt("Create? [Y/n]", default="Y").strip().lower()
+    if confirm and confirm not in ("y", "yes"):
+        sys.stdout.write("aborted.\n")
+        return 1
+
+    # Build the equivalent argv and dispatch through _task_new so we
+    # share validation and state-write logic.
+    new_args: list[str] = ["--title", title, "--plugin", plugin,
+                           "--accept-defaults"]
+    if profile:
+        new_args += ["--profile", profile]
+    if task_input:
+        new_args += ["--input", task_input]
+    if model:
+        new_args += ["--model", model]
+    if exec_mode and exec_mode != "sub-agent":
+        new_args += ["--exec", exec_mode]
+    # Forward any extra flags the caller already passed (e.g. --id) but
+    # avoid re-injecting fields the wizard just collected.
+    skip_next = False
+    skip_keys = {
+        "--title", "--plugin", "--profile", "--input", "--input-file",
+        "--model", "--exec", "--accept-defaults",
+    }
+    for a in forwarded:
+        if skip_next:
+            skip_next = False
+            continue
+        if a in skip_keys:
+            if a != "--accept-defaults":
+                skip_next = True
+            continue
+        new_args.append(a)
+
+    return _task_new(ctx, new_args)
 
 
 def _subproc_env(ctx: CodenookContext) -> dict:

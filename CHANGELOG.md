@@ -1,3 +1,52 @@
+## v0.20.0 (2026-04-25) — task-creation entry points
+
+### Added
+- **`task new --profile <name>`** — pin a per-task profile up front.
+  Validated against the chosen plugin's `phases.yaml :: profiles`
+  keys; rejected with a helpful list of valid choices when invalid.
+  Persisted to `state.json` as `profile: <name>`. The kernel's
+  existing `_resolve_profile()` already honours `state['profile']` as
+  the highest-priority resolution source, so the field flows through
+  to dispatch with no other changes.
+- **`task new --input <text>` / `--input-file <path>`** — seed the
+  initial task description without going through the clarify phase.
+  Mutually exclusive. Persisted to `state.json` as
+  `task_input: <str>` and surfaced in the `tick --json` dispatch
+  envelope under the same key, so phase agents and the inline
+  conductor can use the seed verbatim.
+- **`task new --interactive`** — wizard mode. Walks the user through
+  plugin → profile → title → input (multi-line) → model → exec mode
+  via plain stdin/stdout (no TUI library, no readline dependency;
+  works in PowerShell, cmd, bash, zsh). Validates as it goes
+  (rejects empty title; validates profile against the chosen plugin)
+  and asks "Create? [Y/n]" before writing state.json. Mutually
+  exclusive with `--accept-defaults`.
+- **`task set-profile --task <T-NNN> --profile <name>`** — switch
+  profile post-hoc. Conservative: rejects when the task's history
+  already records a phase verdict (i.e. the pipeline is "in flight").
+- **`plugin info <id>`** — print the chosen plugin's profiles +
+  phases catalogue summary. Discovery helper for users of
+  `--interactive` and for anyone trying to remember the available
+  profile names.
+- `task status` now surfaces the per-task `profile` column.
+- Bootloader gained a "Task creation entry points" section
+  documenting the three modes (one-shot, interactive, minimal).
+
+### Schema
+- `state.json` accepts two new optional fields:
+  - `profile: <str>` — pinned profile, sourced from `--profile`,
+    `--interactive`, or `set-profile`.
+  - `task_input: <str>` — seed description, sourced from `--input`
+    or `--input-file`.
+
+  Absence of either field ⇒ v0.19.1 behaviour exactly.
+
+### Backward compatibility
+Every flag absence equals v0.19.1 behaviour. `task new` with no
+new flags creates state.json with the same key set as v0.19.1.
+
+
+
 ## v0.19.1 (2026-04-21)
 
 ### Added

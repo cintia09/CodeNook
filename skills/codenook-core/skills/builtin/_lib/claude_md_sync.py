@@ -328,6 +328,36 @@ The `model` field in inline-mode envelopes is informational
 only — the conductor cannot switch models mid-conversation.
 Treat it as a hint for which "voice" / role profile to adopt.
 
+### Task creation entry points
+
+The user creates tasks via `<codenook> task new`. Three
+recommended modes:
+
+- One-shot, fully scripted:
+  `<codenook> task new --plugin <id> --profile <name> --input "..." --title "..."`
+- Interactive wizard:
+  `<codenook> task new --interactive`
+  prompts the user for plugin / profile / title / input / model /
+  exec mode and creates the task at the end.
+- Minimal (legacy):
+  `<codenook> task new --title "..." --accept-defaults`
+  uses plugin/profile/exec defaults; relies on the kernel's
+  default phase chain to extract requirements.
+
+You (the conductor) MAY suggest `--interactive` to users who
+appear to be unsure what plugin or profile they need.
+
+`--profile <name>` selects one of the keys declared under
+`profiles:` in the chosen plugin's `phases.yaml`. `--input
+<text>` (or `--input-file <path>`) seeds the task description;
+when present it is surfaced in the dispatch envelope as
+`task_input` so phase agents and the inline conductor can use
+it without a separate clarify round. Use
+`<codenook> plugin info <id>` to discover the profiles + phase
+catalogue for an installed plugin. `<codenook> task set-profile
+--task T-NNN --profile <name>` switches profile post-hoc, but
+only before the first phase verdict is recorded.
+
 ### CLI is the ONLY sanctioned entry point
 
 The `codenook` CLI is the canonical contract. Internal kernel scripts

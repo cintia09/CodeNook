@@ -16,13 +16,17 @@ USAGE = """\
 codenook — workspace CLI
 
 Subcommands:
-  task new --title "…" [--summary …] [--plugin <id>] [--target-dir <p>]
-                       [--dual-mode serial|parallel] [--max-iterations N]
-                       [--parent T-X] [--priority P0|P1|P2|P3]
-                       [--accept-defaults] [--model <name>]
+  task new --title "…" [--summary …] [--plugin <id>] [--profile <name>]
+                       [--input <text>] [--input-file <path>] [--interactive]
+                       [--target-dir <p>] [--dual-mode serial|parallel]
+                       [--max-iterations N] [--parent T-X]
+                       [--priority P0|P1|P2|P3] [--accept-defaults]
+                       [--model <name>] [--exec sub-agent|inline]
   task set --task T-NNN --field <field> --value <val>
-  task set-model --task T-NNN (--model <name> | --clear)
-  task set-exec  --task T-NNN --mode <sub-agent|inline>
+  task set-model   --task T-NNN (--model <name> | --clear)
+  task set-exec    --task T-NNN --mode <sub-agent|inline>
+  task set-profile --task T-NNN --profile <name>
+  plugin info <id>     show profiles + phases summary for a plugin
   router   --task T-NNN [--user-turn "…" | --user-turn-file <p> | --confirm]
                        [DEPRECATED — slated for removal in a future release;
                         prefer the conductor-driven `task new --plugin <id>`
@@ -111,6 +115,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if sub == "chain":
         from . import cmd_chain
         return cmd_chain.run(ctx, rest)
+    if sub == "plugin":
+        from . import cmd_plugin
+        return cmd_plugin.run(ctx, rest)
 
     sys.stderr.write(f"codenook: unknown subcommand: {sub}\n")
     sys.stderr.write(USAGE)

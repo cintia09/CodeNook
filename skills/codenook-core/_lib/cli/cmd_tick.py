@@ -225,5 +225,12 @@ def _augment_envelope(ctx: CodenookContext, task: str, tick_out: str) -> str:
     resolved = models.resolve_model(ctx.workspace, plugin, phase, state)
     if resolved:
         envelope["model"] = resolved
+    # v0.20 — surface seed task_input (set via `task new --input` /
+    # --input-file) so phase agents and the inline conductor can use it
+    # as additional context without a separate clarify round. Omit the
+    # key entirely when empty for byte-for-byte parity with v0.19.
+    seeded_input = state.get("task_input")
+    if seeded_input:
+        envelope["task_input"] = seeded_input
     summary["envelope"] = envelope
     return json.dumps(summary, ensure_ascii=False)
