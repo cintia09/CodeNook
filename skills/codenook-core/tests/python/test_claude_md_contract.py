@@ -150,36 +150,34 @@ def test_contract_05_installed_plugins_is_source_of_truth():
 
 
 # =====================================================================
-# CONTRACT-06 — Plugin seed line (renderer behaviour)
+# CONTRACT-06 — No automatic plugin seed line (kernel relies on the
+# session-start ritual reading state.json instead).
 # =====================================================================
 
-def test_contract_06_seed_line_zero_plugins():
+def test_contract_06_no_seed_line_when_zero_plugins():
     out = render_block(VERSION, [])
     assert "Workspace has plugin" not in out
     assert "Workspace has plugins" not in out
 
 
-def test_contract_06_seed_line_one_plugin():
+def test_contract_06_no_seed_line_when_one_plugin():
     out = render_block(VERSION, ["development"])
-    assert "Workspace has plugin installed:" in out
-    assert "**development**" in out
+    assert "Workspace has plugin installed:" not in out
+    assert "Workspace has plugins installed:" not in out
 
 
-def test_contract_06_seed_line_many_plugins():
+def test_contract_06_no_seed_line_when_many_plugins():
     out = render_block(VERSION, ["development", "writing", "research"])
-    assert "Workspace has plugins installed:" in out
-    for p in ("**development**", "**writing**", "**research**"):
-        assert p in out
+    assert "Workspace has plugin installed:" not in out
+    assert "Workspace has plugins installed:" not in out
 
 
 def test_contract_06_render_block_accepts_str_none_list():
     """Backward-compat: render_block tolerates str / None / list input."""
-    assert "Workspace has plugin installed:" in render_block(VERSION, "writing")
-    out_none = render_block(VERSION, None)
-    assert "Workspace has plugin" not in out_none
-    assert "Workspace has plugins installed:" in render_block(
-        VERSION, ["a", "b"]
-    )
+    # Any of these must produce a valid block without raising.
+    assert BEGIN in render_block(VERSION, "writing")
+    assert BEGIN in render_block(VERSION, None)
+    assert BEGIN in render_block(VERSION, ["a", "b"])
 
 
 # =====================================================================
@@ -236,6 +234,33 @@ def test_contract_09_hitl_gate_handling_documented():
     assert "decide" in out
 
 
+def test_contract_09_conductor_instruction_is_authoritative():
+    """Regression: agents have ignored the `conductor_instruction`
+    field that the kernel emits on `waiting` ticks. Bootloader MUST
+    flag it as authoritative."""
+    out = render()
+    assert "conductor_instruction" in out, (
+        "Bootloader does not mention the `conductor_instruction` field."
+    )
+    # Must say it's authoritative or that the conductor must obey it.
+    assert re.search(
+        r"conductor_instruction.*?(authoritative|MUST|obey|every numbered step)",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ), "`conductor_instruction` is not flagged as authoritative."
+
+
+def test_contract_09_channel_choice_ask_is_mandatory():
+    """Regression: agents have been observed silently defaulting to
+    'terminal' channel without asking. Bootloader MUST flag the
+    channel-choice ask as mandatory and forbid skipping it."""
+    out = render()
+    # The HITL section must call out MANDATORY (or equivalent) on the ask.
+    assert re.search(
+        r"channel-choice.*?(MANDATORY|never\s+default|do not skip|MUST)",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ), "HITL channel-choice ask is no longer flagged as mandatory."
+
+
 # =====================================================================
 # CONTRACT-10 — Clarifier (inline) rule
 # =====================================================================
@@ -257,13 +282,80 @@ def test_contract_11_model_field_pass_through():
     assert has_any(out, r"verbatim", r"as[- ]is", r"do not modify", r"don't modify")
 
 
-# =====================================================================
-# CONTRACT-12 — Execution mode (inline_dispatch)
-# =====================================================================
+def test_contract_11_model_asked_at_task_creation_not_per_dispatch():
+    """Regression: model ask was per-dispatch in v0.27.x; spec now says
+    ask at task creation only, and only when exec mode is sub-agent."""
+    out = render()
+    # A pre-creation config-ask section must exist and mention model.
+    assert re.search(
+        r"(Pre-creation config ask|task creation).*?model",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ), "No 'ask model at task creation' wording found."
+    # And the per-dispatch model section must explicitly forbid re-asking.
+    assert re.search(
+        r"(do\s*not\s*(issue|re-?ask|ask)|not\s*asked\s*again)\s+(a\s*)?per[- ]dispatch",
+        out, flags=re.IGNORECASE,
+    ) or re.search(
+        r"already\s+made\s+once\s+at\s+task\s+creation",
+        out, flags=re.IGNORECASE,
+    ), "Per-dispatch model ask is not explicitly forbidden."
+
 
 def test_contract_12_execution_mode_documented():
     out = render()
     assert has_any(out, r"execution_mode", r"inline_dispatch", r"sub-?agent mode")
+
+
+def test_contract_12_exec_mode_asked_at_task_creation():
+    """Spec: exec mode is asked at task creation (always)."""
+    out = render()
+    assert re.search(
+        r"(execution mode|exec\s*mode|--exec).*?(ask_user|always ask)",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ) or re.search(
+        r"(ask_user|always ask).*?(execution mode|exec\s*mode|--exec)",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ), "Exec-mode ask at task creation is not documented."
+
+
+def test_contract_12_model_skipped_when_inline():
+    """Spec: when exec mode is inline, model ask is skipped (model is
+    informational only in inline mode)."""
+    out = render()
+    assert re.search(
+        r"inline.*?(do\s*NOT\s*ask\s*about\s*model|skip.*?model|omit.*?--model|model.*?informational)",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ), "Skip-model-when-inline rule is missing."
+
+
+def test_contract_12_pre_creation_ask_has_must_in_hard_rules():
+    """Regression: agents skip the Pre-creation config ask unless
+    a top-level MUST line in §Hard rules forbids it (same defense
+    pattern used for HITL channel-choice)."""
+    out = render()
+    # A MUST line in hard rules must mention pre-creation config / exec / model
+    # together with `task new`.
+    assert re.search(
+        r"\*\*MUST\*\*.*?(Pre-?creation|execution mode|--exec).*?(task new|--model)",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ) or re.search(
+        r"\*\*MUST\*\*.*?(task new|--model).*?(Pre-?creation|execution mode|--exec)",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ), "No MUST rule forbids running `task new` without --exec/--model."
+
+
+def test_contract_12_just_go_does_not_skip_exec_or_model_ask():
+    """Regression: agent skipped the model ask after the user said
+    '你自己决定' for the interview. The 'just go' / '你自己决定'
+    exemption must be explicitly scoped to the interview only."""
+    out = render()
+    assert re.search(
+        r"(你自己决定|just go|你看着办).*?(NOT|never|不).*?(exec|model|exempt|skip)",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ) or re.search(
+        r"(only skips|applies (?:only|ONLY) to).*?(interview|pre-?task)",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ), "Exemption-scoping rule for exec/model asks is missing."
 
 
 # =====================================================================

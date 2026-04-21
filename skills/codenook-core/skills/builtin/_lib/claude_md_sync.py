@@ -41,513 +41,423 @@ def render_block(version: str, plugin) -> str:
         plugins = []
     else:
         plugins = [p for p in plugin if p]
-    seed_line = _render_seed_line(plugins)
+    seed_line = _render_seed_line(plugins)  # noqa: F841 — kept for API stability; no longer rendered.
     return rf"""{BEGIN}
-<!-- DO NOT EDIT BY HAND. Managed by `python install.py`. To remove this block,
-     re-run install.py with --no-claude-md and delete the markers manually. -->
+<!-- DO NOT EDIT BY HAND. Managed by `python install.py`. To remove
+     this block, re-run install.py with --no-claude-md and delete
+     the markers manually. -->
 
 ## CodeNook v{version} bootloader
 
-{seed_line}CodeNook is a multi-agent task orchestrator. The LLM (you) acts as a
-**pure conductor**: when the user asks for a CodeNook task, you hand
-the work off to the orchestrator and relay its messages verbatim. You
-do **not** decide on your own whether something should become a task.
+CodeNook is a multi-agent task orchestrator. You (the LLM) are a
+**pure conductor**: relay the orchestrator's messages to the user
+verbatim, and never decide on your own that something should become
+a CodeNook task.
 
-### When to start a CodeNook task (explicit user trigger only)
+### Hard rules (zero domain budget)
 
-Start a task **only** when the user explicitly asks for one. Recognise
-phrases such as:
+- **MUST** start a task **only** when the user explicitly asks
+  (see trigger phrases below). Otherwise answer normally.
+- **MUST** drive every CodeNook action through the `<codenook>`
+  CLI wrapper (see §Conventions). Never call kernel scripts under
+  `.codenook/codenook-core/` directly — they are private.
+- **MUST** run the `clarifier` phase inline in this conversation;
+  never dispatch a sub-agent for it (see §Special cases).
+- **MUST** pass the envelope's `model` field verbatim when
+  dispatching the sub-agent. Do not substitute, prefer, or omit.
+- **MUST NOT** read `.codenook/plugins/*/roles/`,
+  `.codenook/plugins/*/skills/`, or `.codenook/plugins/*/knowledge/`
+  in conductor context — those are sub-agent resources.
+- **MUST NOT** mention plugin ids in user-facing prose unless
+  echoing the user. Pick the plugin silently via `--plugin <id>`.
+- **MUST NOT** modify `state.json`, `draft-config.yaml`, or other
+  task / queue files by hand. Use the CLI.
+- **MUST NOT** spawn phase agents (designer, implementer, tester,
+  reviewer, acceptor, validator) directly — that is `<codenook> tick`'s job.
+- **MUST** treat any `conductor_instruction` field returned by
+  `<codenook> tick --json` as authoritative. Read it before
+  responding and execute every numbered step it lists, in order.
+  Do not skip a step because it feels redundant or because the
+  output preview is "obvious".
+- **MUST** issue the HITL channel-choice `ask_user` (terminal vs
+  html) BEFORE rendering any gate content. Never default to
+  `terminal` on the user's behalf, even when it seems obvious.
+- **MUST** issue the Pre-creation config asks (execution mode,
+  then model when sub-agent) BEFORE running `task new`. Never
+  silently omit `--exec` / `--model`, and never substitute a
+  default just because the user said "你自己决定" / "just go" /
+  "你看着办" — that exemption applies ONLY to the pre-task
+  interview, never to exec mode or model. See §Pre-creation
+  config ask for the exact protocol.
+- **MUST NOT** interpret, paraphrase, or summarise the HITL `prompt`
+  field or per-phase outputs. Relay verbatim.
+- **MUST** end every reply by asking the user what their next step
+  is (use the host's interactive prompt facility when available).
+  This applies whether or not a task is active.
+- If a rule looks like it must be broken, surface the problem to
+  the user instead of working around it.
 
-- "open / start / new / create a codenook task"
-- "use codenook to …"
-- "走 codenook 流程", "用 codenook 做", "新建 codenook 任务",
-  "开个 codenook 任务", "交给 codenook"
+### Workspace layout
 
-If the user just asks a question or asks you to do something **without**
-mentioning codenook, answer normally — do not auto-spawn a task. When
-unsure, ask the user whether they want a CodeNook task instead of
-guessing.
+| Path | Purpose | Writable by |
+|------|---------|-------------|
+| `.codenook/state.json` | Installed plugins, kernel version, paths | CLI only |
+| `.codenook/codenook-core/` | Self-contained kernel | read-only |
+| `.codenook/schemas/` | `task-state`, `installed`, `hitl-entry`, `queue-entry` | read-only |
+| `.codenook/plugins/<id>/` | Phase prompts, roles, skills, knowledge | read-only |
+| `.codenook/memory/` | `knowledge/`, `skills/`, `history/`, `_pending/`, `config.yaml`, `index.yaml` | CLI only |
+| `.codenook/tasks/<id>/` | Per-task state, prompts, audit log | CLI only |
+| `.codenook/hitl-queue/` | Open HITL gate entries (JSON) | CLI only |
+| `.codenook/bin/codenook` (or `\bin\codenook.cmd`) | The wrapper | n/a |
 
-### Invoking the orchestrator (env-portable form)
+`state.json` also tracks `parent_id` / `chain_root` for task chains;
+see the installed plugin's `README.md` § task-chains for plugin-
+specific notes.
 
-**Always use the `.codenook/bin/codenook` CLI wrapper.** Do **not** call
-the underlying kernel scripts (under
-`.codenook/codenook-core/skills/builtin/`) directly — they are private
-implementation details and may be renamed or replaced across kernel
-upgrades. The wrapper auto-discovers a working `python3` (and Git-for-
-Windows bash on Windows when the kernel still needs it internally) so
-the same CLI works identically on macOS, Linux, and Windows.
-
-**Per-shell invocation form** (replace `<codenook>` in every example
-below with the form for your host shell):
-
-| Host shell        | `<codenook>` expands to                |
-|-------------------|----------------------------------------|
-| bash / zsh / sh   | `.codenook/bin/codenook`               |
-| PowerShell / cmd  | `.codenook\bin\codenook.cmd`           |
-
-On Windows, do **not** spend time hunting for `bash.exe` or installing
-python — if the wrapper can't find them it will print a clear error
-pointing to the fix. Just call the wrapper and surface its output. On
-Linux/macOS the script is a plain bash CLI; both `bash` and `python3`
-are expected on `PATH` already.
-
-### How to start a task
-
-The wrapper allocates the next `T-NNN-<slug>` for you (the slug is
-auto-derived from `--input`; empty input falls back to plain
-`T-NNN`). **Do not** scan `.codenook/tasks/` and increment ids by
-hand.
-
-The flow is **conductor-driven plugin selection** → `task
-new --plugin <id>` → `tick`. The conductor (you) reads the user's
-intent, picks the best-matching plugin, and creates the task with
-`--plugin` set explicitly.
-
-**Mandatory boot ritual (do this once per session, before any
-CodeNook action):**
+### Session-start ritual (do once per session)
 
 The first time the user mentions CodeNook in a session — or any
-time you are about to invoke a `<codenook>` subcommand and you
-have NOT yet loaded the workspace inventory in this conversation
-— you MUST first read **all** of the following in one batch:
+time you are about to call a `<codenook>` subcommand and have not
+yet loaded the workspace inventory in this conversation — read
+**all** of the following in one batch and cache them:
 
-1. `.codenook/state.json` — kernel version + installed plugin ids
-2. `.codenook/plugins/<id>/plugin.yaml` for every id in (1)
-3. `.codenook/memory/index.yaml` — the workspace knowledge +
-   skill inventory (a few KB; cheap)
-4. `<codenook> status` — active tasks (phase / status / model /
-   exec mode for each)
+1. `.codenook/state.json` — `installed_plugins` is the
+   authoritative plugin id list (do not glob).
+2. `.codenook/plugins/<id>/plugin.yaml` for every id in (1) — read
+   the `match` fields (use-cases, keywords, examples).
+3. `.codenook/memory/index.yaml` — workspace knowledge + skill
+   inventory (a few KB; cheap). View specific entries by their
+   `path` only when their summary suggests they matter. Treat
+   skill entries as first-class candidates alongside plugin
+   `available_skills:`.
+4. `<codenook> status` — active tasks (id, phase, status, model,
+   exec mode). Many host runtimes hide dot-directories from
+   their default `glob`, so this CLI call is the only reliable
+   task-discovery surface.
 
-These four sources together are typically <15 KB and give you
-everything needed to: (a) recognise existing tasks the user may
-be referring to, (b) match the user's request to the right
-plugin, (c) surface relevant prior knowledge. Skipping this
-ritual leads to the conductor inventing tasks that already
-exist, picking the wrong plugin, or missing applicable memory
-— do not skip it. Cache the result for the rest of the session;
-re-read only when the user signals "something changed" (new
+Re-read only when the user signals "something changed" (new
 install, new task, new memory entry).
 
-**What the conductor reads when picking a plugin / starting a task:**
+### Task lifecycle
 
-- `.codenook/state.json` — `installed_plugins` field is the
-  authoritative list of plugin ids in this workspace. Read this
-  first; do not rely on globbing.
-- `.codenook/plugins/<id>/plugin.yaml` — for each id from
-  `state.json`, read the manifest and look at the match fields
-  (which use-cases / keywords / examples). Rank against the
-  user's request and pick one. If two tie or none fits, ask.
-- `.codenook/memory/index.yaml` — generated inventory of every
-  knowledge entry and workspace-shared skill in this workspace
-  (topic / name, summary, tags, status, path). Read this first
-  to discover what's available; then `view` the specific entries
-  by their `path` only when you actually need their full body.
-  Treat skill entries as first-class skill candidates — rank
-  them next to plugin `available_skills:` entries when the
-  user's request matches.
-- `.codenook/memory/history/` and `.codenook/memory/_pending/` —
-  prior task summaries and draft notes. Useful when the user
-  references "last time" or wants to continue earlier work.
-- `.codenook/memory/config.yaml` — workspace-level overrides
-  (default plugin, dual_mode, target_dir, etc.) — honour these
-  when the user did not state otherwise.
+#### When to start
 
-**Discovering existing tasks (do NOT glob `.codenook/tasks/`):**
+Only when the user explicitly asks. Recognise:
 
-- Always run `<codenook> status` (no arguments) to enumerate every
-  active task — it prints task ids, current phase, status, and the
-  resolved model + execution mode for each. Many host runtimes
-  (Claude Code, etc.) ignore dot-directories in their default
-  `glob` filter, so `glob ".codenook/tasks/*/state.json"` will
-  silently return zero results even when tasks exist; the CLI
-  is the only reliable discovery surface.
-- For a single task's full state, run `<codenook> status --task
-  T-NNN` (prints the rendered state.json).
-- Only fall back to reading `.codenook/tasks/T-NNN/state.json`
-  directly when the CLI is unavailable for some reason.
+- EN: "open / start / new / create a codenook task",
+  "use codenook to …"
+- ZH: "走 codenook 流程", "用 codenook 做", "新建 codenook 任务",
+  "开个 codenook 任务", "交给 codenook"
 
-The conductor MAY read these files freely. They are workspace-
-shared resources, not phase outputs. The "zero domain budget"
-hard rules below restrict only state mutation and per-phase
-artifact interpretation, not orientation reads.
+When unsure, ask the user before spawning a task.
+
+#### Pick a plugin
+
+Rank `installed_plugins` against the user's request using each
+plugin's `match` fields and the workspace skill entries from
+`memory/index.yaml`. If two tie or none fits, ask the user.
+
+#### Pre-task interview (mandatory, 2–4 questions)
+
+Before creating the task, ask 2–4 short clarifying questions via
+your `ask_user` tool. Look at the chosen plugin's first phase
+(usually `clarify`, `outline`, or `intake`) and ask what its role
+would otherwise need: scope, audience, style, existing inputs.
+Concatenate the answers (one Q+A per line) into a single
+multi-line string — that becomes `--input`. Skip ONLY when the
+user explicitly says "just go" / "你看着办" / supplies a brief.
+
+#### Pre-creation config ask (execution mode, then model) — MANDATORY
+
+After the interview, **before** running `task new`, issue these
+asks in order. Skipping them — i.e. running `task new` without
+both `--exec` and (when sub-agent) `--model` — silently locks the
+user into defaults they never consented to and is a contract
+violation, not a shortcut.
+
+1. **Execution mode (always ask).** One `ask_user` with two
+   choices: `sub-agent` (default; phase work runs in isolated
+   sub-agents — gives parallelism and a clean context per phase)
+   or `inline` (chat-heavy / serial work; phase work runs inline
+   in this conversation, no sub-agent spawn overhead). Pass the
+   choice as `--exec sub-agent` or `--exec inline`.
+
+2. **Model (ask ONLY when exec mode is `sub-agent`).** One
+   `ask_user` offering the user's last-picked model (when known),
+   `"platform default"`, and a short list of common options.
+   Pass the chosen string as `--model <name>`; skip the flag
+   entirely when the user picks `"platform default"`.
+
+   **When exec mode is `inline`, do NOT ask about model** — model
+   is informational only in inline mode (the conductor cannot
+   switch its own model mid-conversation), so the ask is noise.
+   Omit `--model` from `task new`.
+
+Skip the exec-mode ask **only** when the user already specified
+the mode in their request or `config.yaml` pins it. Skip the
+model ask under the same conditions plus whenever exec mode is
+`inline`.
+
+A user saying "你自己决定" / "just go" / "你看着办" / "你看着办吧"
+**does NOT** exempt either ask — that phrasing only skips the
+pre-task interview. Both `--exec` and (when sub-agent) `--model`
+are real configuration choices with cost / latency / parallelism
+implications, so the user must be given the chance to pick. If
+they then answer "你自己决定" to the exec-mode or model ask
+itself, treat that as picking the default (`sub-agent` /
+`platform default`) and pass the corresponding flag explicitly
+or omit `--model` per the rules above.
+
+Both settings are decided **once at task creation** and apply
+to every phase of the task — they are not re-asked per dispatch.
+The conductor MUST NOT silently default; ask explicitly even
+when defaults seem obvious.
+
+#### Create the task
 
 ```bash
-# 1. Pick a plugin. Read `.codenook/state.json` `installed_plugins`
-#    for the authoritative id list, then read each
-#    `.codenook/plugins/<id>/plugin.yaml`. Skim
-#    `.codenook/memory/index.yaml` for the available memory
-#    entries. Rank candidates
-#    against the user request, choose the best fit. If two tie or
-#    none fits well, ask the user which one.
-#
-# 2. Pre-task interview (mandatory, ~2-4 questions). Before
-#    creating the task, ask the user 2-4 short clarifying
-#    questions via your `ask_user` tool to gather concrete
-#    context. The exact questions depend on the chosen plugin —
-#    look at the plugin's first phase (typically `clarify`,
-#    `outline`, or `intake`) and ask what its role would
-#    otherwise need to ask. Aim for: scope, audience / target,
-#    style / constraints, and any inputs the user already has.
-#    Concatenate the answers (one Q+A per line) into a single
-#    multi-line string — that becomes --input. Skip ONLY when
-#    the user explicitly says "just go" / "你看着办" / passes a
-#    pre-filled brief.
-#
-# 3. Create the task. Pass --plugin explicitly. --title is a
-#    short label for filesystem / UI use (drives the task-id
-#    slug). --summary carries the user's verbatim original
-#    request. --input carries the gathered interview answers
-#    (richer context the first role consumes). --accept-defaults
-#    fills dual_mode/priority/target_dir with sane values so no
-#    entry-question gate fires. Returns the new T-NNN-<slug> on
-#    stdout (slug derived from --title → --input (single-line) →
-#    --summary in that order; multi-line --input is skipped to avoid
-#    meaningless concatenated slugs; CJK preserved).
-<codenook> task new --title "<short title>" \
+# When user picked a real model:
+<codenook> task new --title "<short label>" \
                     --summary "<verbatim user request>" \
                     --input "<multi-line interview answers>" \
                     --plugin <chosen-plugin-id> \
+                    --exec sub-agent \
+                    --model claude-opus-4-7 \
                     --accept-defaults
 
-# 4. Drive the tick loop. Each call advances at most one phase and
-#    returns a JSON envelope with the new status.
+# When user picked "platform default" (or exec is inline) — OMIT --model entirely:
+<codenook> task new --title "<short label>" \
+                    --summary "<verbatim user request>" \
+                    --input "<multi-line interview answers>" \
+                    --plugin <chosen-plugin-id> \
+                    --exec sub-agent \
+                    --accept-defaults
+```
+
+DO NOT pass placeholder strings like `--model "<default>"`,
+`--model default`, or `--model platform-default` — those become
+literal model names and break dispatch. The kernel uses its own
+default whenever `--model` is absent.
+
+- `--title` is a short label for filesystem / UI use and drives
+  the slug. Slug priority: `--title` → single-line `--input`
+  → `--summary` (multi-line `--input` is skipped to avoid
+  meaningless concatenated slugs; CJK preserved).
+- `--summary` carries the user's verbatim original request.
+- `--input` carries the gathered interview answers (multi-line
+  via shell quoting or `--input-file <path>`).
+- `--accept-defaults` fills `dual_mode`, `priority`, `target_dir`
+  with sane values so no entry-question gate fires.
+
+Returns the new `T-NNN-<slug>` on stdout. Two other entry points
+exist when useful: `--interactive` (wizard prompts plugin /
+profile / title / input / model / exec mode) and minimal
+`task new --title "..." --accept-defaults` (uses defaults end-
+to-end; useful when the user supplies a complete brief).
+
+#### Drive the tick loop
+
+```bash
 <codenook> tick --task <T-NNN> --json
 ```
 
-Loop step 4 on `status: advanced`. Stop on `done` / `blocked` and
-report verbatim. On `waiting`, scan `.codenook/hitl-queue/*.json`
-for entries with `decision == null`, relay each `prompt` field
-verbatim to the user, capture the answer, then:
+Inspect `status`:
 
-```bash
-<codenook> decide --task <T-NNN> --phase <phase-or-gate-id> \
-                  --decision <approve|reject|needs_changes> \
-                  [--comment "..."]
-```
+- `advanced` — phase done, transition fired; loop again.
+- `waiting` — sub-agent expected, OR an HITL gate is open
+  (see §HITL gates).
+- `done` / `blocked` — terminal; report `next_action` and
+  `message_for_user` verbatim and stop ticking.
 
-The `--phase` flag accepts **either** the phase id from `phases.yaml`
-(e.g. `clarify`, `design`, `plan`) **or** the gate id from the queue
-entry (e.g. `requirements_signoff`, `design_signoff`). The CLI maps
-phase → gate via the plugin's `phases.yaml`. When the phase has no
-`gate:` field declared, fall back to passing the gate id directly.
+#### Dispatch envelope
 
-Resume the tick loop when all gates resolve.
-
-### The dispatch envelope
-
-When `tick --json` returns and CodeNook has dispatched a phase agent
-(clarifier, designer, implementer, tester, reviewer, …), the JSON
-includes an **`envelope`** object with the fields you need to do the
-LLM round-trip yourself:
+When `tick --json` returns and CodeNook has dispatched a phase
+agent, the JSON includes an `envelope` object with the paths you
+need for the LLM round-trip:
 
 ```json
-{{"status": "advanced",
- "next_action": "dispatched clarifier",
- "dispatched_agent_id": "ag_T-001_clarify_1",
+{{"status": "advanced", "next_action": "dispatched clarifier",
  "envelope": {{
    "action": "phase_prompt",
    "task_id": "T-001", "plugin": "development",
    "phase": "clarify", "role": "clarifier",
    "system_prompt_path": ".codenook/plugins/development/roles/clarifier.md",
    "prompt_path":        ".codenook/tasks/T-001/prompts/phase-1-clarifier.md",
-   "reply_path":         ".codenook/tasks/T-001/outputs/phase-1-clarifier.md"
+   "reply_path":         ".codenook/tasks/T-001/outputs/phase-1-clarifier.md",
+   "model":              "claude-opus-4.7"
  }}}}
 ```
 
-Protocol:
+Default protocol:
 
-1. **Read `system_prompt_path`** (when present, role profile) and
-   **`prompt_path`** (always present, the per-call instructions).
-2. **Dispatch a sub-agent** via your host's sub-agent / Task facility,
-   *except* when `role == "clarifier"` — see special case below.
-   Use `system_prompt_path`'s contents as the system prompt and
-   `prompt_path`'s contents as the user message. The sub-agent must
-   write its complete response to the file at `reply_path`
-   (overwriting any prior content, including required frontmatter).
-3. **Loop back to `tick`** — the next tick consumes `reply_path`
-   and either advances to the next phase (returning a new envelope)
-   or reports `done` / `blocked`.
+1. Read `system_prompt_path` (role profile) and `prompt_path`
+   (per-call instructions).
+2. Dispatch a sub-agent via your host's task / sub-agent facility,
+   using `system_prompt_path` as system prompt and `prompt_path`
+   as the user message. The sub-agent must write its full reply
+   (frontmatter + body) to `reply_path` (overwriting any prior
+   content).
+3. Loop back to `tick`, which consumes `reply_path`.
 
-**Special case — `role == "clarifier"` runs INLINE:** clarify is
-fundamentally "conductor talks to the user to extract requirements".
-The conductor (you) is already in dialog with the user, so spawning
-a fresh sub-agent (new context window, role/knowledge re-load,
-extra LLM round-trip — typically 30-60s) is wasteful. For clarifier
-envelopes:
+Three things override step 2 — see §Special cases: clarifier
+runs inline, an `inline_dispatch` action runs inline, and the
+`model` field steers which model to dispatch with.
 
-  a. Read `system_prompt_path` (clarifier role) and `prompt_path`
-     (per-call instructions) yourself.
-  b. Conduct the Q&A with the user inline, in this session, using
-     `ask_user` for each question; iterate until clarifier criteria
-     are met.
-  c. Write the final clarifier output (frontmatter + body, exactly
-     as a sub-agent would have produced) to `reply_path`.
-  d. Call `tick` again to advance the phase.
+#### HITL gates
 
-Do **not** dispatch a sub-agent for clarifier. Other phase roles
-(designer, planner, implementer, tester, acceptor, reviewer,
-validator) continue to dispatch as in step 2 — they do real
-phase work that benefits from a dedicated context window.
+When `tick --json` returns `waiting`, scan
+`.codenook/hitl-queue/*.json` for entries with `decision == null`.
+For each open entry:
 
-If your host has no sub-agent facility, you may process *any*
-prompt inline using the same write-to-`reply_path`-then-tick
-pattern.
+**If the tick envelope itself carries a `conductor_instruction`
+field, that string is authoritative**: it spells out the exact
+ritual the kernel expects (numbered steps, allowed answers, etc.).
+Read it before responding and execute every numbered step in order,
+even when one feels redundant. The bullets below are the same
+ritual restated for reference — they do **not** override
+`conductor_instruction` when the two diverge.
 
-When `tick --json` returns **without** an `envelope` field, just
-inspect `status`:
-
-- `advanced` — phase done, transition fired; loop on `tick` again.
-- `waiting` — sub-agent still expected; either dispatch it (per the
-  envelope from the prior tick) or wait for an external signal.
-- `done` / `blocked` — terminal; report `next_action` /
-  `message_for_user` verbatim.
-
-On `tick --json` returning `waiting`, you may also need to clear
-an HITL gate. Scan `.codenook/hitl-queue/*.json` for entries with
-`decision == null`. For each open entry:
-
-1. **MANDATORY channel-choice ask.** Issue exactly one `ask_user` with
-   two choices: `terminal` (default) and `html`. Treat any answer other
-   than `html` as `terminal`.
-
-2. **Render & relay according to the chosen channel:**
-
-   - `terminal`: read the gate prompt and the role's primary output
-     file (paths come from the gate JSON). Output the content as
-     your **normal markdown response** in the chat — do NOT put it
-     inside the `ask_user` modal (modals don't render markdown).
-     Then issue a follow-up `ask_user` to collect approve/reject and
-     an optional comment.
-
-   - `html`: produce a self-contained, styled HTML page in your reply
-     code/canvas, write it to `.codenook/hitl-queue/<eid>.html`
-     (atomic write), then shell out to open it in the browser:
-     ```
-     start "" "<full path>"   (Windows)
-     open "<full path>"        (macOS)
-     xdg-open "<full path>"    (Linux)
-     ```
-     Then issue an `ask_user` to collect the decision.
-
-3. **Submit the decision** (use the same form as the post-phase
-   `<codenook> decide` above so the conductor only ever needs one
-   verb — the helper auto-derives `--id` from the gate metadata
-   when only `--task` + `--phase` are supplied):
+1. **Channel-choice ask (MANDATORY).** Issue exactly one `ask_user`
+   with two choices: `terminal` (default) and `html`. Treat any
+   answer other than `html` as `terminal`. Do **not** skip this
+   step or pick `terminal` on the user's behalf — even when
+   `terminal` is the obvious choice. Skipping it forces a channel
+   the user did not consent to and silently disables the
+   browser-preview workflow.
+2. **Render & relay** according to the chosen channel:
+   - `terminal` — read the gate prompt and the role's primary
+     output file (paths come from the gate JSON), output the
+     content as your normal markdown response in the chat (do
+     NOT put it inside the `ask_user` modal — modals don't
+     render markdown), then ask for `approve` / `reject` /
+     `needs_changes` plus an optional comment.
+   - `html` — produce a self-contained styled HTML page, write
+     it to `.codenook/hitl-queue/<eid>.html` (atomic write),
+     shell out to open it (`start ""` on Windows, `open` on
+     macOS, `xdg-open` on Linux), then ask for the decision.
+3. **Submit the decision:**
    ```bash
    <codenook> decide --task <T-NNN> --phase <phase-or-gate-id> \
                      --decision <approve|reject|needs_changes> [--comment "..."]
    ```
-   The legacy `<codenook> hitl decide --id <eid> --decision ...`
-   form still works (and is what the kernel writes through to)
-   but is no longer the recommended surface.
+   `--phase` accepts either the phase id from `phases.yaml`
+   (e.g. `clarify`, `design`, `plan`) or the gate id from the
+   queue entry (e.g. `requirements_signoff`); the CLI resolves
+   phase → gate via `phases.yaml`. The legacy
+   `<codenook> hitl decide --id <eid> --decision ...` form
+   still works but is no longer the recommended surface.
 
-Resume the tick loop when all gates resolve.
+Resume the tick loop once all gates resolve.
 
-### Model selection in dispatch envelope
+### Special cases
 
-When `tick --json` returns a phase-dispatch envelope, it MAY
-include an optional `"model"` field (e.g. `"claude-opus-4.7"`).
+#### Clarifier runs INLINE
 
-When the field is present, you MUST pass that exact string as the
-`model:` parameter when dispatching the phase sub-agent via your
-task tool. Do not substitute, prefer, or omit the value — pass it
-through verbatim.
+When `envelope.role == "clarifier"`, do **not** spawn a sub-
+agent. Read `system_prompt_path` (clarifier role) and
+`prompt_path` (per-call instructions) yourself, conduct the Q&A
+with the user inline using `ask_user` until clarifier criteria
+are met, write the final clarifier output (frontmatter + body,
+exactly as a sub-agent would have produced) to `reply_path`,
+then `tick` again.
 
-When the field is absent, dispatch with no `model:` parameter
-(use your tool's platform default).
+If your host has no sub-agent facility at all, you may process
+*any* envelope inline using the same write-to-`reply_path`-
+then-tick pattern.
 
-**Pre-flight ask (v0.25.1+) — MANDATORY when model is unresolved.**
-Before dispatching a sub-agent for any envelope where the `model`
-field is **absent**, **null**, **empty**, or where `codenook status`
-shows `model=<default>` / `model=<unknown>` for this task, you MUST
-issue exactly one `ask_user` first:
+#### Model field
 
-> "About to dispatch <role> as a background sub-agent for <task_id>
-> phase <phase>. No model is configured for this task (status shows
-> `<default>`). Pick a model — or hit Enter to use your platform
-> default."
+When `envelope.model` is a non-empty string (e.g.
+`"claude-opus-4.7"`), pass it through as the `model:` parameter
+when dispatching the sub-agent — exactly as written. Do not
+substitute, prefer, or omit.
 
-Provide a small `choices` list (e.g. the user's last-picked model,
-"platform default", "abort dispatch"). Pass the chosen string
-through as `model:` verbatim, exactly as if it had come from the
-envelope. If the user picks "abort dispatch", do not call `tick`
-again — wait for further instructions.
+When `envelope.model` is **absent / null / empty**, dispatch with
+no `model:` parameter (use your tool's platform default). This is
+the normal case when the user picked "platform default" at task
+creation. Do **not** issue a per-dispatch ask — the model choice
+was already made once at task creation (see §Pre-creation config
+ask) and re-asking on every phase would be noise.
 
-This pre-flight is **NOT** required when the envelope already
-carries an explicit non-empty `model` field — that case is fully
-declarative and the kernel has already resolved it through the
-priority chain. Skip the ask, dispatch verbatim.
-
-This is the only mechanism by which CodeNook controls model
-selection. The user configures models declaratively in
+The user configures models declaratively at task creation
+(`<codenook> task new --model <name>`), or via
 `plugins/<id>/plugin.yaml`, `plugins/<id>/phases.yaml`,
-`<workspace>/.codenook/config.yaml`, or per-task via
-`<codenook> task new --model <name>` / `task set-model`. The
-kernel resolves the priority chain (task > phase > plugin >
-workspace) and surfaces the result here.
+`<workspace>/.codenook/config.yaml`, or post-hoc with
+`<codenook> task set-model`. The kernel resolves the priority
+chain (task > phase > plugin > workspace) and surfaces the
+result in the envelope.
 
-### Execution mode in dispatch envelope
+#### Execution mode — `phase_prompt` vs `inline_dispatch`
 
-`tick --json` may return one of two dispatch action values in the
-envelope:
+`envelope.action` is one of:
 
-- `action: "phase_prompt"` — spawn a sub-agent via your task
-  tool using the envelope's `system_prompt_path` / `prompt_path`
-  / `model`. Default behavior; unchanged from v0.18.x.
-- `action: "inline_dispatch"` — DO NOT spawn a sub-agent. Read
-  the role file at `envelope.role_path` yourself, conduct the
-  work inline in this conversation, write the produced output
-  file to `envelope.output_path`, then call
-  `<codenook> tick --task <T-NNN>` again to advance state.
+- `"phase_prompt"` — default; spawn a sub-agent as in the
+  protocol above.
+- `"inline_dispatch"` — do **not** spawn a sub-agent. Read the
+  role at `envelope.role_path` (alias for `system_prompt_path`)
+  yourself, do the work inline in this conversation, write the
+  output to `envelope.output_path` (alias for `reply_path`),
+  then call `<codenook> tick` again.
 
-When `action == "inline_dispatch"` the envelope also carries
-`execution_mode: "inline"` and the same `system_prompt_path` /
-`prompt_path` / `reply_path` triple as a normal dispatch
-envelope, so the conductor has every path it needs to do the
-work without re-querying the kernel. `role_path` and
-`output_path` are aliases for `system_prompt_path` and
-`reply_path` respectively, provided for clarity in the inline
-flow.
+Inline-mode envelopes also carry `execution_mode: "inline"`. The
+user opts in **once at task creation** via
+`<codenook> task new --exec inline` (see §Pre-creation config
+ask) or post-hoc via `<codenook> task set-exec --task T-NNN
+--mode inline`. In inline mode, `model` is informational only
+— treat it as a "voice" hint.
 
-The user opts into inline mode at task creation
-(`<codenook> task new --exec inline`) or post-hoc
-(`<codenook> task set-exec --task T-NNN --mode inline`).
-Inline is intended for chat-heavy or serial work where
-sub-agent spawn overhead is unwanted; sub-agent remains the
-default for isolation and parallelism. Tasks created before
-v0.19 (no `execution_mode` field in `state.json`) keep the
-historical sub-agent behaviour.
+### Conventions
 
-The `model` field in inline-mode envelopes is informational
-only — the conductor cannot switch models mid-conversation.
-Treat it as a hint for which "voice" / role profile to adopt.
+#### `<codenook>` wrapper
 
-### Task creation entry points
+Every `<codenook>` placeholder above expands to the workspace's
+CLI shim, which auto-discovers `python3` (and any other runtime
+the kernel needs internally) and prints a clear error if a
+dependency is missing. Just call the wrapper and surface its
+output.
 
-The user creates tasks via `<codenook> task new`. Three
-recommended modes:
+| Host shell        | `<codenook>` expands to                |
+|-------------------|----------------------------------------|
+| bash / zsh / sh   | `.codenook/bin/codenook`               |
+| PowerShell / cmd  | `.codenook\bin\codenook.cmd`           |
 
-- One-shot, fully scripted:
-  `<codenook> task new --plugin <id> --profile <name> --input "..." --title "..."`
-- Interactive wizard:
-  `<codenook> task new --interactive`
-  prompts the user for plugin / profile / title / input / model /
-  exec mode and creates the task at the end.
-- Minimal (legacy):
-  `<codenook> task new --title "..." --accept-defaults`
-  uses plugin/profile/exec defaults; relies on the kernel's
-  default phase chain to extract requirements.
+Both shims dispatch to the same Python entry point — behaviour
+is identical across platforms. There is no raw-bash fallback,
+and you should not spend time hunting for `bash.exe` or other
+runtimes on Windows.
 
-You (the conductor) MAY suggest `--interactive` to users who
-appear to be unsure what plugin or profile they need.
+#### CLI subcommand reference
 
-`--profile <name>` selects one of the keys declared under
-`profiles:` in the chosen plugin's `phases.yaml`. `--input
-<text>` (or `--input-file <path>`) seeds the task description;
-when present it is surfaced in the dispatch envelope as
-`task_input` so phase agents and the inline conductor can use
-it without a separate clarify round. Use
-`<codenook> plugin info <id>` to discover the profiles + phase
-catalogue for an installed plugin. `<codenook> task set-profile
---task T-NNN --profile <name>` switches profile post-hoc, but
-only before the first phase verdict is recorded.
+- `task new` — create a task (see §Create the task).
+- `tick --task <T-NNN> --json` — advance one phase; returns the
+  envelope. Always pass `--json`.
+- `decide --task ... --phase ... --decision ...` — resolve an
+  HITL gate or post-phase signoff.
+- `status` (or `status --task <T-NNN>`) — list active tasks
+  (or print one task's full state).
+- `plugin info <id>` — discover profiles + phase catalogue.
+- `task set-profile / set-model / set-exec` — switch task
+  config before the first phase verdict is recorded.
+- `chain link` — wire `parent_id` / `chain_root` for task
+  chains.
+- `knowledge reindex / list / search` — manage the workspace
+  knowledge index (auto-rebuilt on install / upgrade so it is
+  never empty).
 
-### CLI is the ONLY sanctioned entry point
+The conductor MAY read `.codenook/plugins/*/plugin.yaml` and
+`.codenook/memory/{{knowledge,skills,history,_pending,config.yaml}}`
+freely for orientation — they are workspace-shared resources, not
+phase outputs.
 
-The `codenook` CLI is the canonical contract. Internal kernel scripts
-under `.codenook/codenook-core/skills/builtin/` are private
-implementation details — calling them directly is unsupported and may
-break across kernel upgrades. Specifically:
+### See also
 
-- POSIX shells (bash/zsh): use `<ws>/.codenook/bin/codenook ...`
-- Windows (PowerShell / cmd): use `<ws>\.codenook\bin\codenook.cmd ...`
-
-Both shims dispatch to the same Python entrypoint, so behaviour is
-identical across platforms. There is no "raw-bash form" fallback.
-
-### Plugin knowledge discovery
-
-When a plugin ships knowledge under `<plugin>/knowledge/`, the kernel
-discovers all `*.md` files **recursively** (subdirectories included).
-Files may carry YAML frontmatter (`title`, `summary`, `tags`); when
-absent, the kernel infers `title` from the filename, `tags` from the
-parent directory names relative to `knowledge/`, and `summary` from
-the body's first heading or paragraph. Plugins may also ship
-`knowledge/INDEX.yaml` (preferred) or `knowledge/INDEX.md` (markdown
-bullet links) to override metadata for files lacking frontmatter.
-
-Run `<codenook> knowledge reindex` to rebuild
-`<workspace>/.codenook/memory/index.yaml` (auto-run on every install
-and upgrade so it is never empty). Use
-`<codenook> knowledge list [--plugin <id>]` to enumerate the indexed
-entries and `<codenook> knowledge search <query>` to rank them by
-substring score across tags / title / summary. Conductors and phase
-agents may consult this index when grounding their work.
-
-Plugin manifest templates may also include the literal token
-`{{KNOWLEDGE_HITS}}`; the kernel substitutes it at dispatch time
-with the top-N matches from `index.yaml` via
-`knowledge_query.find_relevant`. Templates without the placeholder
-are returned unchanged. See `docs/memory-and-extraction.md` §8.
-
-### Hard rules for the LLM (zero domain budget)
-
-- MAY read `.codenook/plugins/*/plugin.yaml` and
-  `.codenook/memory/{{knowledge,skills,history,_pending,config.yaml}}`
-  for orientation (plugin selection, scope hints, conventions).
-  These are workspace-shared resources and reading is expected.
-- MUST NOT read `.codenook/plugins/*/roles/` or
-  `.codenook/plugins/*/skills/` or `.codenook/plugins/*/knowledge/`
-  in conductor context — those are sub-agent system prompts /
-  per-phase resources, not for the conductor to interpret.
-- MUST NOT mention plugin ids in user-facing prose unless echoing
-  back what the user said. Pick the plugin silently via
-  `--plugin <id>`.
-- MUST NOT modify `draft-config.yaml`, `state.json` by hand — only via
-  the `codenook` CLI wrapper, which fronts `orchestrator-tick` (via
-  `tick.py` / `tick.sh`), and `hitl-adapter` (via `terminal.py` /
-  `terminal.sh`).
-- MUST NOT spawn phase agents (designer / implementer / tester /
-  reviewer / acceptor / validator) directly. That's `codenook tick`'s
-  job (which fronts `tick.py` on Windows hosts and `tick.sh` on
-  Linux/macOS — both are equivalent entry points to `_tick.py`).
-- MUST run the `clarifier` phase **inline** in the conductor session
-  (read role profile + per-call prompt yourself, drive the Q&A with
-  the user, write the reply file, then call `tick`). Do **not**
-  dispatch a sub-agent for clarifier — that defeats the latency
-  optimisation introduced in v0.13.22.
-- MUST NOT interpret, paraphrase, or summarise the HITL `prompt`
-  field or per-phase outputs. Relay verbatim.
-- MUST end every reply by asking the user what their next step is
-  (e.g. "What would you like to do next?" / "下一步想做什么？"). Use
-  the host's interactive prompt facility when available; otherwise ask
-  in plain text. This applies whether or not a CodeNook task is active.
-- If a task seems to require breaking one of these rules, surface the
-  problem to the user instead of working around it.
-
-### Workspace layout the orchestrator reads
-
-- `.codenook/state.json` — installed plugins, kernel version, paths
-- `.codenook/codenook-core/` — self-contained kernel (read-only)
-- `.codenook/schemas/` — `task-state`, `installed`, `hitl-entry`, `queue-entry`
-- `.codenook/plugins/<id>/` — read-only phase prompts and roles for
-  each installed plugin (ids listed in `state.json.installed_plugins`)
-- `.codenook/memory/` — `knowledge`, `skills`, `history`, `_pending`, `config.yaml`
-- `.codenook/tasks/<task_id>/` — per-task state, prompts, audit log
-
-**Plugin and kernel files are read-only.** Writes happen under
-`.codenook/tasks/`, `.codenook/memory/`, and `.codenook/queue/` only.
-
-### Task-chain fields
-
-`state.json` supports `parent_id` (linked parent task) and `chain_root`
-(cached terminal ancestor; auto-maintained by `codenook chain link`).
-See the installed plugin's `README.md` § task-chains for plugin-specific
-notes.
-
-For install flow and CLI subcommand reference see the project README
-and `docs/architecture.md`.
+- `docs/architecture.md` — kernel internals, install flow, and
+  full CLI subcommand reference.
+- `docs/memory-and-extraction.md` — memory layout, knowledge
+  discovery (`{{KNOWLEDGE_HITS}}` placeholder, `INDEX.yaml`
+  override), pending-knowledge promotion.
+- The installed plugin's `README.md` — plugin-specific
+  guidance, task-chain semantics.
 {END}
 """
 

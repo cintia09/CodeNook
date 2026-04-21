@@ -1,4 +1,137 @@
-## v0.27.2 (2026-04-21)
+## v0.27.3 (2026-04-22)
+
+CLAUDE.md bootloader content refactor — accuracy + dedup + structure.
+
+### Added
+- **Behavioural regression suite** at
+  `skills/codenook-core/tests/behavioral/`. Drives a real
+  `claude -p` agent inside an installed CodeNook workspace and
+  asserts the agent's first action matches the rules encoded in
+  the rendered `CLAUDE.md`. 5 scenarios cover (s1) bare-task
+  interview, (s2) interview-done → exec-mode ask, (s3) "你自己
+  决定" exemption-scoping, (s4) sub-agent → model ask
+  (historical regression), and (s5) §Session-start ritual reads
+  `memory/index.yaml` (verified via stream-json tool trace).
+  Not wired into default CI — opt-in run, ~$1 / 5min per full
+  suite. `README.md` documents cost, gating, and how to add a
+  scenario.
+
+### Changed
+- **Removed the auto-generated "Workspace has plugins installed:
+  ..." seed line** at the top of the bootloader. The session-start
+  ritual already mandates reading `state.json` + each plugin's
+  `plugin.yaml`, so the seed line was redundant and added noise.
+  `render_block(version, plugin)` keeps its signature for API
+  stability but no longer emits the line; `_render_seed_line`
+  remains as dead code marked with `# noqa: F841` until the next
+  major version. Bats test 11 inverted to assert the seed line
+  is absent.
+- **Model + execution mode are now task-creation decisions, not
+  per-dispatch ones.** Added a new §Pre-creation config ask
+  subsection that requires the conductor to ask exec mode first
+  (always), then ask model only when exec mode is `sub-agent`
+  (skipped under `inline` because the conductor cannot switch its
+  own model mid-conversation, so model is informational only).
+  Both choices are passed to `task new` as `--exec` and
+  `--model`. Removed the per-dispatch model pre-flight ask from
+  §Model field — it now explicitly says "do NOT issue a per-
+  dispatch ask; the choice was already made at task creation".
+  New contract tests
+  (`test_contract_11_model_asked_at_task_creation_not_per_dispatch`,
+  `test_contract_12_exec_mode_asked_at_task_creation`,
+  `test_contract_12_model_skipped_when_inline`) lock this.
+- **Restructured the rendered bootloader.** Reordered into a clean
+  skeleton: Identity → Hard rules → Workspace layout → Session-start
+  ritual → Task lifecycle (when / pick / interview / create / tick /
+  envelope / HITL) → Special cases (clarifier / model / exec mode) →
+  Conventions (wrapper + CLI quick-ref) → See also. Hard rules and
+  workspace layout now lead the document so constraints and
+  orientation come first.
+- **Cut size by ~39%** (23,728 → 14,376 bytes; 509 → 338 lines)
+  with no functional regression. Every conductor-facing contract is
+  preserved and pinned by 27 new wording-agnostic invariant tests
+  in `tests/python/test_claude_md_contract.py`.
+
+### Fixed
+- **`你自己决定` / "just go" exemption was being over-applied.** A
+  follow-up agent trace showed the conductor skipping the model
+  ask after the user said "你自己决定" to the interview. Spec is
+  now explicit (in both the §Hard rules MUST line and inside
+  §Pre-creation config ask) that the exemption only skips the
+  pre-task interview — it does NOT exempt the exec-mode or
+  model ask. New contract test
+  (`test_contract_12_just_go_does_not_skip_exec_or_model_ask`).
+- **Agents literal-passed `--model "<default>"` as a string.**
+  Discovered via behavioural audit (T-014's `state.json` had
+  `model_override = "<default>"`). The §Create-the-task block
+  now shows two concrete `task new` examples — one with a real
+  model, one omitting `--model` entirely for the platform-
+  default case — plus an explicit anti-example list of common
+  hallucinated placeholders to never pass.
+- **HITL channel-choice ask was being skipped by some agents,
+  even when the kernel emitted `conductor_instruction` saying
+  "do NOT skip steps".** Three reinforcements landed:
+  (1) bootloader step labelled `**Channel-choice ask (MANDATORY).**`
+  with explicit "do not skip / do not pick `terminal` on the
+  user's behalf" guidance;
+  (2) hard-rule line that any `conductor_instruction` field
+  returned by `tick --json` is authoritative and every numbered
+  step must be executed in order, even when one feels redundant;
+  (3) hard-rule line forbidding silent default to `terminal`.
+  Two new contract tests
+  (`test_contract_09_channel_choice_ask_is_mandatory`,
+  `test_contract_09_conductor_instruction_is_authoritative`)
+  lock the wording.
+- **Slug-derivation rule was self-contradictory.** An early one-liner
+  said the slug is auto-derived from `--input` (empty → `T-NNN`),
+  while the bash-comment block correctly stated the priority is
+  `--title` → single-line `--input` → `--summary`. Removed the early
+  wrong wording and kept the canonical form.
+- **Internal kernel script names leaked into the bootloader.** The
+  hard-rules block named `tick.py`, `tick.sh`, `_tick.py`,
+  `terminal.py`, and `terminal.sh` — but the same section explicitly
+  forbids the conductor from calling kernel scripts directly. These
+  parenthetical leaks are gone; only the public `<codenook>` wrapper
+  surface remains.
+- **Stale wording.** Removed "the script is a plain bash CLI" and
+  "expects bash on PATH" (no longer accurate; the wrapper is
+  Python-driven on every host).
+- **Version-pinned justifications.** Removed dangling references to
+  `v0.13.22 latency optimisation`, `unchanged from v0.18.x`, and
+  `tasks created before v0.19` — none of these explain anything an
+  LLM at v0.27.3 needs to know.
+
+### Removed (deduplicated)
+- "What conductor reads when picking a plugin" (separate section)
+  merged into the unified Session-start ritual.
+- "Discovering existing tasks" (separate section) merged into the
+  Session-start ritual + status-as-discovery note.
+- Duplicate `<codenook> decide` example (was shown twice).
+- Duplicate `Resume the tick loop when all gates resolve` sentence.
+- Repeated reminders that `installed_plugins` is authoritative
+  (was stated in 4 places, now once).
+- "Task creation entry points" subsection — the relevant facts
+  (`--interactive`, `--accept-defaults`, defaults) are folded into
+  the Create-the-task subsection.
+- "Plugin knowledge discovery" — implementation detail moved to a
+  one-line pointer in §See also (covered fully by
+  `docs/memory-and-extraction.md`).
+- "Task-chain fields" 4-line orphan section — folded into the
+  workspace-layout table.
+- "CLI is the ONLY sanctioned entry point" subsection — same point
+  is now made once in Hard rules + once in §Conventions.
+
+### Added
+- **27 contract tests** in `tests/python/test_claude_md_contract.py`
+  encode the conductor-facing invariants (identity, EN/ZH triggers,
+  wrapper subcommands, boot-ritual files, plugin seed line variants,
+  `--input` + slug semantics, tick JSON envelope fields, HITL gate
+  flow, clarifier-inline rule, model verbatim handling,
+  `execution_mode`, workspace layout, hard-rules section, control-
+  byte freedom, multiline continuations). The refactor was driven
+  red→green by this baseline.
+
+
 
 CLAUDE.md bootloader rendering fixes. Three findings, one regression net.
 

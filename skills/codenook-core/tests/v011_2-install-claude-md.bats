@@ -105,7 +105,7 @@ MD
     [ "$status" -eq 0 ] || { echo "stray control byte $code present in rendered CLAUDE.md"; return 1; }
   done
   # Windows path must be intact (the original \b bug ate the 'b' in 'bin').
-  grep -F "\\.codenook\\bin\\codenook.cmd" "$scratch/CLAUDE.md"
+  grep -F ".codenook\\bin\\codenook.cmd" "$scratch/CLAUDE.md"
 }
 
 @test "[regress] DR-006 multi-line shell snippets keep their backslash continuations" {
@@ -117,7 +117,7 @@ MD
   [ "$output" -ge 4 ] || { echo "expected >=4 indented --flag lines, got $output"; return 1; }
 }
 
-@test "[regress] DR-006 plugin list reflects state.json when present" {
+@test "[regress] v0.27.3 seed line is removed (boot ritual covers plugin discovery)" {
   scratch="$(make_scratch)"
   mkdir -p "$scratch/.codenook"
   cat > "$scratch/.codenook/state.json" <<'JSON'
@@ -131,7 +131,6 @@ MD
 }
 JSON
   python3 "$SYNC_PY" --workspace "$scratch" --version 0.27.0 --plugin writing
-  grep -q "Workspace has plugins installed:" "$scratch/CLAUDE.md"
-  grep -q "\\*\\*development\\*\\*" "$scratch/CLAUDE.md"
-  grep -q "\\*\\*writing\\*\\*" "$scratch/CLAUDE.md"
+  ! grep -q "Workspace has plugin installed:" "$scratch/CLAUDE.md"
+  ! grep -q "Workspace has plugins installed:" "$scratch/CLAUDE.md"
 }
