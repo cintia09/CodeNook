@@ -371,6 +371,25 @@ break across kernel upgrades. Specifically:
 Both shims dispatch to the same Python entrypoint, so behaviour is
 identical across platforms. There is no "raw-bash form" fallback.
 
+### Plugin knowledge discovery
+
+When a plugin ships knowledge under `<plugin>/knowledge/`, the kernel
+discovers all `*.md` files **recursively** (subdirectories included).
+Files may carry YAML frontmatter (`title`, `summary`, `tags`); when
+absent, the kernel infers `title` from the filename, `tags` from the
+parent directory names relative to `knowledge/`, and `summary` from
+the body's first heading or paragraph. Plugins may also ship
+`knowledge/INDEX.yaml` (preferred) or `knowledge/INDEX.md` (markdown
+bullet links) to override metadata for files lacking frontmatter.
+
+Run `<codenook> knowledge reindex` to rebuild
+`<workspace>/.codenook/memory/index.yaml` (auto-run on every install
+and upgrade so it is never empty). Use
+`<codenook> knowledge list [--plugin <id>]` to enumerate the indexed
+entries and `<codenook> knowledge search <query>` to rank them by
+substring score across tags / title / summary. Conductors and phase
+agents may consult this index when grounding their work.
+
 ### Hard rules for the LLM (zero domain budget)
 
 - MAY read `.codenook/plugins/*/plugin.yaml` and

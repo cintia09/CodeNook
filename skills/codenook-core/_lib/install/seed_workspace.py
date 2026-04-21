@@ -168,3 +168,52 @@ def assert_state_kernel_version(workspace: Path, version: str) -> bool:
     except Exception:
         return False
     return d.get("kernel_version") == version
+
+
+def reindex_knowledge(staged_kernel: Path, workspace: Path) -> tuple[int, str]:
+    """Run the v0.21.0 ``codenook knowledge reindex`` post-install hook.
+
+    Best-effort: writes ``<ws>/.codenook/memory/index.yaml`` with the
+    union of plugin-shipped knowledge / skills and any memory-extracted
+    entries already present. Returns ``(rc, summary)``; rc != 0 is
+    surfaced by the installer but does not abort the install — the
+    seed_memory step has already left behind a valid empty index.
+    """
+    helper = (
+        staged_kernel / "skills" / "builtin" / "_lib" / "full_index.py"
+    )
+    if not helper.is_file():
+        return 1, "full_index.py missing in staged kernel"
+    code = (
+        "import sys, json; "
+        "from pathlib import Path; "
+        "import full_index as fi; "
+        "target, payload = fi.reindex(Path(sys.argv[1])); "
+        "n_k = len(payload.get('knowledge', [])); "
+        "n_s = len(payload.get('skills', [])); "
+        "plugins = sorted({(e.get('plugin') or '') for e in "
+        "payload.get('knowledge', []) + payload.get('skills', []) "
+        "if e.get('plugin')}); "
+        "sys.stdout.write(json.dumps({'target': str(target), "
+        "'plugins': plugins, 'knowledge': n_k, 'skills': n_s}))"
+    )
+    try:
+        cp = subprocess.run(
+            [sys.executable, "-c", code, str(workspace)],
+            env=_kernel_env(staged_kernel),
+            capture_output=True, text=True,
+        )
+    except Exception as e:  # pragma: no cover — defensive
+        return 1, f"reindex spawn failed: {e}"
+    if cp.returncode != 0:
+        return cp.returncode, (cp.stderr or cp.stdout).strip()
+    try:
+        import json
+        info = json.loads(cp.stdout.strip() or "{}")
+    except Exception:
+        return 0, cp.stdout.strip()
+    return 0, (
+        f"plugins={len(info.get('plugins', []))}  "
+        f"knowledge={info.get('knowledge', 0)}  "
+        f"skills={info.get('skills', 0)}"
+    )

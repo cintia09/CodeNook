@@ -1,3 +1,76 @@
+## v0.21.0 (2026-04-25)  recursive knowledge discovery + INDEX overrides + `codenook knowledge` CLI
+
+### Fixed
+- **CRIT  plugin knowledge under subdirectories was invisible to the
+  router and phase agents.** The kernel's `discover_knowledge` did a
+  flat scan of `<plugin>/knowledge/*.md` only, so prnook's 50+
+  baselines / cases / fingerprints / port-mappings (all nested two
+  levels deep) never reached `memory/index.yaml`. Probes saw 5
+  prnook items where there should have been 25+.
+
+### Added  Block A: recursive scan
+- `knowledge_index.discover_knowledge` now walks
+  `<plugin>/knowledge/**/*.md` and skips dot-directories plus
+  `__pycache__` / `node_modules` / `.git` / etc. via a
+  `_SKIP_DIRS` constant.
+- **Implicit-frontmatter fallback** when fields are missing:
+  `title`  filename stem (unchanged); `tags`  parent directory
+  names relative to `knowledge/` (e.g.
+  `baselines/APHA/startup.md`  `[baselines, APHA]`); `summary`
+   first H1/H2 or first non-empty paragraph of the body, Markdown
+  link/image syntax stripped, truncated to ~200 chars.
+- Existing frontmatter `tags` win and are NOT merged with directory
+  tags  explicit always overrides implicit.
+
+### Added  Block B: INDEX.yaml / INDEX.md overrides
+- Plugins may ship `knowledge/INDEX.yaml` (preferred, machine
+  readable) with `entries: [{path, title, summary, tags}]`. When
+  `path` ends in `/` (or names a directory), the entry applies to
+  the directory's primary md file (`<dirname>.md` 
+  `README.md`  first `*.md` alphabetically).
+- Or ship `knowledge/INDEX.md` (fallback, markdown-linked) with
+  bullets of shape `- [Title](relative/path.md)  summary`.
+- Resolution order per file (highest wins): file frontmatter 
+  INDEX.yaml entry  INDEX.md entry  implicit-from-path defaults.
+
+### Added  Block C: `codenook knowledge` CLI
+- `codenook knowledge reindex`  rebuild
+  `<ws>/.codenook/memory/index.yaml` from every installed plugin's
+  `knowledge/` and `skills/<name>/SKILL.md` plus any memory-
+  extracted entries already present. Reports plugin / knowledge /
+  skill counts. Idempotent (two back-to-back runs match modulo
+  `generated_at`). Atomic write via tempfile + `os.replace`.
+- `codenook knowledge list [--plugin <id>] [--limit N]`  print the
+  indexed knowledge grouped by plugin.
+- `codenook knowledge search <query> [--limit N]`  rank entries
+  via the existing `find_relevant` substring scorer.
+- The new `full_index` kernel module composes the unified payload;
+  `cmd_knowledge` is the CLI front.
+
+### Installer
+- Post-install / post-upgrade hook now auto-runs the new reindex so
+  `memory/index.yaml` is never an empty stub after install. Failure
+  is best-effort: a warning is printed and the empty stub from
+  `seed_memory` is left in place rather than aborting the install.
+
+### Tests
+- New `tests/python/test_knowledge_recursive.py` (10 tests):
+  recursion, implicit tags-from-path, body summary extraction,
+  INDEX.yaml override, INDEX.md override, frontmatter beating both
+  INDEX files, dot-dir / `__pycache__` skip, real-prnook reindex
+  (10 entries), reindex idempotence, and a CLI `knowledge search`
+  smoke test.
+
+### Bootloader
+- `CLAUDE.md` gains a "Plugin knowledge discovery" section pointing
+  conductors at `codenook knowledge {reindex,list,search}` and
+  documenting the implicit / INDEX / frontmatter precedence.
+
+### Backward compatibility
+- Files with explicit frontmatter behave exactly as before
+  (frontmatter still wins for every field). All existing knowledge-
+  index tests pass unchanged. The 4 known-baseline failures from
+  prior shipments are unchanged.
 ## v0.20.1 (2026-04-25) — hotfix: schema accepts new fields, tests no longer mask tick failures
 
 ### Fixed

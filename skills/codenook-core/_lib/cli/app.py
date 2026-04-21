@@ -40,6 +40,9 @@ Subcommands:
   chain    link  --child T-X --parent T-Y [--force]
   chain    show  <task>
   chain    detach <task>
+  knowledge reindex
+  knowledge list [--plugin <id>] [--limit N]
+  knowledge search <query> [--limit N]
 
 Global flags:
   --workspace <dir>   override workspace root (else: derived from CWD or
@@ -118,6 +121,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if sub == "plugin":
         from . import cmd_plugin
         return cmd_plugin.run(ctx, rest)
+    if sub == "knowledge":
+        from . import cmd_knowledge
+        return cmd_knowledge.run(ctx, rest)
 
     sys.stderr.write(f"codenook: unknown subcommand: {sub}\n")
     sys.stderr.write(USAGE)
