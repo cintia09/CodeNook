@@ -161,6 +161,136 @@ def _html_escape(s: str) -> str:
              .replace('"', "&quot;"))
 
 
+_INLINE_CODE_RE = re.compile(r"`([^`\n]+?)`")
+_BOLD_RE = re.compile(r"\*\*([^*\n]+?)\*\*")
+_ITALIC_RE = re.compile(r"(?<!\*)\*([^*\n]+?)\*(?!\*)")
+_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)\s]+)\)")
+
+
+def _render_inline(text: str) -> str:
+    """Inline markdown: escape HTML first, then re-introduce safe tags."""
+    out = _html_escape(text)
+    # inline code first (so its content is not touched by bold/italic)
+    out = _INLINE_CODE_RE.sub(lambda m: f"<code>{m.group(1)}</code>", out)
+    out = _BOLD_RE.sub(lambda m: f"<strong>{m.group(1)}</strong>", out)
+    out = _ITALIC_RE.sub(lambda m: f"<em>{m.group(1)}</em>", out)
+    out = _LINK_RE.sub(
+        lambda m: f'<a href="{_html_escape(m.group(2))}" target="_blank" rel="noopener">{m.group(1)}</a>',
+        out,
+    )
+    return out
+
+
+def _render_markdown(md: str) -> str:
+    """Minimal markdown -> HTML.
+
+    Supports: ATX headers (# .. ######), fenced code blocks (``` ... ```),
+    blockquotes, ordered/unordered lists, paragraphs, plus inline code,
+    bold, italic, and links via _render_inline.
+
+    All HTML in the source is escaped first, so user content cannot inject
+    arbitrary tags. The output is intentionally minimal but covers >95%
+    of HITL prompt / phase-output content.
+    """
+    if not md:
+        return ""
+    lines = md.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    out: list[str] = []
+    i = 0
+    in_ul = in_ol = False
+
+    def close_lists() -> None:
+        nonlocal in_ul, in_ol
+        if in_ul:
+            out.append("</ul>")
+            in_ul = False
+        if in_ol:
+            out.append("</ol>")
+            in_ol = False
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        # Fenced code block
+        m = re.match(r"^```(\S*)\s*$", line)
+        if m:
+            close_lists()
+            lang = m.group(1)
+            buf = []
+            i += 1
+            while i < len(lines) and not re.match(r"^```\s*$", lines[i]):
+                buf.append(lines[i])
+                i += 1
+            i += 1  # consume closing fence
+            cls = f' class="lang-{_html_escape(lang)}"' if lang else ""
+            out.append(f"<pre><code{cls}>{_html_escape(chr(10).join(buf))}</code></pre>")
+            continue
+
+        # Blank line — paragraph break
+        if not stripped:
+            close_lists()
+            i += 1
+            continue
+
+        # ATX header
+        m = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", line)
+        if m:
+            close_lists()
+            level = len(m.group(1))
+            out.append(f"<h{level}>{_render_inline(m.group(2))}</h{level}>")
+            i += 1
+            continue
+
+        # Blockquote (single line, accumulate consecutive)
+        if stripped.startswith(">"):
+            close_lists()
+            buf = []
+            while i < len(lines) and lines[i].strip().startswith(">"):
+                buf.append(re.sub(r"^\s*>\s?", "", lines[i]))
+                i += 1
+            inner = _render_markdown("\n".join(buf))
+            out.append(f"<blockquote>{inner}</blockquote>")
+            continue
+
+        # Unordered list item
+        m = re.match(r"^\s*[-*+]\s+(.*)$", line)
+        if m:
+            if not in_ul:
+                close_lists()
+                out.append("<ul>")
+                in_ul = True
+            out.append(f"<li>{_render_inline(m.group(1))}</li>")
+            i += 1
+            continue
+
+        # Ordered list item
+        m = re.match(r"^\s*\d+\.\s+(.*)$", line)
+        if m:
+            if not in_ol:
+                close_lists()
+                out.append("<ol>")
+                in_ol = True
+            out.append(f"<li>{_render_inline(m.group(1))}</li>")
+            i += 1
+            continue
+
+        # Paragraph — gather contiguous non-blank, non-special lines
+        close_lists()
+        buf = [line]
+        i += 1
+        while i < len(lines):
+            nxt = lines[i]
+            if (not nxt.strip()) or re.match(r"^(#{1,6}\s|```|>|\s*[-*+]\s|\s*\d+\.\s)", nxt):
+                break
+            buf.append(nxt)
+            i += 1
+        out.append(f"<p>{_render_inline(' '.join(b.strip() for b in buf))}</p>")
+
+    close_lists()
+    return "\n".join(out)
+
+
 def cmd_render_html(ws: Path, eid: str, out_path: str, do_open: bool = False) -> int:
     """Render HITL entry as a self-contained HTML file for human review.
 
@@ -196,11 +326,20 @@ def cmd_render_html(ws: Path, eid: str, out_path: str, do_open: bool = False) ->
 <html lang="en"><head><meta charset="utf-8">
 <title>HITL gate {_html_escape(eid)}</title>
 <style>
-body{{font:14px/1.5 -apple-system,Segoe UI,sans-serif;max-width:920px;margin:2em auto;padding:0 1em;color:#222}}
-h1{{font-size:1.4em}}
+body{{font:14px/1.55 -apple-system,Segoe UI,sans-serif;max-width:920px;margin:2em auto;padding:0 1em;color:#222}}
+h1{{font-size:1.4em}} h2{{font-size:1.15em;margin-top:1.6em;border-bottom:1px solid #eee;padding-bottom:.3em}}
 .meta{{color:#666;font-size:.9em;margin-bottom:1em}}
-.prompt{{background:#fffbe6;border-left:4px solid #f5b301;padding:.7em 1em;margin:1em 0;white-space:pre-wrap}}
-.ctx{{background:#f7f7f7;padding:1em;border-radius:4px;white-space:pre-wrap;font-family:Menlo,Consolas,monospace;font-size:13px;max-height:60vh;overflow:auto}}
+.prompt{{background:#fffbe6;border-left:4px solid #f5b301;padding:.7em 1em;margin:1em 0}}
+.ctx{{background:#fafafa;padding:1em 1.2em;border:1px solid #eee;border-radius:4px;max-height:65vh;overflow:auto}}
+.ctx h1,.ctx h2,.ctx h3,.ctx h4{{margin:.9em 0 .3em}}
+.ctx h1{{font-size:1.25em}} .ctx h2{{font-size:1.1em;border:none}} .ctx h3{{font-size:1em}}
+.ctx pre{{background:#1e1e1e;color:#d4d4d4;padding:.8em 1em;border-radius:4px;overflow-x:auto;font-family:Menlo,Consolas,monospace;font-size:12.5px}}
+.ctx code{{background:#eef;color:#06f;padding:.05em .35em;border-radius:3px;font-family:Menlo,Consolas,monospace;font-size:.92em}}
+.ctx pre code{{background:none;color:inherit;padding:0;font-size:inherit}}
+.ctx blockquote{{border-left:3px solid #ccc;padding:.2em .9em;color:#555;margin:.6em 0}}
+.ctx ul,.ctx ol{{padding-left:1.6em}}
+.ctx a{{color:#06f;text-decoration:none}} .ctx a:hover{{text-decoration:underline}}
+.ctx p{{margin:.5em 0}}
 .cmd{{background:#1e1e1e;color:#d4d4d4;padding:.8em 1em;border-radius:4px;font-family:Menlo,Consolas,monospace;font-size:13px;white-space:pre-wrap;overflow-x:auto}}
 .decisions span{{display:inline-block;margin:.3em .5em .3em 0;padding:.25em .6em;border-radius:3px;color:#fff;font-size:.85em}}
 .decisions .a{{background:#2e8b57}} .decisions .r{{background:#c0392b}} .decisions .n{{background:#d68910}}
@@ -209,10 +348,10 @@ h1{{font-size:1.4em}}
 <div class="meta">task <b>{_html_escape(task_id)}</b> · gate <b>{_html_escape(gate)}</b> · created {_html_escape(created)}</div>
 
 <h2>Prompt</h2>
-<div class="prompt">{_html_escape(prompt)}</div>
+<div class="prompt ctx">{_render_markdown(prompt)}</div>
 
 <h2>Context ({_html_escape(cp) if cp else 'none'})</h2>
-<div class="ctx">{_html_escape(ctx_text) if ctx_text else '(no context)'}</div>
+<div class="ctx">{_render_markdown(ctx_text) if ctx_text else '<p><em>(no context)</em></p>'}</div>
 
 <h2>How to answer</h2>
 <p>This page is read-only. Decide from the terminal:</p>
