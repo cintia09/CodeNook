@@ -1,3 +1,51 @@
+## v0.27.8 (2026-04-22)
+
+Fixes a real kernel bug discovered while investigating an HITL
+verdict mismatch in a live workspace: HITL `needs_changes`
+hard-looped the same phase, ignoring `transitions.yaml`, even
+though `docs/task-chains.md` §3 explicitly defines it as
+equivalent to verdict `needs_revision`.
+
+### Fixed
+- **HITL `needs_changes` ignored `transitions.yaml`**
+  (`orchestrator-tick/_tick.py`). The HITL gate consumer at
+  step 3.5 used to call `dispatch_or_skip(... cur ...)` directly
+  with `iteration++`, regardless of what `transitions.yaml`
+  declared for `<phase>.needs_revision`. This contradicted the
+  documented equivalence with verdict `needs_revision`, and meant
+  cross-phase bounces such as `review.needs_revision: implement`
+  were silently downgraded to a same-phase loop on `review`.
+  The HITL path now simply sets `verdict_for_transition =
+  "needs_revision"` and falls through to the existing transition
+  step 5, which already correctly handles same-phase loops
+  (iteration++ + cap), cross-phase bounces (transition without
+  iteration bump), and `complete` terminal targets — yielding a
+  single audit-trail shape for both verdict-routed and HITL
+  `needs_revision`/`needs_changes`.
+
+### Documentation
+- `docs/task-chains.md` §3: clarified that `needs_changes` is
+  routed through `transitions.yaml`. Same-phase target →
+  iteration++; different phase → fresh transition.
+
+### Tests
+- `tests/m4-e2e-tick.bats`: added a regression
+  (`needs_changes routes via transitions.yaml (cross-phase bounce)`)
+  that patches the generic fixture so `clarify.needs_revision:
+  analyze`, then asserts an HITL `needs_changes` decision on the
+  clarify gate transitions the task to `analyze`. The pre-existing
+  same-phase test (`needs_changes → iteration incremented, same
+  phase`) continues to pass because `clarify.needs_revision: clarify`
+  in the fixture still resolves to a same-phase loop under the new
+  routing path.
+
+### Verification
+- 216 pytest passing / 2 skipped
+- 931 bats ok / 0 fail (the 931-vs-932 bats counter warning is
+  pre-existing and unrelated to this change)
+
+---
+
 ## v0.27.7 (2026-04-22)
 
 Continuation of the v0.27.6 deep-audit pass — recovers all 15

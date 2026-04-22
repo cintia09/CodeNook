@@ -191,6 +191,39 @@ open(p,'w').write(yaml.safe_dump(d, sort_keys=False))
      "$ws/.codenook/tasks/T-801/state.json" >/dev/null
 }
 
+@test "M4 HITL: needs_changes routes via transitions.yaml (cross-phase bounce)" {
+  # Regression: HITL needs_changes used to hard-loop the same phase,
+  # ignoring transitions.yaml. Per docs/task-chains.md §3 it is
+  # equivalent to verdict needs_revision and must respect cross-phase
+  # bounces declared in transitions.yaml (e.g. review.needs_revision:
+  # implement). Here we patch the generic fixture so clarify's
+  # needs_revision target is "analyze" and assert HITL needs_changes
+  # transitions there.
+  ws="$(init_ws_gated)"
+  python3 -c "
+import yaml
+p='$ws/.codenook/plugins/generic/transitions.yaml'
+d=yaml.safe_load(open(p))
+d['transitions']['clarify']['needs_revision']='analyze'
+open(p,'w').write(yaml.safe_dump(d, sort_keys=False))
+"
+  create_task "$ws" "T-803" "generic" "hitl needs_changes cross-phase"
+  run bash -c "\"$TICK_SH\" --task T-803 --workspace \"$ws\" --json"
+  [ "$status" -eq 0 ]
+  write_clarifier_output "$ws" "T-803"
+  run bash -c "\"$TICK_SH\" --task T-803 --workspace \"$ws\" --json"
+  [ "$status" -eq 3 ]
+
+  run bash -c "\"$HITL_SH_E2E\" decide --id T-803-design_signoff --decision needs_changes --reviewer dan --workspace \"$ws\""
+  [ "$status" -eq 0 ]
+
+  run bash -c "\"$TICK_SH\" --task T-803 --workspace \"$ws\" --json"
+  [ "$status" -eq 0 ]
+  # Phase should have transitioned to analyze (NOT looped on clarify).
+  jq -e '.phase=="analyze"' "$ws/.codenook/tasks/T-803/state.json" >/dev/null
+  [ ! -f "$ws/.codenook/hitl-queue/T-803-design_signoff.json" ]
+}
+
 @test "M4 HITL DoD: needs_changes → iteration incremented, same phase" {
   ws="$(init_ws_gated)"
   create_task "$ws" "T-802" "generic" "hitl needs_changes"

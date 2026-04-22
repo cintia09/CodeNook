@@ -1115,17 +1115,18 @@ def _tick_body(workspace: Path, state: dict) -> dict:
                            "next_action": "hitl_rejected"}
         elif resolution == "needs_changes":
             hitl_consume_entry(workspace, state, cur)
-            state["iteration"] = state.get("iteration", 0) + 1
-            if state["iteration"] > state.get("max_iterations", 0):
-                state["status"] = "blocked"
-                return {"status": "blocked",
-                               "next_action": "max_iterations exceeded"}
             state["status"] = "in_progress"
             state["history"].append(
                 {"ts": now_iso(), "phase": cur.get("id"),
                  "_warning": "hitl_needs_changes"}
             )
-            return dispatch_or_skip(workspace, state, cur, cfg, phases, trans_doc, profile=profile)
+            # Per docs/task-chains.md §3: needs_changes ≡ needs_revision.
+            # Defer to step-5 transition lookup so cross-phase bounces
+            # declared in transitions.yaml (e.g. review.needs_revision:
+            # implement) actually fire instead of hard-looping the same
+            # phase. Step 5 handles iteration++ when the target == cur.
+            verdict_for_transition = "needs_revision"
+            # fall through to transition step 5
         else:
             # pending or not_found
             if just_consumed_verdict is not None:

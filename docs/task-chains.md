@@ -90,8 +90,13 @@ Decision verbs (passed to `codenook decide --decision …`):
 
 - **`approve`** → tick advances to the next phase in the profile.
 - **`reject`** → terminal; `status: blocked`.
-- **`needs_changes`** → re-dispatches the same phase (subject to
-  iteration cap). Equivalent to verdict `needs_revision`.
+- **`needs_changes`** → equivalent to verdict `needs_revision`;
+  routed through `transitions.yaml`. If the matching `needs_revision`
+  edge points back to the same phase (e.g. `implement.needs_revision:
+  implement`), tick increments the iteration counter and re-dispatches
+  it (subject to the iteration cap). If it points to a different phase
+  (e.g. `review.needs_revision: implement`), tick transitions there
+  with a fresh iteration.
 
 ---
 
