@@ -3,6 +3,7 @@
 
 # Resolve repo paths once.
 CORE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+REPO_ROOT="$(cd "$CORE_ROOT/../.." && pwd)"
 TESTS_ROOT="$CORE_ROOT/tests"
 FIXTURES_ROOT="$TESTS_ROOT/fixtures"
 INIT_SH="$CORE_ROOT/init.sh"
@@ -10,7 +11,19 @@ SHELL_MD="$CORE_ROOT/core/shell.md"
 RESOLVE_SH="$CORE_ROOT/skills/builtin/config-resolve/resolve.sh"
 PROBE_SH="$CORE_ROOT/skills/builtin/model-probe/probe.sh"
 
-export CORE_ROOT TESTS_ROOT FIXTURES_ROOT INIT_SH SHELL_MD RESOLVE_SH PROBE_SH
+# Compat shim: legacy bats invoke `bash "$INSTALL_SH" --plugin <id> <ws>`,
+# but the kernel installer is now `python3 install.py`. Tests that still
+# point INSTALL_SH at a sh file should call codenook_install instead, or
+# rely on this wrapper which re-uses the same legacy CLI shape.
+codenook_install() {
+  # codenook_install <workspace> [--plugin <id>] [extra-flags ...]
+  local ws="$1"; shift
+  python3 "$REPO_ROOT/install.py" --target "$ws" --upgrade --yes "$@"
+}
+
+export CORE_ROOT REPO_ROOT TESTS_ROOT FIXTURES_ROOT INIT_SH SHELL_MD \
+       RESOLVE_SH PROBE_SH
+export -f codenook_install
 
 # Per-test scratch dir (BATS_TEST_TMPDIR is provided by bats-core 1.5+).
 make_scratch() {

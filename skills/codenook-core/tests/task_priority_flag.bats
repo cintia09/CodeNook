@@ -4,12 +4,10 @@
 load helpers/load
 load helpers/assertions
 
-REPO_ROOT="$(cd "$CORE_ROOT/../.." && pwd)"
-INSTALL_SH="$REPO_ROOT/install.sh"
 
 setup() {
   ws="$(make_scratch)"
-  bash "$INSTALL_SH" --plugin development "$ws" >/dev/null 2>&1
+  codenook_install "$ws" --plugin development >/dev/null 2>&1
 }
 
 @test "[v0.11.4 E2E-P-008] task new --priority P1 stamps priority" {

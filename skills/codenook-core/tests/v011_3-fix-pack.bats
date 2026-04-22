@@ -18,13 +18,11 @@
 load helpers/load
 load helpers/assertions
 
-REPO_ROOT="$(cd "$CORE_ROOT/../.." && pwd)"
-INSTALL_SH="$REPO_ROOT/install.sh"
 
 setup() {
   ws="$(make_scratch)"
-  bash "$INSTALL_SH" --plugin development "$ws" >/dev/null 2>&1 || {
-    bash "$INSTALL_SH" --plugin development "$ws"
+  codenook_install "$ws" --plugin development >/dev/null 2>&1 || {
+    codenook_install "$ws" --plugin development
     return 1
   }
 }
@@ -86,7 +84,7 @@ assert d.get('chain_root') in ('$parent', None), d.get('chain_root')
 
 # ── E2E-016 ──────────────────────────────────────────────────────────────────
 @test "[v0.11.3] E2E-016 second install.sh on identical workspace exits 0 (idempotent)" {
-  run bash "$INSTALL_SH" --plugin development "$ws"
+  run codenook_install "$ws" --plugin development
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
   [[ "$output" == *"already installed (idempotent)"* ]] || \
     [[ "$output" == *"IDEMPOTENT"* ]]
@@ -102,7 +100,7 @@ for r in d['installed_plugins']:
     if r['id']=='development': r['version']='0.0.1'
 json.dump(d, open(sj,'w'))
 "
-  run bash "$INSTALL_SH" --plugin development "$ws"
+  run codenook_install "$ws" --plugin development
   [ "$status" -eq 3 ]
   [[ "$output" == *"--upgrade"* ]]
 }
@@ -118,7 +116,7 @@ json.dump(d, open(sj,'w'))
 
 @test "[v0.11.3] E2E-018 memory skeleton is idempotent (does not overwrite)" {
   echo "entries: [{topic: keep}]" > "$ws/.codenook/memory/config.yaml"
-  run bash "$INSTALL_SH" --plugin development "$ws"
+  run codenook_install "$ws" --plugin development
   [ "$status" -eq 0 ]
   grep -q "keep" "$ws/.codenook/memory/config.yaml"
 }
