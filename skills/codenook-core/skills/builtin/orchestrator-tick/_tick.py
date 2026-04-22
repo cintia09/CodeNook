@@ -119,8 +119,20 @@ def emit_summary(payload: dict) -> None:
         `reason`) one at a time.
       * Final guard hard-truncates the JSON string at 500 bytes on a
         valid UTF-8 char boundary (rare; only kicks in if every other
-        knob has been exhausted)."""
-    limit = 500
+        knob has been exhausted).
+
+    Exception: when the payload carries a structural ``conductor_
+    instruction`` field — a multi-step ritual that the conductor
+    must execute literally and cannot afford to lose mid-sentence —
+    the cap is raised to 4 KiB so the value is never sliced. The
+    500-byte budget was intended for terse status summaries, not
+    these structured guidance blocks; truncating them silently
+    produced invalid JSON (see lifecycle_full_walk regression).
+    """
+    if "conductor_instruction" in payload:
+        limit = 4096
+    else:
+        limit = 500
     while _payload_bytes(payload) > limit:
         trimmed = False
         for k in ("message_for_user", "next_action"):
@@ -230,20 +242,32 @@ def lookup_transition(trans: dict, cur_id: str, verdict: str,
     layout for backward compatibility.
     """
     table = trans.get("transitions", {}) or trans  # tolerant of either layout
-    # Profile-keyed: prefer profile lookup, fall back to "default" then flat.
-    if profile and isinstance(table, dict) and profile in table \
-            and isinstance(table[profile], dict) \
-            and any(isinstance(v, dict) for v in table[profile].values()):
-        ptable = table[profile]
-        cur = ptable.get(cur_id, {}) or {}
-        nxt = cur.get(verdict)
-        if nxt is not None:
-            return nxt
-        # Allow profile-level entries to inherit from "default" profile.
-        if "default" in table and isinstance(table["default"], dict):
-            cur = table["default"].get(cur_id, {}) or {}
-            return cur.get(verdict)
-        return None
+    # Detect profile-keyed layout: every top-level value is itself a dict
+    # whose values are dicts (i.e. {profile: {phase: {verdict: target}}}).
+    is_profile_keyed = (
+        isinstance(table, dict) and len(table) > 0
+        and all(isinstance(v, dict) for v in table.values())
+        and all(any(isinstance(vv, dict) for vv in v.values())
+                for v in table.values() if v)
+    )
+    if is_profile_keyed:
+        # When the caller didn't pin a profile, fall back to "default"
+        # (the v0.2.0+ contract guarantees plugins ship a default
+        # profile). Without this fallback, every task created without
+        # an explicit --profile would fail to advance past clarify.
+        chosen = profile if (profile and profile in table) else "default"
+        if chosen in table and isinstance(table[chosen], dict):
+            ptable = table[chosen]
+            cur = ptable.get(cur_id, {}) or {}
+            nxt = cur.get(verdict)
+            if nxt is not None:
+                return nxt
+            # Allow profile-level entries to inherit from "default".
+            if chosen != "default" and "default" in table \
+                    and isinstance(table["default"], dict):
+                cur = table["default"].get(cur_id, {}) or {}
+                return cur.get(verdict)
+            return None
     cur = table.get(cur_id, {}) or {}
     nxt = cur.get(verdict)
     return nxt

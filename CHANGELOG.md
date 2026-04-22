@@ -1,3 +1,82 @@
+## v0.27.6 (2026-04-22)
+
+Deep audit pass — fixes 5 latent bugs surfaced during the v0.27.5
+review. Three are real kernel bugs (one production-impacting), two
+are test-only drift.
+
+### Fixed
+- **`emit_summary` produced invalid JSON when `conductor_instruction`
+  was present** (`orchestrator-tick/_tick.py`). The 500-byte
+  output cap originally targeted terse status fragments; the
+  multi-step HITL ritual added in M4 (~700-800 bytes of literal
+  guidance the conductor must execute verbatim) blew through the
+  cap, the trimmer didn't know about the field so trimmed
+  nothing, and `_utf8_safe_truncate` then sliced the JSON string
+  mid-string-value. The conductor saw `{"...":"...approve/reject/n\n`
+  (literal LF after a backslash, no closing brace) and JSON-
+  parsed it to a `JSONDecodeError` — every HITL gate hit on every
+  workspace was failing this way. **Production-impacting**: any
+  conductor that JSON-parsed `tick --json` would crash on the
+  first HITL gate. Fix: when `conductor_instruction` is in the
+  payload, raise the cap to 4 KiB so the value is never sliced.
+
+- **`lookup_transition` didn't fall back to the `default` profile
+  when called with `profile=None`** (`orchestrator-tick/_tick.py`).
+  The v0.2.0+ profile-keyed transitions layout (`{default: {...}, feature: {...}, ...}`) silently returned `None` for any
+  task created without an explicit `--profile`, because no
+  top-level `clarify` / `plan` / etc. key existed. Fix: detect
+  the profile-keyed layout structurally; when the caller didn't
+  pin a profile, route through `default`. **Production-impacting**:
+  every default-profile task previously errored out at the first
+  `tick` after any verdict with `"no transition from <phase>/<verdict>"`.
+
+- **`claude_md_linter` rejected the v0.27+ bootloader** with
+  errors on `clarifier`, `designer`, `implementer`, etc.
+  (`skills/builtin/_lib/claude_md_linter.py`). Two coupled drifts:
+  (a) the linter's "Hard rules" section-exemption regex required
+  the literal "(forbidden)" suffix, but the bootloader uses
+  "(zero domain budget)"; (b) the heading regex was hard-coded to
+  level-2 (`##`), while the bootloader's section is level-3
+  (`###`). Also: the JSON dispatch-envelope example and the
+  §Special cases / §Dispatch envelope sections (which by design
+  must name the clarifier role since they document the protocol's
+  domain-aware exceptions) were not exempt. Fix: relax the
+  Hard-rules pattern to accept any parenthetical suffix at any
+  heading level, exempt JSON / YAML / TOML data-fences, and add
+  a `_ALLOWED_SECTION_RE` for the documented exception sections.
+
+- **`install.py` first-line banner showed the wrong version**
+  on every fresh install of v0.27.5 — `VERSION = "0.27.4"` was
+  not bumped together with the two `VERSION` files. Aligned to
+  0.27.6.
+
+### Tests
+- 6 of 11 legacy bats files using `$REPO_ROOT/install.sh` (which
+  was retired in v0.14.0 → `install.sh.legacy`) were silently
+  failing with exit-127. Replaced by a `codenook_install` shell
+  helper in `helpers/load.bash` that translates the old
+  `bash $INSTALL_SH --plugin <id> <ws>` shape to
+  `python3 install.py --target <ws> --yes [extra]`. The helper
+  intentionally does NOT add `--upgrade` (some tests verify
+  exit-3 mismatch behavior without it).
+
+- **`task_new_entry_question_target_dir.bats` E2E-P-005** —
+  pre-pin state to `phase=implement` directly. The original test
+  expected verdict-driven plan→implement advancement to land in
+  implement, but the plan phase later acquired a `plan_signoff`
+  HITL gate that pauses verdict-driven advancement. The test's
+  scope is the implement entry-question, not the plan→implement
+  transition — direct pinning preserves the intent.
+
+- **`v011_3-fix-pack.bats` E2E-001 `codenook --help`** — relax
+  the assertion to grep each canonical subcommand at line-start
+  rather than as `"codenook <cmd>"` substring (the help format
+  intentionally omits the `codenook` prefix on each line, since
+  it's already implied under `Subcommands:`).
+
+### Regression
+216 pytest / 36 contract / 11 install-bats — all green.
+
 ## v0.27.5 (2026-04-22)
 
 ### Added

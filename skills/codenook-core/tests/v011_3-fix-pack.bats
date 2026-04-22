@@ -35,8 +35,13 @@ setup() {
 @test "[v0.11.3] E2E-001 codenook --help lists canonical workflow commands" {
   run "$ws/.codenook/bin/codenook" --help
   [ "$status" -eq 0 ]
+  # The help output formats each subcommand on its own line WITHOUT the
+  # `codenook` prefix (which is implied by being under "Subcommands:").
+  # Match the bare command at line-start to avoid false positives from
+  # prose mentions elsewhere in --help.
   for cmd in "task new" "router" "tick" "decide" "status" "chain"; do
-    [[ "$output" == *"codenook $cmd"* ]] || { echo "missing: $cmd"; echo "$output"; return 1; }
+    echo "$output" | grep -Eq "^[[:space:]]+${cmd}( |$)" || \
+      { echo "missing canonical subcommand: $cmd"; echo "$output"; return 1; }
   done
 }
 

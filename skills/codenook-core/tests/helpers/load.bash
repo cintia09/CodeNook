@@ -15,10 +15,16 @@ PROBE_SH="$CORE_ROOT/skills/builtin/model-probe/probe.sh"
 # but the kernel installer is now `python3 install.py`. Tests that still
 # point INSTALL_SH at a sh file should call codenook_install instead, or
 # rely on this wrapper which re-uses the same legacy CLI shape.
+#
+# NOTE: --upgrade is NOT added automatically — the installer's behavior
+# without --upgrade (idempotent on identical version, exit 3 on
+# mismatch) is itself under test by some bats files. Callers that want
+# to force-overwrite an existing install must pass --upgrade explicitly,
+# the same as with the legacy shell installer.
 codenook_install() {
   # codenook_install <workspace> [--plugin <id>] [extra-flags ...]
   local ws="$1"; shift
-  python3 "$REPO_ROOT/install.py" --target "$ws" --upgrade --yes "$@"
+  python3 "$REPO_ROOT/install.py" --target "$ws" --yes "$@"
 }
 
 export CORE_ROOT REPO_ROOT TESTS_ROOT FIXTURES_ROOT INIT_SH SHELL_MD \

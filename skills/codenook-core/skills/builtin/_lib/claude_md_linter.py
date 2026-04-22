@@ -81,8 +81,34 @@ ALLOWED_CONTEXT_PATTERNS: list[str] = [
 
 _FENCE_RE = re.compile(r"^\s*```([A-Za-z0-9_-]*)\s*$")
 _HEADING2_RE = re.compile(r"^##\s+(.*?)\s*$")
+_ANY_HEADING_RE = re.compile(r"^(#{2,6})\s+(.*?)\s*$")
 _ALLOW_COMMENT_RE = re.compile(r"^\s*<!--\s*linter:allow\s*-->\s*$")
-_HARD_RULES_RE = re.compile(r"hard\s+rules\s*\(\s*forbidden\s*\)", re.IGNORECASE)
+# Matches "Hard rules" with any optional parenthetical suffix
+# (e.g. "(forbidden)", "(zero domain budget)") at any heading level.
+# The bootloader uses "### Hard rules (zero domain budget)" while
+# older docs used "## Hard rules (forbidden)" — both must exempt the
+# section from the domain-token scan.
+_HARD_RULES_RE = re.compile(
+    r"hard\s+rules(?:\s*\([^)]*\))?\s*$", re.IGNORECASE)
+
+# Sections that legitimately must name domain roles (e.g. the
+# clarifier-runs-INLINE exception, the dispatch-envelope JSON
+# example, the worked example showing what a phase agent envelope
+# looks like). These are documentation of the protocol's domain-
+# aware *exceptions*, so naming the role is unavoidable. Treat
+# them like Hard rules: tokens still surface as warnings (so the
+# author can audit), but do not fail CI.
+_ALLOWED_SECTION_RE = re.compile(
+    r"^\s*(?:special\s+cases|dispatch\s+envelope|clarifier\s+runs)",
+    re.IGNORECASE,
+)
+
+# JSON / YAML fenced examples are structural data — they cannot
+# execute commands, and the dispatch-envelope example must name
+# the role. Treat them as allowed-context fences.
+_DATA_FENCE_TAGS: frozenset[str] = frozenset({
+    "json", "jsonc", "json5", "yaml", "yml", "toml",
+})
 
 # ---------------------------------------------------------------- M9.7 rules
 #
@@ -153,7 +179,9 @@ def scan_file(path: Path, *, check_required_sections: bool = False) -> list[dict
     findings: list[dict[str, Any]] = []
     in_forbidden_fence = False
     in_any_fence = False
+    in_data_fence = False
     in_hard_rules = False
+    in_allowed_section = False
     prev_was_allow = False
 
     for i, raw in enumerate(text.splitlines(), start=1):
@@ -165,23 +193,31 @@ def scan_file(path: Path, *, check_required_sections: bool = False) -> list[dict
                 # closing fence
                 in_any_fence = False
                 in_forbidden_fence = False
+                in_data_fence = False
             else:
                 in_any_fence = True
                 in_forbidden_fence = tag in ("forbidden", "forbidden-example")
+                in_data_fence = tag in _DATA_FENCE_TAGS
             prev_was_allow = False
             continue
 
-        # Heading tracking happens only outside fences.
+        # Heading tracking happens only outside fences. Hard-rules
+        # heading may appear at any depth (### in the bootloader, ##
+        # in older docs), and any-level heading clears the flag when
+        # entering a non-hard-rules section.
         if not in_any_fence:
-            heading = _HEADING2_RE.match(line)
+            heading = _ANY_HEADING_RE.match(line)
             if heading:
-                in_hard_rules = bool(_HARD_RULES_RE.search(heading.group(1)))
+                title = heading.group(2)
+                in_hard_rules = bool(_HARD_RULES_RE.search(title))
+                in_allowed_section = bool(_ALLOWED_SECTION_RE.search(title))
 
         if _ALLOW_COMMENT_RE.match(line):
             prev_was_allow = True
             continue
 
-        allowed = in_forbidden_fence or in_hard_rules or prev_was_allow
+        allowed = (in_forbidden_fence or in_data_fence or in_hard_rules
+                   or in_allowed_section or prev_was_allow)
         severity = "warning" if allowed else "error"
 
         line_findings: list[tuple[int, str]] = []

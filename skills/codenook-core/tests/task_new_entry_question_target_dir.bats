@@ -14,28 +14,27 @@ setup() {
 
 @test "[v0.11.4 E2E-P-005] tick into implement w/o target_dir → exit 2 + missing field" {
   tid="$("$ws/.codenook/bin/codenook" task new --title "X" --dual-mode serial)"
-  # Set state to "just-finished plan, about to dispatch implement, but
-  # target_dir cleared". Tick should attempt implement → block with
-  # missing target_dir, status=blocked, exit 2.
+  # Set state directly to "ready to dispatch implement, target_dir
+  # cleared". Tick should attempt implement → block with missing
+  # target_dir, status=blocked, exit 2.
+  #
+  # NOTE: this test used to set phase=plan with the planner's
+  # verdict already on disk and let tick advance through
+  # plan → implement, but the plan phase later acquired a
+  # `plan_signoff` HITL gate, so verdict-driven advancement now
+  # pauses for HITL first. We bypass that by pre-pinning the
+  # implement phase directly — what we're testing is the implement
+  # entry-question, not the plan→implement transition.
   python3 - <<PY
 import json
 sf = "$ws/.codenook/tasks/$tid/state.json"
 d = json.load(open(sf))
-d["phase"] = "plan"
+d["phase"] = "implement"
 d["max_iterations"] = 3
 d["target_dir"] = ""  # clear default src/
 d["status"] = "in_progress"
 d["history"] = []
-d["in_flight_agent"] = {
-    "agent_id": "a", "role": "planner",
-    "dispatched_at": "x",
-    "expected_output": "outputs/phase-3-planner.md",
-}
-import os
-os.makedirs("$ws/.codenook/tasks/$tid/outputs", exist_ok=True)
-open("$ws/.codenook/tasks/$tid/outputs/phase-3-planner.md","w").write(
-    "---\nverdict: ok\nsummary: ok\n---\n"
-)
+d["in_flight_agent"] = None
 json.dump(d, open(sf,"w"), indent=2)
 PY
   set +e
