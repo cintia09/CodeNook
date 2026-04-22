@@ -125,7 +125,7 @@ PY
 }
 
 if [[ $# -eq 0 ]]; then
-  set -- s1 s2 s3 s4 s5 s6
+  set -- s1 s2 s3 s4 s5 s6 s7
 fi
 
 for id in "$@"; do
@@ -169,6 +169,12 @@ for id in "$@"; do
         "我想给 nook 自身写个 README，你帮我组织一下。" \
         'memory/index\.yaml' \
         "natural prompt → boot ritual must STILL read memory/index.yaml (regression)" ;;
+    s7) run_scenario_tools s7 \
+        "我想给 InferX 项目做一次代码重构，帮我开个新任务跟踪。
+我的访谈回答：范围=全项目；目标=可维护性；约束=不引入新依赖；优先级=normal。
+执行模式选 sub-agent，模型用默认。" \
+        'task suggest-parent|suggest_parents|parent_suggester' \
+        "duplicate-detection → must call task suggest-parent before task new" ;;
     *) echo "unknown scenario: $id"; exit 1 ;;
   esac
 done
