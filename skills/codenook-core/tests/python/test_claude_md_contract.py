@@ -358,6 +358,52 @@ def test_contract_12_just_go_does_not_skip_exec_or_model_ask():
     ), "Exemption-scoping rule for exec/model asks is missing."
 
 
+def test_contract_13_session_start_ritual_is_mandatory_in_hard_rules():
+    """Regression: agents skip memory/index.yaml in the boot ritual
+    because it 'doesn't look needed yet'. A MUST line in §Hard
+    rules must mark the boot batch atomic and call out memory/
+    index.yaml by name."""
+    out = render()
+    # MUST line referencing the ritual + memory/index.yaml + atomicity
+    assert re.search(
+        r"\*\*MUST\*\*.*?(Session-?start ritual|boot ritual).*?memory/index\.yaml",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ), "No MUST rule pins the boot ritual atomicity."
+    # Ritual heading itself should be marked MANDATORY/atomic
+    assert re.search(
+        r"###\s+Session-start ritual\b.*?(MANDATORY|atomic|all four)",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ), "Session-start ritual heading is not marked MANDATORY/atomic."
+
+
+def test_contract_14_duplicate_parent_check_is_mandatory():
+    """Regression: 15 nook tasks include 4 duplicate InferX-refactor
+    tasks and 2 duplicate nook-readme tasks because the conductor
+    never checked for similar existing work. v0.27.4 introduces
+    `task suggest-parent`; bootloader must instruct conductor to
+    call it after the interview and before `task new`."""
+    out = render()
+    # The CLI invocation must appear with a low cross-language
+    # threshold (default 0.15 misses Chinese-vs-English title pairs).
+    assert re.search(
+        r"task\s+suggest-parent.*?--brief",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ), "task suggest-parent CLI invocation is missing from bootloader."
+    # And a hard-rule MUST line must forbid skipping it.
+    assert re.search(
+        r"\*\*MUST\*\*.*?(suggest-parent|Duplicate.*?parent check)",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ), "No MUST rule forbids skipping the duplicate / parent check."
+    # User must be offered three choices, not silently aggregated.
+    assert re.search(
+        r"(continue|resume).*?(parent|child|chain).*?(independent|fresh)",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ) or re.search(
+        r"(parent|child|chain).*?(independent|fresh).*?(continue|resume)",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ), "Three-way choice (continue / chain / independent) is missing."
+
+
 # =====================================================================
 # CONTRACT-13 — Workspace layout
 # =====================================================================

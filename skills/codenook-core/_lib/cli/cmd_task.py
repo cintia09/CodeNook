@@ -20,13 +20,34 @@ from .config import (
 
 
 HELP_TASK = """\
-codenook task <new|set|set-model|set-exec|set-profile>
+codenook task <new|set|set-model|set-exec|set-profile|suggest-parent>
 
-  new          create a new T-NNN under .codenook/tasks/
-  set          mutate a writable field on an existing task
-  set-model    set or clear the per-task LLM model_override
-  set-exec     set the per-task execution_mode (sub-agent | inline)
-  set-profile  set the per-task profile (must match plugin's phases.yaml)
+  new             create a new T-NNN under .codenook/tasks/
+  set             mutate a writable field on an existing task
+  set-model       set or clear the per-task LLM model_override
+  set-exec        set the per-task execution_mode (sub-agent | inline)
+  set-profile     set the per-task profile (must match plugin's phases.yaml)
+  suggest-parent  rank open tasks by similarity to a child brief (Jaccard)
+"""
+
+HELP_SUGGEST_PARENT = """\
+Usage: codenook task suggest-parent --brief "<child brief text>" [options]
+
+Rank open tasks in the workspace by token-set Jaccard similarity to
+the supplied brief, so the conductor can offer the user the choice
+to (a) resume an existing task, (b) chain the new one as a child via
+`task new --parent T-NNN`, or (c) ignore and create independently.
+
+Options:
+  --brief <text>      required (the candidate child task's brief)
+  --top-k <N>         number of candidates to return (default: 3)
+  --threshold <F>     minimum Jaccard score in [0, 1] (default: 0.15)
+  --exclude <T-NNN>   task id to exclude (repeatable)
+  --json              emit JSON array on stdout (recommended for
+                      machine consumption); plain TSV otherwise
+
+Exit 0 with empty output / `[]` when no open tasks meet the
+threshold (this is normal — proceed to create a fresh task).
 """
 
 HELP_SET = """\
@@ -177,6 +198,8 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
         return _task_set_exec(ctx, rest)
     if sub == "set-profile":
         return _task_set_profile(ctx, rest)
+    if sub == "suggest-parent":
+        return _task_suggest_parent(ctx, rest)
     sys.stderr.write(f"codenook task: unknown subcommand: {sub}\n")
     sys.stderr.write(HELP_TASK)
     return 2
@@ -896,3 +919,36 @@ def _subproc_env(ctx: CodenookContext) -> dict:
     env.setdefault("PYTHONUTF8", "1")
     env.setdefault("PYTHONIOENCODING", "utf-8")
     return env
+
+
+def _task_suggest_parent(ctx: CodenookContext, args: list[str]) -> int:
+    """Thin wrapper around `parent_suggester.suggest_parents()`.
+
+    Exposes the kernel's existing Jaccard-based parent-suggestion lib
+    (already used internally by router-agent during dispatch) as a CLI
+    surface the conductor can call BEFORE `task new` to detect
+    duplicate / sibling work and offer the user the choice to chain or
+    resume instead of creating yet another orphan task. The library
+    itself owns the ranking, threshold semantics, and audit trail —
+    this wrapper only re-uses its argparse via `parent_suggester.cli_main`.
+    """
+    if args and args[0] in ("-h", "--help"):
+        print(HELP_SUGGEST_PARENT)
+        return 0
+
+    # The library lives in skills/builtin/_lib/, which load_context()
+    # has already prepended to sys.path; the import resolves at call
+    # time to avoid an import-order coupling.
+    import parent_suggester  # type: ignore[import-not-found]
+
+    # Always pin the library's --workspace flag to the resolved CodeNook
+    # workspace from this invocation; users supplying their own
+    # --workspace get a clear error rather than two competing values.
+    if any(a == "--workspace" for a in args):
+        sys.stderr.write(
+            "codenook task suggest-parent: --workspace is not accepted "
+            "(the kernel pins it to the active workspace)\n")
+        return 2
+
+    forwarded = ["--workspace", str(ctx.workspace), *args]
+    return parent_suggester.cli_main(forwarded)

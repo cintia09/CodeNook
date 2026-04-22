@@ -1,3 +1,57 @@
+## v0.27.4 (2026-04-22)
+
+Boot-ritual hardening + parent-task aggregation CLI.
+
+### Added
+- **`<codenook> task suggest-parent` CLI subcommand**
+  (`_lib/cli/cmd_task.py`) — thin wrapper around the existing
+  `parent_suggester.suggest_parents()` Jaccard-ranking library
+  in `skills/builtin/_lib/`, which until now was only reachable
+  internally from `router-agent`. Now any conductor can call:
+  ```
+  <codenook> task suggest-parent --brief "<text>" --threshold 0.10 --json
+  ```
+  to get a ranked list of open tasks that look like duplicates
+  or siblings of the candidate brief, and offer the user a
+  three-way choice (continue existing / chain as child via
+  `--parent T-NNN` / create independently). The wrapper pins
+  `--workspace` to the active CodeNook workspace and rejects
+  any user-supplied `--workspace` to prevent ambiguity.
+- **Bootloader §Duplicate / parent check** — new mandatory
+  step inserted between the pre-task interview and the
+  pre-creation config ask, instructing the conductor to call
+  `task suggest-parent` and surface results as a single
+  `ask_user` choice. Recommends `--threshold 0.10` (instead of
+  the kernel default 0.15) to catch cross-language Chinese↔
+  English title pairs that share only one token. Backed by a
+  hard-rule MUST line.
+- **Behavioural scenario s6** — exercises the §Session-start
+  ritual under a natural prompt ("帮我给 nook 写个 README"),
+  asserting that `memory/index.yaml` is among the agent's
+  initial Reads. Currently RED in the wild (see Known issues).
+- **Contract tests `test_contract_13_session_start_ritual_…`
+  and `test_contract_14_duplicate_parent_check_is_mandatory`** —
+  pin the new MUST + heading + three-way choice wording.
+  Total contract suite: 36 tests, all green.
+
+### Changed
+- **§Session-start ritual heading** marked
+  `(MANDATORY, do once per session)` with explicit
+  "all four reads as one atomic batch" wording, and a fourth
+  hard-rule MUST line was added forbidding partial / lazy
+  reads of `memory/index.yaml`. Driven by an observed failure
+  mode where agents finished `state.json` + plugin reads,
+  noticed they "didn't need" memory yet, and skipped it —
+  only to realise mid-flow that they had to backfill.
+
+### Known issues
+- Behavioural `s6` (memory-in-natural-prompt) still fails
+  intermittently against `claude -p` even with the new MUST
+  + MANDATORY wording. Markdown-only enforcement appears to
+  have a ceiling for ritual atomicity; structural defenses
+  (e.g. kernel-side preflight assertion) are tracked for a
+  future release.
+
 ## v0.27.3 (2026-04-22)
 
 CLAUDE.md bootloader content refactor — accuracy + dedup + structure.

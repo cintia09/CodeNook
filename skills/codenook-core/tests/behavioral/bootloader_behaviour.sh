@@ -125,7 +125,7 @@ PY
 }
 
 if [[ $# -eq 0 ]]; then
-  set -- s1 s2 s3 s4 s5
+  set -- s1 s2 s3 s4 s5 s6
 fi
 
 for id in "$@"; do
@@ -164,7 +164,11 @@ for id in "$@"; do
     s5) run_scenario_tools s5 \
         "你好，请按 CodeNook 会话启动仪式读取必要的工作区清单文件。然后告诉我你读了哪些文件。" \
         'memory/index\.yaml' \
-        "session-start ritual reads memory/index.yaml" ;;
+        "session-start ritual reads memory/index.yaml (explicit prompt)" ;;
+    s6) run_scenario_tools s6 \
+        "我想给 nook 自身写个 README，你帮我组织一下。" \
+        'memory/index\.yaml' \
+        "natural prompt → boot ritual must STILL read memory/index.yaml (regression)" ;;
     *) echo "unknown scenario: $id"; exit 1 ;;
   esac
 done

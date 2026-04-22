@@ -89,6 +89,20 @@ a CodeNook task.
   "你看着办" — that exemption applies ONLY to the pre-task
   interview, never to exec mode or model. See §Pre-creation
   config ask for the exact protocol.
+- **MUST** complete the §Session-start ritual reads as a single
+  batch (`state.json` + every installed `plugin.yaml` +
+  `memory/index.yaml` + `<codenook> status`) before answering
+  any CodeNook-related request. Skipping `memory/index.yaml`
+  because it "doesn't look needed yet" is a common failure
+  mode — it is part of the inventory, not optional context;
+  read it on every fresh session even when only one of the
+  other items would be enough to act.
+- **MUST** run `<codenook> task suggest-parent` after the pre-
+  task interview and BEFORE `task new`, then surface any
+  non-empty result to the user as a continue / chain / create-
+  independently choice. Never silently aggregate or chain on
+  the user's behalf, and never skip the check on the assumption
+  that the new task is unique. See §Duplicate / parent check.
 - **MUST NOT** interpret, paraphrase, or summarise the HITL `prompt`
   field or per-phase outputs. Relay verbatim.
 - **MUST** end every reply by asking the user what their next step
@@ -114,12 +128,15 @@ a CodeNook task.
 see the installed plugin's `README.md` § task-chains for plugin-
 specific notes.
 
-### Session-start ritual (do once per session)
+### Session-start ritual (MANDATORY, do once per session)
 
 The first time the user mentions CodeNook in a session — or any
 time you are about to call a `<codenook>` subcommand and have not
 yet loaded the workspace inventory in this conversation — read
-**all** of the following in one batch and cache them:
+**all four** of the following as a single batch and cache them.
+This is atomic: do not split it across turns and do not skip an
+item just because the immediate next step "only needs" one of
+them.
 
 1. `.codenook/state.json` — `installed_plugins` is the
    authoritative plugin id list (do not glob).
@@ -166,6 +183,36 @@ would otherwise need: scope, audience, style, existing inputs.
 Concatenate the answers (one Q+A per line) into a single
 multi-line string — that becomes `--input`. Skip ONLY when the
 user explicitly says "just go" / "你看着办" / supplies a brief.
+
+#### Duplicate / parent check (MANDATORY)
+
+After the interview, **before** the Pre-creation config ask,
+run:
+
+```bash
+<codenook> task suggest-parent \
+    --brief "<title + summary + interview answers, one string>" \
+    --threshold 0.10 \
+    --top-k 3 \
+    --json
+```
+
+(Use `--threshold 0.10` rather than the kernel default `0.15` to
+catch cross-language duplicates — a Chinese title and an English
+brief that share only one token still cluster.) If the JSON array
+is non-empty, surface the candidates in ONE `ask_user` with the
+following choices:
+
+1. **Continue an existing task** — pick which `T-NNN` to resume
+   (no new task is created; you simply tick the chosen one).
+2. **Create as a child** — pass `--parent <T-NNN>` to `task new`
+   so the new task chains under the chosen parent.
+3. **Create independently** — proceed with `task new` without a
+   `--parent` flag.
+
+Skip the ask only when `suggest-parent` returns `[]`. Never
+silently aggregate or chain on the user's behalf — the choice
+between these three is the user's, not the conductor's.
 
 #### Pre-creation config ask (execution mode, then model) — MANDATORY
 
