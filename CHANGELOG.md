@@ -1,3 +1,89 @@
+## v0.27.17 (2026-04-23)
+
+Multi-angle audit fixpack (security + resilience + concurrency).
+Three parallel code-reviews (security / resilience / concurrency)
+surfaced 9 findings; this release lands the recommended top-5 subset.
+
+### Fixed
+- **[Critical] Path traversal in `chain link --child` / `--parent`**
+  (`_lib/cli/cmd_chain.py:50`) — the command interpolated its
+  `--child` argument straight into `ctx.workspace / ".codenook" /
+  "tasks" / child / "state.json"`. A value like `../../.ssh/id_rsa`
+  escaped the tasks sandbox. Both `--child` and `--parent` are now
+  rejected with exit 2 when they fail the shared `is_safe_task_component`
+  guard (rejects `..`, `/`, `\`, NUL, leading `.` or `_`, and
+  multi-component paths).
+- **[High] Path traversal in `task new --id`** (`_lib/cli/cmd_task.py`)
+  — `--id` fed directly into `tdir = ws/.codenook/tasks/<id>` with
+  `mkdir(parents=True, exist_ok=False)`, which could create arbitrary
+  directories and a rogue `state.json` anywhere inside the workspace.
+  Now validated at argument-parse time with the same
+  `is_safe_task_component` guard.
+- **[Medium] `codenook tick` crashes on corrupt `state.json`**
+  (`_lib/cli/cmd_tick.py:107`) — the envelope-augmentation pass did a
+  raw `json.loads(state_p.read_text(...))` outside of any try/except.
+  A malformed or hand-edited state.json raised `JSONDecodeError` and
+  dumped a stack trace instead of degrading. Now wrapped; tick output
+  is returned unaugmented on parse failure, matching the existing
+  "skip-on-parse-fail" pattern elsewhere in the kernel.
+- **[Low] `hitl notify` re-POSTs decided entries during a decide × scan
+  race** (`_lib/cli/cmd_hitl_notify.py:192`) — the daemon's pending
+  scan didn't inspect the `decision` field, so an entry that had just
+  been decided in-place (before it moved to `_consumed/`) would still
+  be sent to the webhook. Pending set is now filtered to drop any
+  entry whose `decision` field is truthy, preserving the
+  "notify once per queued entry" contract.
+- **[Low] `task new` ID-allocation retry cap raised 16 → 128**
+  (`_lib/cli/cmd_task.py`) — the collision-retry ceiling was too low
+  for bursty concurrent `task new` invocations (e.g. CI parallelism).
+  Raised to 128; error message and comment updated.
+
+### Added
+- **`is_safe_task_component(name)`** helper in `_lib/cli/config.py` —
+  canonical path-traversal guard for every CLI surface that accepts
+  a task id from user input. `resolve_task_id` now calls it at the
+  top, so the existence-check against the real filesystem is never
+  performed on a malicious path.
+
+### Tests
+- **23 new regression tests** in `tests/python/test_v017_2_fixes.py`:
+  - 7 params × `chain link --child` traversal rejection
+  - 4 params × `chain link --parent` traversal rejection
+  - 9 params × `task new --id` traversal rejection (plus a
+    post-condition that confirms no rogue dirs were created outside
+    `.codenook/tasks/`)
+  - Corrupt-state.json tolerance in `_augment_envelope`
+  - `hitl notify --once` skips an entry with `decision:"approve"`,
+    using an in-process `http.server` to capture POSTs
+  - Pin-test for the `128 attempts` retry-cap message
+
+### Tests (full suite)
+- 289 passed / 2 skipped (was 266 passed / 2 skipped in v0.27.16).
+
+### Known deferrals (from the same audit)
+- **[Medium] `atomic_write_json_validated` has no OS-level lock**
+  (`skills/builtin/_lib/atomic.py`) — rename-based atomicity only.
+  Two concurrent writers to the same `state.json` can lose an update
+  under last-writer-wins. CodeNook's single-tick-per-task model makes
+  this rare in practice; a proper `fcntl.flock` upgrade will be
+  scoped as a standalone RFC.
+- **[Medium] Install pipeline lacks cross-invocation locking**
+  (`_lib/installer/_orchestrator.py`) — two concurrent `install.py`
+  runs against the same workspace can both read the pre-mutation
+  `state.json` and lose one plugin's entry in the append-then-write
+  pass. Same RFC as above.
+- **[Low] Chain link parent+child two-file write is non-atomic**,
+  **[Low] `codenook upgrade` × `tick` interleaving on the same task**
+  — both need a lock or a documented "quiesce" protocol. Filed for
+  later.
+
+### Verification
+- Live-installed into `/Users/mingdw/Documents/nook`; re-ran a
+  smoke tick → envelope + chain commands. Traversal rejects with
+  clear error; normal flow unchanged.
+
+---
+
 ## v0.27.16 (2026-04-23)
 
 Phase C deep-review fixpack. One real bug surfaced + one defensive

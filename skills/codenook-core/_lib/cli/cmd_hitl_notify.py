@@ -188,6 +188,15 @@ def run(ctx: CodenookContext, argv: Sequence[str]) -> int:
         """Returns True if every POST in this scan succeeded (or was a no-op)."""
         all_ok = True
         pending = _scan_pending(ctx)
+        # Skip entries that were decided in-place (the decide flow
+        # writes a `decision` field before moving to _consumed/, so
+        # there's a window where the file is still in the queue but
+        # no longer pending HITL). Preserves the "notify once per
+        # queued entry" contract against decide × scan races.
+        pending = {
+            eid: data for eid, data in pending.items()
+            if not (isinstance(data, dict) and data.get("decision"))
+        }
         new_ids = sorted(set(pending) - notified)
         for eid in new_ids:
             envelope = {

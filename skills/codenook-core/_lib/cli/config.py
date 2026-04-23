@@ -253,6 +253,25 @@ def compose_task_id(n: int, slug: str) -> str:
     return f"{base}-{slug}"
 
 
+def is_safe_task_component(name: str) -> bool:
+    """True iff *name* is a safe single-path-component task id.
+
+    Rejects path traversal (``..``, ``/``, ``\\``), absolute paths,
+    and hidden/archive-prefix names (``.`` / ``_``). Used by every
+    subcommand that accepts a task id from CLI input before that
+    id is interpolated into a filesystem path, to defend against
+    CVE-style path-traversal attacks (cintia09/CodeNook v0.27.17).
+    """
+    if not name or name in (".", ".."):
+        return False
+    if "/" in name or "\\" in name or "\x00" in name:
+        return False
+    if name.startswith(".") or name.startswith("_"):
+        return False
+    parts = Path(name).parts
+    return len(parts) == 1 and parts[0] == name
+
+
 def resolve_task_id(workspace: Path, partial: str) -> tuple[str | None, list[str]]:
     """Resolve a (possibly bare) ``T-NNN`` to its full slugged dir name.
 
@@ -268,6 +287,8 @@ def resolve_task_id(workspace: Path, partial: str) -> tuple[str | None, list[str
     ``T-003-写blog``.
     """
     if not partial:
+        return None, []
+    if not is_safe_task_component(partial):
         return None, []
     tasks_dir = workspace / ".codenook" / "tasks"
     if not tasks_dir.is_dir():

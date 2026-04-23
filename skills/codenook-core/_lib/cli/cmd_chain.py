@@ -7,7 +7,7 @@ import sys
 from typing import Sequence
 
 from . import _subproc
-from .config import CodenookContext
+from .config import CodenookContext, is_safe_task_component
 
 
 def run(ctx: CodenookContext, args: Sequence[str]) -> int:
@@ -38,6 +38,16 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
         if not (child and parent):
             sys.stderr.write(
                 "codenook chain link: --child and --parent required\n")
+            return 2
+        if not is_safe_task_component(child):
+            sys.stderr.write(
+                f"codenook chain link: invalid --child (path traversal "
+                f"rejected): {child!r}\n")
+            return 2
+        if not is_safe_task_component(parent):
+            sys.stderr.write(
+                f"codenook chain link: invalid --parent (path traversal "
+                f"rejected): {parent!r}\n")
             return 2
 
         cp = subprocess.run(

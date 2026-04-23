@@ -104,7 +104,14 @@ def _augment_envelope(ctx: CodenookContext, task: str, tick_out: str) -> str:
     state_p = ctx.workspace / ".codenook" / "tasks" / task / "state.json"
     if not state_p.is_file():
         return tick_out
-    state = json.loads(state_p.read_text(encoding="utf-8"))
+    try:
+        state = json.loads(state_p.read_text(encoding="utf-8"))
+    except Exception:
+        # Corrupt state.json — degrade gracefully and emit the raw
+        # tick output so the operator can still see what happened.
+        return tick_out
+    if not isinstance(state, dict):
+        return tick_out
     ifa = state.get("in_flight_agent") or {}
     plugin = state.get("plugin") or ""
     phase = state.get("phase") or ""

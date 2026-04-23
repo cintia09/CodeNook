@@ -25,8 +25,8 @@ from pathlib import Path
 from typing import Sequence
 
 from .config import (
-    CodenookContext, compose_task_id, iter_active_task_dirs, next_task_id,
-    resolve_task_id, slugify,
+    CodenookContext, compose_task_id, is_safe_task_component,
+    iter_active_task_dirs, next_task_id, resolve_task_id, slugify,
 )
 
 # atomic_write_json_validated lives in skills/builtin/_lib/atomic.py;
@@ -363,6 +363,11 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
                 accept_defaults = True
             elif a == "--id":
                 task_id = next(it)
+                if not is_safe_task_component(task_id):
+                    sys.stderr.write(
+                        f"codenook task new: invalid --id (path traversal "
+                        f"or reserved prefix): {task_id!r}\n")
+                    return 2
             elif a == "--model":
                 model = next(it)
             elif a == "--exec":
@@ -433,7 +438,7 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
         # concurrent `task new` invocations that compute the same
         # next_task_id() would otherwise both pass mkdir(exist_ok=True)
         # and the second would clobber the first's state.json. Retry
-        # up to 16 times to absorb concurrent reservers.
+        # up to 128 times to absorb bursty concurrent reservers.
         # Slug source preference: --title wins because it is the
         # human-curated short label (≤24 chars). --input is rejected
         # as a slug source when it looks like multi-line interview
@@ -448,7 +453,7 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
         slug = slugify(slug_source) if slug_source else ""
         tasks_root = ctx.workspace / ".codenook" / "tasks"
         tasks_root.mkdir(parents=True, exist_ok=True)
-        for _attempt in range(16):
+        for _attempt in range(128):
             n = next_task_id(ctx.workspace)
             task_id = compose_task_id(n, slug)
             tdir = tasks_root / task_id
@@ -465,7 +470,7 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
         else:
             sys.stderr.write(
                 "codenook task new: could not reserve a task id slot "
-                "after 16 attempts; another writer is racing.\n")
+                "after 128 attempts; another writer is racing.\n")
             return 1
     else:
         tdir = ctx.workspace / ".codenook" / "tasks" / task_id
