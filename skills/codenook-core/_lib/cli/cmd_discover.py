@@ -101,6 +101,25 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
         return 2
 
     if type_filter:
+        # Validate against the appropriate DISCOVERY_ROOTS slice so that
+        # typos (e.g. `roles` vs `role`) fail loudly instead of silently
+        # producing zero entities.
+        roots = discovery.DISCOVERY_ROOTS  # type: ignore[attr-defined]
+        if want_all:
+            allowed = set(roots["plugin"]) | set(roots["memory"])
+            ctx_label = "plugins+memory"
+        elif sub == "plugins":
+            allowed = set(roots["plugin"])
+            ctx_label = "plugins"
+        else:  # memory
+            allowed = set(roots["memory"])
+            ctx_label = "memory"
+        if type_filter not in allowed:
+            sys.stderr.write(
+                f"codenook discover: --type {type_filter!r} is not valid for "
+                f"{ctx_label}.  valid types: {', '.join(sorted(allowed))}\n"
+            )
+            return 2
         entities = [e for e in entities if e.type == type_filter]
 
     if json_out:
