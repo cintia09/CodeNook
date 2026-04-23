@@ -1,3 +1,57 @@
+## v0.27.15 (2026-04-23)
+
+Phase C4 of the v0.27.9 follow-up plan: HTTP UI + webhook fan-out for
+the HITL queue. Stdlib only — no new runtime dependency.
+
+### Added
+- **`codenook hitl serve [--port N] [--bind addr]`** — single-process
+  stdlib HTTP server with a tiny review UI:
+    - `GET  /` — pending + recently-decided entries
+    - `GET  /entry/<id>` — prompt + decision form
+    - `GET  /entry/<id>/raw` — raw JSON
+    - `POST /entry/<id>/decide` — form action; mutation is delegated
+      to the same `hitl-adapter/_hitl.py` helper the CLI
+      `hitl decide` path uses (single source of truth)
+  Defaults to `127.0.0.1:8765`. Intentionally minimal — no auth, no
+  CSRF, no TLS. Bind to localhost and tunnel via SSH if you need
+  remote access. Entry-id whitelist protects against path traversal.
+- **`codenook hitl notify --webhook <url>`** — polls
+  `.codenook/hitl-queue/` and POSTs a JSON envelope per new entry:
+  ```
+  {"event": "hitl.queued", "workspace": "/abs",
+   "entry": { …raw queue JSON… }}
+  ```
+  Flags: `--once`, `--interval N`, `--header K=V` (repeatable for
+  e.g. `Authorization=Bearer …`), `--state-file <path>` for
+  cross-restart at-least-once durability, `--user-agent <s>`.
+  Stale ids (decided / archived) are evicted from the
+  already-notified set so future re-queues with the same id do
+  re-notify.
+
+### Changed
+- `cmd_hitl.HELP` and `app.USAGE` now list `serve` + `notify`
+  alongside `list/show/decide`.
+
+### Tests
+- `tests/python/test_cli_smoke.py` (+2):
+  - `hitl notify --once` against a stdlib HTTP test server fires
+    one envelope per pending entry, exit 0.
+  - `hitl serve --port <free>` binds, returns the index HTML
+    containing "codenook hitl", terminates cleanly on SIGTERM.
+
+### Verification
+- 264 pytest passing / 2 skipped.
+
+### Phase C summary
+v0.27.12 (C1 schema migrations) → v0.27.13 (C2 bats→pytest first
+batch) → v0.27.14 (C3 plugin diff/update) → v0.27.15 (C4 hitl
+serve/notify). All four phase-C items shipped as separate
+versions, each with its own tests and changelog. Skipped item #9
+(sub-agent dispatch protocolisation) remains as a future design
+ticket — needs RFC, not just code.
+
+---
+
 ## v0.27.14 (2026-04-23)
 
 Phase C3 of the v0.27.9 follow-up plan: per-plugin diff + update.

@@ -19,6 +19,12 @@ codenook hitl <subcmd> [args...]
   show    --id <hitl-entry-id> [--raw]
   decide  --id <id> --decision <approve|reject|needs_changes>
           [--reviewer <name>] [--comment "..."]
+  serve   [--port N] [--bind addr]
+          run a stdlib HTTP UI for browsing + deciding pending HITL
+          entries (POST writes via the same hitl decide path)
+  notify  --webhook <url> [--once] [--interval N] [--header K=V]
+          watch hitl-queue/ and POST a JSON envelope to <url> for each
+          new pending entry (run as a daemon; --once = single scan)
 """
 
 
@@ -97,6 +103,14 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
             "CN_JSON": "0",
         }
         return _exec(ctx, helper, extra)
+
+    if sub == "serve":
+        from . import cmd_hitl_serve
+        return cmd_hitl_serve.run(ctx, rest, helper)
+
+    if sub == "notify":
+        from . import cmd_hitl_notify
+        return cmd_hitl_notify.run(ctx, rest)
 
     sys.stderr.write(f"codenook hitl: unknown subcommand: {sub}\n")
     return 2

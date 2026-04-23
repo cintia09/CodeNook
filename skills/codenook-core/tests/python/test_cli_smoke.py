@@ -397,3 +397,103 @@ def test_plugin_update_idempotent_on_same_version(
         (ws / ".codenook" / "state.json").read_text(encoding="utf-8"))
     plugins = {p["id"] for p in state.get("installed_plugins", [])}
     assert "development" in plugins
+
+
+def test_hitl_notify_once_posts_pending(installed_workspace: Path) -> None:
+    """hitl notify --once should POST one envelope per pending entry."""
+    import http.server
+    import socketserver
+    import threading
+
+    ws = installed_workspace
+    qdir = ws / ".codenook" / "hitl-queue"
+    qdir.mkdir(parents=True, exist_ok=True)
+
+    # Seed one synthetic pending entry.
+    eid = "T-999-notify_test"
+    (qdir / f"{eid}.json").write_text(json.dumps({
+        "id": eid, "task_id": "T-999", "plugin": "development",
+        "gate": "notify_test", "prompt": "test", "verdict_at_gate": "ok",
+    }), encoding="utf-8")
+
+    received: list[dict] = []
+
+    class _H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *_a, **_kw):
+            pass
+
+        def do_POST(self):  # noqa: N802
+            n = int(self.headers.get("Content-Length") or "0")
+            body = self.rfile.read(n).decode("utf-8")
+            try:
+                received.append(json.loads(body))
+            except Exception:
+                pass
+            self.send_response(204)
+            self.end_headers()
+
+    class _Srv(socketserver.TCPServer):
+        allow_reuse_address = True
+
+    httpd = _Srv(("127.0.0.1", 0), _H)
+    port = httpd.server_address[1]
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+
+    try:
+        cp = _run(_bin_cmd(ws) + [
+            "hitl", "notify", "--once",
+            "--webhook", f"http://127.0.0.1:{port}/hook",
+        ])
+        assert cp.returncode == 0, cp.stdout + cp.stderr
+        assert any(env.get("entry", {}).get("id") == eid
+                   for env in received), received
+        assert all(env.get("event") == "hitl.queued" for env in received)
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        # Cleanup synthetic entry.
+        try:
+            (qdir / f"{eid}.json").unlink()
+        except OSError:
+            pass
+
+
+def test_hitl_serve_index_renders(installed_workspace: Path) -> None:
+    """hitl serve should bind a port, render /, and shut down on signal."""
+    import socket
+    import subprocess as sp
+    import time
+    import urllib.request
+
+    ws = installed_workspace
+    # Pick a free port.
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+
+    proc = sp.Popen(
+        _bin_cmd(ws) + ["hitl", "serve", "--port", str(port)],
+        stdout=sp.PIPE, stderr=sp.PIPE, text=True,
+    )
+    try:
+        # Wait up to 3s for the server to start.
+        deadline = time.time() + 3.0
+        body: str | None = None
+        while time.time() < deadline:
+            try:
+                with urllib.request.urlopen(
+                        f"http://127.0.0.1:{port}/", timeout=1.0) as r:
+                    body = r.read().decode("utf-8")
+                    break
+            except Exception:
+                time.sleep(0.1)
+        assert body is not None, "server never came up"
+        assert "codenook hitl" in body
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=3.0)
+        except sp.TimeoutExpired:
+            proc.kill()

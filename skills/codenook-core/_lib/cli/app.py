@@ -47,7 +47,7 @@ Subcommands:
   tick     --task T-NNN [--json]
   decide   --task T-NNN --phase <id> --decision approve|reject|needs_changes
                                     [--comment "…"]
-  hitl     <list|show|decide> [args...]
+  hitl     <list|show|decide|serve|notify> [args...]
   extract  --task T-NNN --reason <reason> [--phase <phase>]
   status   [--task T-NNN]
   chain    link  --child T-X --parent T-Y [--force]
