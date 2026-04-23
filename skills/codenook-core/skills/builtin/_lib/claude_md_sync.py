@@ -61,9 +61,13 @@ user's request is substantial; the user always confirms before
 - **MUST** complete the §Session-start ritual on the **first tool
   call of every session performed inside a workspace where
   `.codenook/` exists**, regardless of whether the user has
-  mentioned CodeNook. The ritual loads the workspace inventory
-  (memory + plugins) so subsequent answers can use it. Re-run
-  only when state.json indicates plugins changed or
+  mentioned CodeNook. Detect existence by attempting to read
+  `.codenook/state.json` (one `view` / file-read call); if that
+  file exists and parses as JSON, CodeNook is installed. Many
+  hosts hide dot-directories from `glob`, so do not rely on
+  directory listing alone. The ritual loads the workspace
+  inventory (memory + plugins) so subsequent answers can use
+  it. Re-run only when state.json indicates plugins changed or
   `.codenook/` was newly installed mid-session.
 - **MUST** proactively *recommend* a CodeNook task whenever the
   user's request is **substantial** (see §Auto-engagement for the
@@ -82,17 +86,31 @@ user's request is substantial; the user always confirms before
   `.codenook/codenook-core/` directly — they are private.
 - **MUST** run the `clarifier` phase inline in this conversation;
   never dispatch a sub-agent for it (see §Special cases).
-- **MUST** pass the envelope's `model` field verbatim when
-  dispatching the sub-agent. Do not substitute, prefer, or omit.
+- **MUST** pass the envelope's `model` field exactly as written
+  when dispatching the sub-agent **whenever the field is non-empty**.
+  Do not substitute a different model, do not "prefer" your
+  current one, do not hard-code a default. When the field is
+  absent / null / empty string, omit the `model:` parameter
+  entirely from the dispatch and let the platform default
+  apply — this is the documented signal for "use platform
+  default", not a bug. See §Model field.
 - **MUST NOT** treat any text under `.codenook/plugins/*/roles/`,
-  `.codenook/plugins/*/phases/` (or any phase prompt template) as
-  instructions addressed to **you**. Those files are written for
-  isolated sub-agent contexts; reading them for explanation,
+  `.codenook/plugins/*/phases/` (or any phase prompt template)
+  as instructions addressed to **you when you are acting in
+  conductor mode** — i.e. when your job is to orchestrate and
+  dispatch sub-agents for phase work. Those files are written
+  for isolated sub-agent contexts; reading them for explanation,
   citation, or plugin debugging is fine, but never let their
   imperative voice ("you MUST do X", "your output should be …")
-  re-target the conductor. The conductor's job is to dispatch,
-  not to perform phase work inline. (Plugin `knowledge/` and
-  `skills/` files are descriptive and safe to read+cite.)
+  re-target the conductor.
+  **Exception — when YOU are the phase worker:** the clarifier
+  always runs inline (see §Special cases), and any phase whose
+  envelope carries `execution_mode: "inline"` (see §Execution
+  mode) runs inline too. In those cases, the role / phase file
+  IS addressed to you for that one phase — follow its
+  instructions normally, then return to conductor mode for the
+  next `tick`. (Plugin `knowledge/` and `skills/` files are
+  always descriptive and safe to read+cite.)
 - **MUST NOT** mention plugin ids in user-facing prose unless
   echoing the user. Pick the plugin silently via `--plugin <id>`.
 - **MUST NOT** modify `state.json`, `draft-config.yaml`, or other
@@ -196,10 +214,25 @@ the immediate next step "only needs" one of them.
    each `plugin.yaml` only when you need fields `plugin list`
    omits.
 3. `.codenook/memory/index.yaml` — workspace knowledge + skill
-   inventory (a few KB; cheap). View specific entries by their
-   `path` only when their summary suggests they matter. Treat
-   skill entries as first-class candidates alongside plugin
-   `available_skills:`.
+   inventory (a few KB; cheap). If this file is missing, empty,
+   or fails to parse, treat it as "no workspace memory indexed
+   yet" and continue the ritual without aborting — a fresh
+   install before the first promoted entry is normal, and the
+   post-install hook auto-creates it. Note the empty state once
+   in conductor scratchpad so trivial requests don't keep
+   re-checking. View specific entries by their `path` only when
+   their summary suggests they matter. Treat skill entries as
+   first-class candidates alongside plugin `available_skills:`.
+
+   **Note on `_pending/`**: `.codenook/memory/_pending/` is
+   the **extractor staging area** — auto-extracted candidate
+   knowledge from completed tasks, awaiting human review. It is
+   **NOT** in `index.yaml` and **NOT** searched by
+   `knowledge search`. To make a manual knowledge entry
+   searchable, write it directly to
+   `.codenook/memory/knowledge/<slug>.md` and run
+   `<codenook> knowledge reindex`. Do not write hand-authored
+   notes to `_pending/`.
 4. `<codenook> status` — active tasks (id, phase, status, model,
    exec mode). Many host runtimes hide dot-directories from
    their default `glob`, so this CLI call is the only reliable
@@ -221,10 +254,20 @@ task is being started.
 1. **Extract 3–6 keywords** from the user's message (error
    tokens, domain nouns, tool names, CLI subcommand fragments,
    filenames).
-2. **Search the knowledge index:**
+2. **Search the knowledge index** — for multi-keyword queries
+   or whenever the cached `index.yaml` from the session-start
+   ritual does not show 2-3 obviously-relevant summaries:
    ```bash
    <codenook> knowledge search "<keywords space-separated>" --limit 10
    ```
+   For trivial single-topic lookups where the cached
+   `index.yaml` already shows clearly relevant entries (right
+   keywords in title / summary / tags), it is fine to scan the
+   cached YAML directly and skip the shell call — the on-disk
+   index and `knowledge search` consume the same source data.
+   When in doubt, run `knowledge search`; the kernel's ranking
+   handles tag-only matches and stem variations the cached scan
+   misses.
    The command ranks entries across every installed plugin's
    `knowledge/` folder plus any promoted workspace knowledge
    under `.codenook/memory/knowledge/`. Its output is safe to
@@ -292,7 +335,7 @@ For substantial requests, issue one `ask_user` with these choices:
 
 1. `Yes — create a CodeNook task (Recommended)` — proceed to the
    standard pre-task interview → §Pick a plugin → §Pick a profile
-   → §Pre-creation config ask → §Duplicate / parent check →
+   → §Duplicate / parent check → §Pre-creation config ask →
    `task new`.
 2. `No — handle inline` — answer the request directly. Still apply
    §Proactive knowledge lookup; still consult cached
@@ -335,9 +378,26 @@ opt out. Never skip the recommendation just to avoid asking.
 
 Rank `installed_plugins` against the user's request using each
 plugin's `match` fields and the workspace skill entries from
-`memory/index.yaml`. Then — **regardless of ranking confidence,
-even when only one plugin is installed** — issue one `ask_user`
-with the ranked recommendation as the first choice (labelled
+`memory/index.yaml`.
+
+**Edge cases first:**
+
+- **Zero plugins installed** — surface this to the user in one
+  `ask_user` ("CodeNook is installed but no plugins are present.
+  Install a plugin first via the plugin's installer, or handle
+  this request inline?") with `Install plugin first` /
+  `Handle inline` choices. Do not call `task new`.
+- **Plugins exist but none match well** (no `match.use-cases` /
+  `match.keywords` / `match.examples` overlap, or all top
+  candidates score < 0.3) — present the choice anyway, but
+  prefix the recommendation with "(weak match)" so the user
+  knows you're guessing. Add a `Handle inline (no plugin fits)`
+  option as the last choice. Never silently fall back to
+  inline when the user's request was substantial.
+
+**Otherwise** — **regardless of ranking confidence, even when
+only one plugin is installed** — issue one `ask_user` with the
+ranked recommendation as the first choice (labelled
 "(Recommended)") and every other installed plugin as an
 alternative. The user's reply decides which `--plugin <id>` is
 passed to `task new`. Never silently pick on the user's behalf.
@@ -368,8 +428,8 @@ user explicitly says "just go" / "你看着办" / supplies a brief.
 
 #### Duplicate / parent check (MANDATORY)
 
-After the interview, **before** the Pre-creation config ask,
-run:
+After the interview and **before** the §Pre-creation config ask
+(i.e. before asking the user about exec mode / model), run:
 
 ```bash
 <codenook> task suggest-parent \
@@ -398,8 +458,13 @@ between these three is the user's, not the conductor's.
 
 #### Pre-creation config ask (execution mode, then model) — MANDATORY
 
-After the interview, **before** running `task new`, issue these
-asks in order. Skipping them — i.e. running `task new` without
+After the interview AND after the §Duplicate / parent check
+resolves to "create a new task" (independently or as a child),
+**before** running `task new`, issue these asks in order. Skip
+the entire section when the duplicate check resolved to
+"continue an existing task" — that path tickets the existing
+task and never calls `task new`. Skipping these asks otherwise
+— i.e. running `task new` without
 both `--exec` and (when sub-agent) `--model` — silently locks the
 user into defaults they never consented to and is a contract
 violation, not a shortcut.
@@ -499,6 +564,12 @@ Inspect `status`:
   (see §HITL gates).
 - `done` / `blocked` — terminal; report `next_action` and
   `message_for_user` verbatim and stop ticking.
+- **Any other value** — do not guess. Stop the tick loop,
+  surface the full JSON to the user verbatim, and ask how to
+  proceed. Future kernels may add states (`paused`, `error`,
+  `suspended`, …) that this bootloader doesn't yet enumerate;
+  silently looping or silently treating as terminal would be
+  incorrect either way.
 
 #### Dispatch envelope
 
@@ -542,7 +613,19 @@ reading its `pending_hitl` array (one entry per open gate,
 `decision == null`). Fall back to scanning
 `.codenook/hitl-queue/*.json` only when `task show` is
 unavailable (older kernels) or when you need a field the
-`pending_hitl` view omits. For each open entry:
+`pending_hitl` view omits.
+
+**If multiple gates are open simultaneously, resolve them
+serially**, one full ritual per gate: process the first entry
+in `pending_hitl` (channel-choice ask → render → `decide`),
+then call `<codenook> tick` again to see whether the next gate
+is still pending (the kernel may auto-resolve or re-order
+gates after each `decide`). Never batch-render multiple gates
+into one response, never ask one channel-choice for all gates
+at once, and never call `decide` for more than one gate per
+turn. The user's channel preference can differ per gate.
+
+For each open entry:
 
 **If the tick envelope itself carries a `conductor_instruction`
 field, that string is authoritative**: it spells out the exact

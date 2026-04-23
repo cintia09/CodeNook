@@ -1,3 +1,56 @@
+## v0.27.24 (2026-04-24)
+
+Bootloader hardening — fixes 10 issues found by deep review of the
+v0.27.23 rendered CLAUDE.md. No CLI surface changes; template-only.
+
+### Changed (bootloader template, `claude_md_sync.py`)
+
+- **#1 Workflow ordering fixed in 3 places** (Auto-engagement flow,
+  §Duplicate / parent check, §Pre-creation config ask). The canonical
+  order is now unambiguous: interview → Pick plugin → Pick profile →
+  Duplicate / parent check → Pre-creation config ask → `task new`.
+  Previous template had two anchors that contradicted each other.
+- **#4 `.codenook/` detection** is now spelled out: read
+  `.codenook/state.json` to decide whether the workspace is
+  CodeNook-enabled, instead of leaving the test implicit.
+- **#5 Unknown tick status** — added explicit "any other value → stop,
+  surface the JSON, ask the user" fallback so future kernel statuses
+  do not silently no-op.
+- **#6 Missing / empty / unparseable `index.yaml`** — ritual step 3
+  now says treat as "no memory yet", continue, and note once. Avoids
+  the previous "abort on missing inventory" trap.
+- **#7 "you" ambiguity in role/phase prompt restriction** — added an
+  explicit Exception clause: when the conductor IS the phase worker
+  (clarifier inline, or `inline` exec mode), role-file "you MUST"
+  text DOES bind it. The v0.27.23 blanket rule would have broken
+  inline execution.
+- **#8 Zero-plugin and weak-match cases** — §Pick a plugin now covers
+  "zero plugins installed" (offer `plugin install` or inline) and
+  "all matches score < 0.3" (label "(weak match)" + offer inline).
+- **#9 Multiple HITL gates** — §HITL gates now mandates strict serial
+  resolution (one channel ask + one decide per turn, then `tick`),
+  with explicit "never batch decisions for more than one gate".
+- **#10 `knowledge search` vs cached `index.yaml`** — disambiguated:
+  cached scan is fine for trivial single-topic lookups; use
+  `knowledge search` whenever the query is multi-keyword, fuzzy, or
+  the cached summary is ambiguous.
+- **#12 `model` field** — split the "verbatim" rule into the two
+  cases the kernel actually emits: pass through verbatim when
+  `envelope.model` is non-empty; omit the `model:` argument entirely
+  when it is absent / null / empty.
+- **#13 `_pending/` semantics** — explicit note that
+  `.codenook/memory/_pending/` is the extractor's staging area only:
+  NOT in `index.yaml`, NOT searched by `knowledge search`. Manual
+  notes must be written directly to `memory/knowledge/<slug>.md`
+  followed by `<codenook> knowledge reindex`.
+
+### Tests
+
+- New `test_v0_27_24_bootloader_hardening.py` — 13 tests, one per
+  issue (one issue gets 3 tests for the 3-place reordering).
+
+---
+
 ## v0.27.23 (2026-04-23)
 
 Open up conductor read scope: the main session may now read any
