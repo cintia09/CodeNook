@@ -5,6 +5,7 @@ Replaces ``skills/codenook-core/init.sh`` and the inline VERSION-compare
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import shutil
 import sys
@@ -14,6 +15,10 @@ from pathlib import Path
 # What we never copy into the staged kernel.
 _EXCLUDE_DIRS = {"tests", "__pycache__", ".pytest_cache"}
 _EXCLUDE_SUFFIXES = (".pyc",)
+
+# Name of the per-install content fingerprint file written into ``dst``.
+# Used to detect in-version source edits that VERSION alone would miss.
+_FINGERPRINT_NAME = ".fingerprint"
 
 
 def _ignore(_dir: str, names: list[str]) -> set[str]:
@@ -33,10 +38,48 @@ def _read_version(p: Path) -> str:
     return ""
 
 
+def _iter_source_files(src: Path):
+    """Yield (relative_posix_path, absolute_path) for every file under
+    ``src`` that ``stage_kernel`` would copy (mirrors ``_ignore`` rules
+    and the ``_EXCLUDE_DIRS`` skip at the top level).
+    """
+    for dirpath, dirnames, filenames in os.walk(src):
+        dirnames[:] = sorted(d for d in dirnames if d not in _EXCLUDE_DIRS)
+        rel_dir = Path(dirpath).relative_to(src)
+        for name in sorted(filenames):
+            if name in _EXCLUDE_DIRS or name.endswith(_EXCLUDE_SUFFIXES):
+                continue
+            rel = (rel_dir / name).as_posix()
+            yield rel, Path(dirpath) / name
+
+
+def _compute_tree_fingerprint(src: Path) -> str:
+    """SHA256 of a deterministic listing of ``src`` files: each line is
+    ``<sorted relative posix path> <sha256 of contents>``. Any in-version
+    edit (add / remove / modify) flips the digest.
+    """
+    h = hashlib.sha256()
+    for rel, abs_path in _iter_source_files(src):
+        try:
+            file_hash = hashlib.sha256(abs_path.read_bytes()).hexdigest()
+        except OSError:
+            file_hash = "missing"
+        h.update(f"{rel} {file_hash}\n".encode("utf-8"))
+    return h.hexdigest()
+
+
 def stage_kernel(core_src: Path, workspace: Path) -> Path:
     """Copy ``<core_src>/*`` (minus tests/) into
-    ``<workspace>/.codenook/codenook-core/``. Idempotent: when the
-    staged ``VERSION`` file matches ``<core_src>/VERSION`` we skip.
+    ``<workspace>/.codenook/codenook-core/``.
+
+    Idempotent: skips re-staging only when both the staged ``VERSION``
+    file matches ``<core_src>/VERSION`` AND the staged ``.fingerprint``
+    matches a freshly-computed content hash of the source tree. The
+    fingerprint check catches in-version source edits (the dev-loop
+    case) that a VERSION-only check would silently drop. A missing
+    ``.fingerprint`` is treated as a mismatch so the first upgrade
+    onto this scheme always restages once.
+
     Returns the staged kernel root.
     """
     dst = workspace / ".codenook" / "codenook-core"
@@ -44,7 +87,15 @@ def stage_kernel(core_src: Path, workspace: Path) -> Path:
     dst_version = _read_version(dst / "VERSION")
 
     if dst.is_dir() and dst_version and dst_version == src_version:
-        return dst
+        fp_path = dst / _FINGERPRINT_NAME
+        if fp_path.is_file():
+            try:
+                staged_fp = fp_path.read_text(encoding="utf-8").strip()
+            except Exception:
+                staged_fp = ""
+            if staged_fp and staged_fp == _compute_tree_fingerprint(core_src):
+                return dst
+        # else: fall through to restage (missing or stale fingerprint)
 
     parent = dst.parent
     parent.mkdir(parents=True, exist_ok=True)
@@ -59,6 +110,11 @@ def stage_kernel(core_src: Path, workspace: Path) -> Path:
                 shutil.copytree(s, d, ignore=_ignore, symlinks=False)
             else:
                 shutil.copy2(s, d)
+
+        # Write fingerprint into the staged tree before swap so the
+        # final ``dst`` always has a fingerprint matching its contents.
+        fp = _compute_tree_fingerprint(core_src)
+        (staging / _FINGERPRINT_NAME).write_text(fp + "\n", encoding="utf-8")
 
         if dst.is_dir():
             backup = dst.with_name(dst.name + ".old")
