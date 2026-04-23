@@ -16,7 +16,7 @@
 
 # ── M2 install-pipeline contract ────────────────────────────────────────
 id: development
-version: "0.2.2"
+version: "0.3.0"
 type: domain
 entry_points:
   install: phases.yaml
@@ -126,6 +126,3 @@ routing:
 # `<workspace>/.codenook/plugins/development/skills/<name>/` — those
 # are resolved by skill-resolve at the plugin_shipped tier but are
 # user-managed and intentionally not listed here.
-available_skills:
-  - name: test-runner
-    use_case: "run pytest / jest / go test; tester role uses this in every run"
