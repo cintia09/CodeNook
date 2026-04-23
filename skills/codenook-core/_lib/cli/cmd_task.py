@@ -35,10 +35,11 @@ from .config import (
 
 
 HELP_TASK = """\
-codenook task <new|list|delete|restore|set|set-model|set-exec|set-profile|suggest-parent>
+codenook task <new|list|show|delete|restore|set|set-model|set-exec|set-profile|suggest-parent>
 
   new             create a new T-NNN under .codenook/tasks/
   list            list tasks grouped by status (with HITL-pending hints)
+  show            print full details of a single task (state + HITL)
   delete          archive (default) or purge tasks + their HITL queue files
   restore         restore archived tasks from .codenook/tasks/_archive/
   set             mutate a writable field on an existing task
@@ -272,6 +273,8 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
         return _task_new(ctx, rest)
     if sub == "list":
         return _task_list(ctx, rest)
+    if sub == "show":
+        return _task_show(ctx, rest)
     if sub == "delete":
         return _task_delete(ctx, rest)
     if sub == "restore":
@@ -1463,6 +1466,182 @@ def _print_task_tree(ctx: CodenookContext,
         print("")
         print(f"⚠ {pending_total} HITL queue entr"
               f"{'y' if pending_total == 1 else 'ies'} pending review.")
+    return 0
+
+
+# ── task show ────────────────────────────────────────────────────────────
+
+
+HELP_SHOW = """\
+Usage: codenook task show <T-NNN> [--json] [--history-limit N]
+
+Print the full details of a single task — core identity fields,
+current phase + status, 4-layer model resolution inputs, parent /
+chain linkage, pending HITL gates, and an abbreviated history.
+
+Options:
+  --json                 emit the parsed state.json merged with
+                         derived fields (pending_hitl, title, etc.)
+                         as one JSON object on stdout
+  --history-limit N      show only the most recent N history
+                         entries (default: 5; use 0 to hide,
+                         negative to show all)
+
+Exit codes:
+  0  task found and printed
+  1  task not found (no dir under .codenook/tasks/<id>)
+  2  usage error
+"""
+
+
+def _task_show(ctx: CodenookContext, args: list[str]) -> int:
+    partial = ""
+    as_json = False
+    history_limit = 5
+    it = iter(args)
+    try:
+        for a in it:
+            if a in ("-h", "--help"):
+                print(HELP_SHOW)
+                return 0
+            if a == "--json":
+                as_json = True
+            elif a == "--history-limit":
+                try:
+                    history_limit = int(next(it))
+                except (StopIteration, ValueError):
+                    sys.stderr.write(
+                        "codenook task show: --history-limit expects "
+                        "an integer\n")
+                    return 2
+            elif a.startswith("--"):
+                sys.stderr.write(
+                    f"codenook task show: unknown flag: {a}\n")
+                return 2
+            elif not partial:
+                partial = a
+            else:
+                sys.stderr.write(
+                    "codenook task show: only one task id allowed\n")
+                return 2
+    except StopIteration:
+        pass
+
+    if not partial:
+        sys.stderr.write("codenook task show: <T-NNN> required\n")
+        return 2
+
+    resolved, rc = _resolve_or_error(ctx, partial, "show")
+    if resolved is None:
+        return rc
+
+    sf = ctx.workspace / ".codenook" / "tasks" / resolved / "state.json"
+    try:
+        state = json.loads(sf.read_text(encoding="utf-8"))
+    except Exception as exc:
+        sys.stderr.write(
+            f"codenook task show: unable to read state.json: {exc}\n")
+        return 1
+    if not isinstance(state, dict):
+        sys.stderr.write(
+            f"codenook task show: state.json is not a JSON object\n")
+        return 1
+
+    pending = _hitl_pending_for(ctx.workspace, resolved)
+
+    if as_json:
+        out = dict(state)
+        out["_resolved_task"] = resolved
+        out["pending_hitl"] = pending
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
+
+    def _val(k: str, default: str = "—") -> str:
+        v = state.get(k)
+        if v is None or v == "":
+            return default
+        return str(v)
+
+    print(f"Task: {resolved}")
+    print(f"  title        : {_val('title')}")
+    if state.get("summary"):
+        print(f"  summary      : {state.get('summary')}")
+    print(f"  plugin       : {_val('plugin')}")
+    print(f"  profile      : {_val('profile', '(plugin default)')}")
+    print(f"  phase        : {_val('phase')}")
+    print(f"  status       : {_val('status')}")
+    print(f"  priority     : {_val('priority', 'P2')}")
+    print(f"  dual_mode    : {_val('dual_mode')}")
+    exec_mode = state.get("execution_mode") or "sub-agent"
+    print(f"  exec_mode    : {exec_mode}")
+    print(f"  max_iter     : {_val('max_iterations')}")
+    if state.get("model_override"):
+        print(f"  model_over.  : {state.get('model_override')}")
+    if state.get("parent_id"):
+        print(f"  parent_id    : {state.get('parent_id')}")
+    if state.get("chain_root"):
+        print(f"  chain_root   : {state.get('chain_root')}")
+    if state.get("target_dir"):
+        print(f"  target_dir   : {state.get('target_dir')}")
+    print(f"  schema_ver   : {_val('schema_version', '1')}")
+    print(f"  created_at   : {_val('created_at')}")
+    print(f"  updated_at   : {_val('updated_at')}")
+
+    ifa = state.get("in_flight_agent") or {}
+    if isinstance(ifa, dict) and ifa:
+        print("")
+        print("In-flight agent:")
+        print(f"  role         : {ifa.get('role') or '—'}")
+        print(f"  expected     : {ifa.get('expected_output') or '—'}")
+        if ifa.get("dispatched_at"):
+            print(f"  dispatched   : {ifa.get('dispatched_at')}")
+
+    task_input = state.get("task_input") or ""
+    if task_input:
+        print("")
+        print("Input:")
+        for line in task_input.splitlines()[:10]:
+            print(f"  {line}")
+        extra = len(task_input.splitlines()) - 10
+        if extra > 0:
+            print(f"  … ({extra} more line{'s' if extra > 1 else ''})")
+
+    if pending:
+        print("")
+        print(f"Pending HITL ({len(pending)}):")
+        for gate in pending:
+            print(f"  - {gate}")
+
+    history = state.get("history") or []
+    if history_limit == 0 or not isinstance(history, list):
+        pass
+    elif history:
+        total = len(history)
+        if history_limit < 0:
+            shown = history
+            hidden = 0
+        else:
+            shown = history[-history_limit:]
+            hidden = total - len(shown)
+        print("")
+        title = (f"History (last {len(shown)} of {total}):"
+                 if hidden else f"History ({total}):")
+        print(title)
+        for h in shown:
+            if not isinstance(h, dict):
+                print(f"  - {h}")
+                continue
+            ph = h.get("phase") or "?"
+            verdict = h.get("verdict") or h.get("status") or "?"
+            ts = h.get("ts") or h.get("at") or h.get("timestamp") or ""
+            note = h.get("note") or h.get("_warning") or ""
+            line = f"  - [{ts}] {ph:<10} → {verdict}"
+            if note:
+                line += f"  ({note})"
+            print(line)
+        if hidden:
+            print(f"  … ({hidden} earlier entr"
+                  f"{'y' if hidden == 1 else 'ies'} hidden)")
     return 0
 
 

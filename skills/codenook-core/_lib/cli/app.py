@@ -24,6 +24,7 @@ Subcommands:
                        [--model <name>] [--exec sub-agent|inline]
   task list [--status <s>] [--phase <p>] [--plugin <id>]
             [--include-done] [--json]
+  task show <T-NNN> [--json] [--history-limit N]
   task delete <T-NNN> [T-NNN ...] [--task T-NNN] [--status <s>]
               [--purge] [--force] [--yes] [--dry-run] [--json]
   task restore [<T-NNN> | <archived-name>] [--task T-NNN] [--from <name>]

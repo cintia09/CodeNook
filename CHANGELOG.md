@@ -1,3 +1,58 @@
+## v0.27.20 (2026-04-23)
+
+`codenook task show` — quick single-task detail view.
+
+### Added
+- **`codenook task show <T-NNN> [--json] [--history-limit N]`**
+  (`_lib/cli/cmd_task.py::_task_show`). Renders all the fields a
+  conductor would usually reconstruct by `cat .codenook/tasks/<id>/
+  state.json | jq`, plus the pending-HITL count and a readable
+  history tail.
+
+  Human output includes:
+  - identity: task_id, title, summary, plugin, profile, phase,
+    status, priority, dual_mode, exec_mode, max_iterations,
+    schema_version, created_at, updated_at
+  - optional: model_override, parent_id, chain_root, target_dir
+  - in-flight agent block (role / expected_output / dispatched_at)
+    when the task is currently dispatched
+  - first 10 lines of `task_input` under an "Input:" header
+  - "Pending HITL (N):" list when hitl-queue has matches
+  - "History (last N of M):" with `[ts] phase → verdict (note)`
+    rows; the `note` column surfaces `history[].note` and the
+    orchestrator's `_warning` flag (e.g. `hitl_approved`)
+
+  `--json` emits `state.json` augmented with ``_resolved_task``
+  (slugged dir name) and ``pending_hitl`` (list of gate filenames).
+
+  `--history-limit N`:
+    * positive → show last N, collapse rest into "… hidden"
+    * 0 → hide history entirely
+    * negative → show all
+
+- Top-level `codenook --help` and `codenook task` help updated.
+
+### Tests
+- **8 new regression tests** in
+  `tests/python/test_v0_27_20_task_show.py`:
+  - missing id → exit 2
+  - unknown id → exit 1 + "no such task"
+  - basic human render shows every core field
+  - `--history-limit` default / 0 / -1 branches
+  - pending HITL line appears when queue has matching entries
+  - `--json` structure (includes `_resolved_task`, `pending_hitl`)
+  - tolerates non-dict history entries without crashing
+  - unknown flag → exit 2
+- Full suite: 305 passed / 2 skipped (was 297 / 2).
+
+### Verification
+- Live-verified against `/Users/mingdw/Documents/nook`: renders T-001
+  (done, 4 history rows, 1 pending HITL), T-016 (complete, 45 history
+  entries — shows last 5 with "40 earlier hidden"), Input Q/A block
+  with CJK.
+
+---
+
 ## v0.27.19 (2026-04-23)
 
 Follow-up to v0.27.18: `task new` now renders a **Summary + confirm**
