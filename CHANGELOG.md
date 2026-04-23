@@ -1,3 +1,56 @@
+## v0.27.12 (2026-04-23)
+
+Phase C1 of the v0.27.9 follow-up plan: schema migrations + an
+operator-facing `codenook upgrade` command. Establishes the
+infrastructure for future schema bumps so we never again ship a
+breaking change without a migration path.
+
+### Added
+- **`_lib/migrations/`** — versioned migration registry keyed by
+  source schema_version. Each migration is a pure function with
+  three contracts: idempotent, gracefully degrades on missing
+  optional fields, and MUST advance `state["schema_version"]`. The
+  `upgrade(state)` walker chains them until current.
+- **`v1_to_v2.py`** — first concrete migration. Normalises two
+  conventionally-present-but-optional fields:
+  - `priority` defaults to `"P2"` when missing/empty (matches
+    `task new --accept-defaults`)
+  - `history` defaults to `[]` when absent
+- **`codenook upgrade`** subcommand. Walks every active task under
+  `.codenook/tasks/`, applies pending migrations through the
+  registry, and writes via `_persist_state` (atomic + schema-
+  validated). Flags: `--task T-NNN`, `--dry-run`, `--yes`,
+  `--json`. Exit 1 on any per-task migration failure (others still
+  attempted); 0 when all selected tasks reach the current
+  schema_version.
+
+### Changed
+- `_M4_STATE_VERSION` (in `draft_config.py`) bumped 1 → 2.
+- `task new` now writes `schema_version: 2` and includes
+  `priority` even when neither `--accept-defaults` nor an
+  explicit value were supplied (defaults to `"P2"`).
+- `freeze_to_state_json` now sets `priority` from
+  `draft.priority` falling back to `"P2"` so router-driven task
+  creation lands at the v2 convention.
+
+### Tests
+- `tests/python/test_migrations.py` — round-trip on a synthetic
+  v1 state (priority + history filled, schema_version → 2;
+  re-running the migration is a no-op).
+- `tests/python/test_cli_smoke.py` — `codenook upgrade --json`
+  on a workspace with one v1 + one v2 task: v1 reported in
+  `upgraded`, v2 in `skipped`, exit 0.
+
+### Verification
+- `python install.py --target .` against a fresh workspace seeded
+  with a hand-edited v1 state.json:
+  - `codenook upgrade --dry-run --json` lists the v1 task with
+    `from_version: 1`, `to_version: 2`, no file mutated.
+  - `codenook upgrade --yes` writes; re-running prints
+    "no migrations needed".
+
+---
+
 ## v0.27.11 (2026-04-23)
 
 Phase B of the v0.27.9 follow-up plan: observability + static

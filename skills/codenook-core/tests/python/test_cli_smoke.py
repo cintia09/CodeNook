@@ -305,3 +305,45 @@ def test_task_list_tree(installed_workspace: Path) -> None:
     # child line must start with indentation that the parent line lacks
     child_line = [ln for ln in out.splitlines() if child in ln][0]
     assert child_line.startswith("  "), child_line
+
+
+def test_upgrade_v1_to_v2(installed_workspace: Path) -> None:
+    """codenook upgrade should migrate a hand-edited v1 state to v2."""
+    ws = installed_workspace
+    # Create a fresh v2 task via the CLI, then downgrade its state.json
+    # to v1 to simulate a legacy workspace.
+    out = _run(_bin_cmd(ws) + [
+        "task", "new", "--title", "upgrade-target", "--accept-defaults",
+    ]).stdout.strip().splitlines()[-1]
+    tid = out  # like T-018-upgrade-target
+    sf = ws / ".codenook" / "tasks" / tid / "state.json"
+    st = json.loads(sf.read_text(encoding="utf-8"))
+    st["schema_version"] = 1
+    st.pop("priority", None)
+    sf.write_text(json.dumps(st), encoding="utf-8")
+
+    # Dry-run first — must not mutate.
+    cp = _run(_bin_cmd(ws) + ["upgrade", "--dry-run", "--json"])
+    payload = json.loads(cp.stdout)
+    assert payload["current_schema"] == 2
+    upgraded_ids = [u["task"] for u in payload["upgraded"]]
+    assert tid in upgraded_ids
+    # File still v1 after dry-run.
+    assert json.loads(sf.read_text(encoding="utf-8"))["schema_version"] == 1
+
+    # Apply.
+    cp = _run(_bin_cmd(ws) + ["upgrade", "--yes", "--json"])
+    payload = json.loads(cp.stdout)
+    upgraded = {u["task"]: u for u in payload["upgraded"]}
+    assert tid in upgraded
+    assert upgraded[tid]["from_version"] == 1
+    assert upgraded[tid]["to_version"] == 2
+
+    new_state = json.loads(sf.read_text(encoding="utf-8"))
+    assert new_state["schema_version"] == 2
+    assert new_state["priority"] == "P2"
+
+    # Idempotent: a second run is a no-op.
+    cp = _run(_bin_cmd(ws) + ["upgrade", "--yes", "--json"])
+    payload = json.loads(cp.stdout)
+    assert all(u["task"] != tid for u in payload["upgraded"])

@@ -492,7 +492,7 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
     (tdir / "notes").mkdir(parents=True, exist_ok=True)
 
     state: dict = {
-        "schema_version": 1,
+        "schema_version": 2,
         "task_id": task_id,
         "plugin": plugin,
         "phase": None,

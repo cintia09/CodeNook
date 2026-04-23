@@ -52,6 +52,9 @@ Subcommands:
   knowledge reindex
   knowledge list [--plugin <id>] [--limit N]
   knowledge search <query> [--limit N]
+  upgrade  [--task T-NNN] [--dry-run] [--yes] [--json]
+                       migrate task state.json files to the current
+                       schema_version (idempotent)
 
 Global flags:
   --workspace <dir>   override workspace root (else: derived from CWD or
@@ -136,6 +139,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if sub == "config":
         from . import cmd_config
         return cmd_config.run(ctx, rest)
+    if sub == "upgrade":
+        from . import cmd_upgrade
+        return cmd_upgrade.run(ctx, rest)
 
     sys.stderr.write(f"codenook: unknown subcommand: {sub}\n")
     sys.stderr.write(USAGE)

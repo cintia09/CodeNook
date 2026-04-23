@@ -44,7 +44,7 @@ _VALID_ROLES = (
     "clarifier",
 )
 _VALID_ACCEPT = ("required", "optional", "skip")
-_M4_STATE_VERSION = 1
+_M4_STATE_VERSION = 2
 _M4_DEFAULT_MAX_ITERATIONS = 8
 _TASK_ID_RE = re.compile(r"^T-[A-Za-z0-9_\u4e00-\u9fff-]+$")
 
@@ -231,6 +231,7 @@ def freeze_to_state_json(
         "iteration": 0,
         "max_iterations": int(draft.get("max_iterations") or _M4_DEFAULT_MAX_ITERATIONS),
         "status": "pending",
+        "priority": draft.get("priority") or "P2",
         "history": [],
     }
 
