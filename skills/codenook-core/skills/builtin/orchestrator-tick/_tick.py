@@ -1161,9 +1161,21 @@ def _tick_body(workspace: Path, state: dict) -> dict:
                         "[--comment \"...\"]"
                     ),
                 }
-            # waiting + still pending → noop
-            del state["last_tick_ts"]
-            return {"status": "waiting", "next_action": "noop"}
+            # not_found + no in_flight + no verdict → the phase has never
+            # been dispatched (e.g. fresh task, recovery, or after
+            # `task set-phase` rewind). Fall through to step 6 recovery so
+            # the phase agent gets re-dispatched. Without this branch we'd
+            # silently return noop and the task would be stuck.
+            if (
+                resolution == "not_found"
+                and state.get("in_flight_agent") is None
+                and state.get("status") == "in_progress"
+            ):
+                pass  # fall through past step 5 to step 6
+            else:
+                # waiting + still pending → noop
+                del state["last_tick_ts"]
+                return {"status": "waiting", "next_action": "noop"}
 
     # ── 5. transition (only when we have a verdict to act on) ──
     if verdict_for_transition is not None:
