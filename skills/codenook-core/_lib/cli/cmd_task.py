@@ -125,7 +125,7 @@ threshold (this is normal — proceed to create a fresh task).
 """
 
 HELP_SET = """\
-Usage: codenook task set --task T-NNN --field <field> --value <val>
+Usage: codenook task set --task T-NNN --field <field> (--value <val> | --value-file <path>)
 
 Writable fields:
   dual_mode       serial | parallel
@@ -134,6 +134,7 @@ Writable fields:
   max_iterations  positive integer
   summary         free text
   title           free text
+  task_input      free text (use --value-file for multi-line / long input)
 """
 
 HELP_NEW = """\
@@ -258,7 +259,7 @@ ALLOWED = {
     "priority": ("P0", "P1", "P2", "P3"),
 }
 INT_FIELDS = {"max_iterations"}
-WRITABLE = {"dual_mode", "target_dir", "priority", "max_iterations", "summary", "title"}
+WRITABLE = {"dual_mode", "target_dir", "priority", "max_iterations", "summary", "title", "task_input"}
 
 
 def _persist_state(sf: Path, state: dict) -> None:
@@ -735,6 +736,7 @@ def _task_set(ctx: CodenookContext, args: list[str]) -> int:
 
     task = field = value = ""
     value_set = False
+    value_file = ""
     it = iter(args)
     try:
         for a in it:
@@ -744,6 +746,8 @@ def _task_set(ctx: CodenookContext, args: list[str]) -> int:
                 field = next(it)
             elif a == "--value":
                 value = next(it); value_set = True
+            elif a == "--value-file":
+                value_file = next(it)
             else:
                 sys.stderr.write(f"codenook task set: unknown arg: {a}\n")
                 return 2
@@ -751,9 +755,28 @@ def _task_set(ctx: CodenookContext, args: list[str]) -> int:
         sys.stderr.write("codenook task set: missing value for last flag\n")
         return 2
 
+    if value_set and value_file:
+        sys.stderr.write(
+            "codenook task set: --value and --value-file are mutually exclusive\n")
+        return 2
+    if value_file:
+        p = Path(value_file).expanduser()
+        if not p.is_file():
+            sys.stderr.write(
+                f"codenook task set: --value-file not found: {value_file}\n")
+            return 2
+        try:
+            value = p.read_text(encoding="utf-8")
+        except Exception as exc:
+            sys.stderr.write(
+                f"codenook task set: --value-file read error: {exc}\n")
+            return 2
+        value_set = True
+
     if not (task and field and value_set):
         sys.stderr.write(
-            "codenook task set: --task, --field, --value all required\n")
+            "codenook task set: --task, --field, and one of "
+            "(--value | --value-file) are required\n")
         return 2
 
     sf = ctx.workspace / ".codenook" / "tasks" / task / "state.json"
