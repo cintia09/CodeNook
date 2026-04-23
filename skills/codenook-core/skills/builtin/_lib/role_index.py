@@ -87,9 +87,22 @@ def discover_roles(plugin_dir: Path | str) -> list[dict]:
     if not roles_dir.is_dir():
         return []
     out: list[dict] = []
+    seen: set[str] = set()
+    # New sub-dir layout (T-004): roles/<role>/role.md (primary).
+    for sub in sorted(roles_dir.iterdir(), key=lambda x: x.name):
+        if not sub.is_dir() or sub.name.startswith((".", "_")):
+            continue
+        role_md = sub / "role.md"
+        if not role_md.is_file():
+            continue
+        rec = _parse_role_file(role_md)
+        if rec is not None:
+            out.append(rec)
+            seen.add(rec.get("role") or sub.name)
+    # Back-compat: flat roles/<role>.md (pre-T-004).
     for p in sorted(roles_dir.glob("*.md"), key=lambda x: x.name):
         rec = _parse_role_file(p)
-        if rec is not None:
+        if rec is not None and (rec.get("role") or p.stem) not in seen:
             out.append(rec)
     return out
 

@@ -235,7 +235,12 @@ def _augment_envelope(ctx: CodenookContext, task: str, tick_out: str) -> str:
         else f".codenook/tasks/{task}/{expected}"
     )
     prompt_rel = f".codenook/tasks/{task}/prompts/{prompt_p.name}"
-    system_rel = f".codenook/plugins/{plugin}/roles/{role}.md"
+    # T-004 unified layout: roles/<role>/role.md preferred; flat legacy fallback.
+    _role_subdir = ctx.workspace / ".codenook" / "plugins" / plugin / "roles" / role / "role.md"
+    if _role_subdir.is_file():
+        system_rel = f".codenook/plugins/{plugin}/roles/{role}/role.md"
+    else:
+        system_rel = f".codenook/plugins/{plugin}/roles/{role}.md"
 
     # v0.19 — per-task execution_mode picks the dispatch action.
     # Tasks without the field behave exactly as v0.18.x (sub-agent).

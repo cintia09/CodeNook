@@ -59,6 +59,9 @@ Subcommands:
   knowledge reindex
   knowledge list [--plugin <id>] [--limit N]
   knowledge search <query> [--limit N]
+  discover plugins [--plugin <id>] [--type <t>] [--json]
+  discover memory  [--type <t>] [--json]
+  discover --all   [--json]
   memory doctor [--repair] [--json]
                        diagnose (and optionally auto-repair)
                        workspace memory frontmatter issues
@@ -155,6 +158,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if sub == "upgrade":
         from . import cmd_upgrade
         return cmd_upgrade.run(ctx, rest)
+    if sub == "discover":
+        from . import cmd_discover
+        return cmd_discover.run(ctx, rest)
 
     sys.stderr.write(f"codenook: unknown subcommand: {sub}\n")
     sys.stderr.write(USAGE)
