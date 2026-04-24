@@ -41,6 +41,7 @@ frontmatter; explicit frontmatter values always win.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -377,14 +378,22 @@ def discover_knowledge(plugin_dir: Path) -> list[dict]:
 
     out: list[dict] = []
     for entry in _walk_md_files(kdir):
-        # Don't list the INDEX files themselves.
-        if entry.name in (INDEX_YAML_NAME, INDEX_MD_NAME) and entry.parent == kdir:
+        # Don't list the INDEX files themselves, or top-level README.md
+        # (which is documentation, not a knowledge entry).
+        if entry.parent == kdir and entry.name in (
+            INDEX_YAML_NAME, INDEX_MD_NAME, "README.md",
+        ):
             continue
         try:
             text = entry.read_text(encoding="utf-8")
         except OSError:
             continue
         fm, body = _parse_frontmatter(text)
+        if not fm and text.lstrip().startswith("---"):
+            # File looks like it has frontmatter but parse failed silently.
+            sys.stderr.write(
+                f"[knowledge_index] warning: malformed frontmatter in {entry}\n"
+            )
 
         try:
             rel = entry.resolve().relative_to(kdir_resolved)

@@ -1,3 +1,27 @@
+## v0.29.2 — Knowledge discovery robustness
+
+### Fixed
+
+- **KO-1**: `discover_knowledge` now emits a stderr warning when a
+  knowledge file's frontmatter looks malformed (starts with `---`
+  but parse fails — e.g. closing `---` missing or YAML invalid).
+  Previously such files were silently dropped from the index with
+  no diagnostic, which made debugging "missing knowledge entry"
+  symptoms painful. The file is still excluded from results
+  (preserving prior behaviour), but the operator now sees a clear
+  warning naming the offending path.
+- **KO-4**: top-level `knowledge/README.md` is now filtered from
+  discovery alongside `INDEX.yaml` / `INDEX.md`. README files are
+  documentation, not knowledge entries; previously they surfaced
+  as spurious "README" entries in `knowledge search` results.
+
+### Tests
+
+- Added `test_v0_29_2_knowledge_discovery_robustness.py` with 3
+  cases covering README filtering, malformed-frontmatter warning
+  emission, and silent pass-through for files without frontmatter.
+- Total: 378 passed / 2 skipped.
+
 ## v0.29.1 — Notes/ removal + extraction-source docs
 
 ### Removed
