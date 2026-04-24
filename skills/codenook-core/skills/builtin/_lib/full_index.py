@@ -166,7 +166,14 @@ def _scan_memory(workspace: Path) -> tuple[list[dict], list[dict]]:
     knowledge_out: list[dict[str, Any]] = []
     for meta in idx.get("knowledge", []):
         ap = meta.get("path", "")
-        title = meta.get("topic") or Path(ap).stem
+        # Prefer frontmatter ``title`` (T-006 sub-directory canonical
+        # form), fall back to legacy ``topic`` (extractor-promoted
+        # entries), then the directory slug, then the file stem.
+        title = (
+            meta.get("title")
+            or meta.get("topic")
+            or (Path(ap).parent.name if Path(ap).name == "index.md" else Path(ap).stem)
+        )
         knowledge_out.append(
             {
                 "plugin": None,

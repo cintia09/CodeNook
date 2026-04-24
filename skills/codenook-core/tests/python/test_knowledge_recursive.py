@@ -215,6 +215,66 @@ def test_reindex_is_idempotent(tmp_path: Path):
     assert a == b
 
 
+# --------------------------------------------------- 8b. memory subdir reindex
+def test_full_index_walks_memory_subdirectory_knowledge_entries(tmp_path: Path):
+    """T-006 fix-pass 2 / F-1 regression: ``knowledge reindex`` must
+    surface hand-placed ``memory/knowledge/<slug>/index.md`` sub-
+    directory entries — not just the legacy flat ``<slug>.md`` form.
+    Before the fix, ``discover memory`` walked these recursively but
+    ``build_full_index`` (memory_index.build_index) used a non-
+    recursive scandir and silently dropped them, so they were
+    invisible to ``codenook knowledge search``.
+    """
+    mem_k = tmp_path / ".codenook" / "memory" / "knowledge"
+    # Flat short form (already supported pre-fix).
+    _write(mem_k / "flat-note.md", """\
+        ---
+        title: Flat note
+        summary: legacy short form
+        tags: [memory, flat]
+        ---
+        body
+        """)
+    # Sub-directory canonical form (the bug — must now be picked up).
+    _write(mem_k / "unify-plugin-memory" / "index.md", """\
+        ---
+        id: unify-plugin-memory-structure
+        title: Unify plugin+memory structure
+        summary: sub-directory drop-in discovery
+        tags: [memory, structure, drop-in]
+        ---
+        body
+        """)
+    # Legacy sibling that MUST be ignored (canonical-descriptor contract).
+    _write(mem_k / "unify-plugin-memory" / "entry.md",
+           "# stale sibling — should not appear\n")
+
+    payload = fi.build_full_index(tmp_path)
+    mem_entries = [e for e in payload["knowledge"] if e.get("plugin") is None]
+    paths = {Path(e["path"]).as_posix() for e in mem_entries}
+    titles = {e.get("title") for e in mem_entries}
+
+    # Both shapes surface.
+    assert any(p.endswith("flat-note.md") for p in paths), paths
+    assert any(p.endswith("unify-plugin-memory/index.md") for p in paths), paths
+    # Frontmatter title (not the directory slug, not "index") wins.
+    assert "Unify plugin+memory structure" in titles
+    # Orphan sibling must NOT appear.
+    assert not any(p.endswith("unify-plugin-memory/entry.md") for p in paths), paths
+
+    # And the entry must be searchable end-to-end via find_relevant.
+    aggregated: dict[str, list[dict]] = {"(memory)": []}
+    for e in mem_entries:
+        aggregated["(memory)"].append({
+            "path": e["path"],
+            "title": e.get("title", ""),
+            "summary": e.get("summary", ""),
+            "tags": list(e.get("tags") or []),
+        })
+    hits = ki.find_relevant("unify plugin memory structure", aggregated, limit=5)
+    assert any("unify-plugin-memory/index.md" in h["path"] for h in hits), hits
+
+
 # ---------------------------------------------------------------- 9. CLI search
 def test_cli_knowledge_search_against_prnook(real_workspace_with_prnook: Path):
     cli = real_workspace_with_prnook / ".codenook" / "bin"
