@@ -372,6 +372,26 @@ Retention defaults to 10 days. Operators can list / prune via:
 ```
 `--yes` is required for `prune` (no implicit deletes).
 
+### Extraction sources (v0.29.0+)
+
+When the conductor (or the user) decides a finished task produced
+something reusable and promotes it into
+`.codenook/memory/knowledge/<slug>/index.md` or
+`.codenook/memory/skills/<slug>/SKILL.md`, the **only** source
+material to read is:
+
+1. `tasks/<T-NNN>/outputs/phase-*.md` — canonical per-phase outputs.
+2. `tasks/<T-NNN>/history/<ts>/` — per-phase auto snapshots written
+   by `tick` (see §History snapshots).
+3. `memory/history/<ts>/` — manual workspace snapshots saved via
+   `<codenook> history save`.
+
+Do **not** treat these as sources: `audit.jsonl` (logging only),
+`prompts/` (rendered prompt templates, not findings), and
+`state.json` (machine state). Extraction is fully manual since
+v0.29.0 — there is no `_pending/` staging area and no extractor
+sub-agent.
+
 ### Auto-engagement (substantial vs trivial)
 
 Once the §Session-start ritual has loaded the workspace inventory,
