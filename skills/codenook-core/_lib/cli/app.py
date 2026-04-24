@@ -33,6 +33,7 @@ Subcommands:
   task set-model   --task T-NNN (--model <name> | --clear)
   task set-exec    --task T-NNN --mode <sub-agent|inline>
   task set-profile --task T-NNN --profile <name>
+  task set-phase   --task T-NNN --phase <id> [--keep-outputs] [--yes]
   plugin list [--json]
                        list installed plugins with version + profiles
   plugin info <id>     show profiles + phases summary for a plugin
@@ -59,6 +60,9 @@ Subcommands:
   knowledge reindex
   knowledge list [--plugin <id>] [--limit N]
   knowledge search <query> [--limit N]
+  discover plugins [--plugin <id>] [--type <t>] [--json]
+  discover memory  [--type <t>] [--json]
+  discover --all   [--json]
   memory doctor [--repair] [--json]
                        diagnose (and optionally auto-repair)
                        workspace memory frontmatter issues
@@ -155,6 +159,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if sub == "upgrade":
         from . import cmd_upgrade
         return cmd_upgrade.run(ctx, rest)
+    if sub == "discover":
+        from . import cmd_discover
+        return cmd_discover.run(ctx, rest)
 
     sys.stderr.write(f"codenook: unknown subcommand: {sub}\n")
     sys.stderr.write(USAGE)

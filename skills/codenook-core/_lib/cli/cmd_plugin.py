@@ -356,10 +356,11 @@ def _plugin_lint(ctx: CodenookContext, args: list[str]) -> int:
                  f"phase '{pid}' has no role: field", phase=pid)
             continue
         rfile = roles_dir / f"{role}.md"
-        if not rfile.is_file():
+        rsubdir = roles_dir / role / "role.md"
+        if not rfile.is_file() and not rsubdir.is_file():
             err("E_ROLE_MISSING",
-                f"phase '{pid}' references role '{role}' but "
-                f"roles/{role}.md is missing",
+                f"phase '{pid}' references role '{role}' but neither "
+                f"roles/{role}.md nor roles/{role}/role.md is present",
                 phase=pid, role=role)
 
     # 4. hitl gates --------------------------------------------------

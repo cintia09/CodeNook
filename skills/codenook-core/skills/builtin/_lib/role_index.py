@@ -87,8 +87,17 @@ def discover_roles(plugin_dir: Path | str) -> list[dict]:
     if not roles_dir.is_dir():
         return []
     out: list[dict] = []
-    for p in sorted(roles_dir.glob("*.md"), key=lambda x: x.name):
-        rec = _parse_role_file(p)
+    # Sub-dir layout (T-004): roles/<role>/role.md.  The legacy flat
+    # roles/<role>.md fallback was removed in T-006; every shipped
+    # plugin migrated in T-004 (verified empty by `find plugins -path
+    # '*/roles/*.md' -not -path '*/roles/*/role.md'`).
+    for sub in sorted(roles_dir.iterdir(), key=lambda x: x.name):
+        if not sub.is_dir() or sub.name.startswith((".", "_")):
+            continue
+        role_md = sub / "role.md"
+        if not role_md.is_file():
+            continue
+        rec = _parse_role_file(role_md)
         if rec is not None:
             out.append(rec)
     return out

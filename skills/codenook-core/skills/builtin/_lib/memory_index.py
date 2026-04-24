@@ -157,30 +157,55 @@ def build_index(workspace_root: Path | str, *, force: bool = False) -> dict[str,
 
     snap_changed = False
 
-    # ---- knowledge: flat *.md under memory/knowledge/
+    # ---- knowledge: canonical descriptors under memory/knowledge/
+    # Per T-006 §2.4: walk both the legacy flat short form
+    # ``<slug>.md`` and the sub-directory canonical form
+    # ``<slug>/index.md``. Re-use ``knowledge_index._walk_md_files``
+    # so the contract (canonical descriptors only, no orphan
+    # ``entry.md`` / ``case.md`` siblings) stays identical to the
+    # plugin scanner. Without this, hand-placed sub-directory memory
+    # entries are visible to ``discover memory`` but invisible to
+    # ``knowledge search`` (fix-pass 2 / T-006 F-1).
     kdir = mem / "knowledge"
     if kdir.is_dir():
+        from knowledge_index import _walk_md_files  # type: ignore
+
         new_k: dict[str, dict[str, Any]] = {}
-        with os.scandir(kdir) as it:
-            for entry in it:
-                # Skip hidden / in-flight tmp files (".tmp.*", ".tmp-snap.*").
-                if entry.name.startswith("."):
+        for entry_path in _walk_md_files(kdir):
+            # Skip the top-level INDEX.md / INDEX.yaml override
+            # markers (they aren't memory entries themselves).
+            if entry_path.parent == kdir and entry_path.name in ("INDEX.md", "INDEX.yaml"):
+                continue
+            # Defence-in-depth: skip in-flight tmp snapshots that
+            # somehow slipped through the dot-dir filter.
+            if entry_path.name.startswith("."):
+                continue
+            ap = str(entry_path)
+            try:
+                st = entry_path.stat()
+            except OSError:
+                continue
+            cached = snapshot["knowledge"].get(ap)
+            if cached and cached.get("mtime") == st.st_mtime and cached.get("size") == st.st_size:
+                fm = cached["frontmatter"]
+            else:
+                try:
+                    text = entry_path.read_text(encoding="utf-8")
+                except OSError:
                     continue
-                if not entry.is_file() or not entry.name.endswith(".md"):
-                    continue
-                ap = entry.path
-                st = entry.stat()
-                cached = snapshot["knowledge"].get(ap)
-                if cached and cached.get("mtime") == st.st_mtime and cached.get("size") == st.st_size:
-                    fm = cached["frontmatter"]
-                else:
-                    text = Path(ap).read_text(encoding="utf-8")
-                    fm = _parse_frontmatter(text)
-                    snap_changed = True
-                new_k[ap] = {"mtime": st.st_mtime, "size": st.st_size, "frontmatter": fm}
-                meta = {"path": ap}
-                meta.update(fm)
-                knowledge_meta.append(meta)
+                fm = _parse_frontmatter(text)
+                snap_changed = True
+            new_k[ap] = {"mtime": st.st_mtime, "size": st.st_size, "frontmatter": fm}
+            meta: dict[str, Any] = {"path": ap}
+            # Derive a sensible default ``topic`` when the descriptor
+            # is a sub-directory ``index.md`` — its filename stem
+            # (``index``) is uninformative, so prefer the slug
+            # (parent dir name). Frontmatter ``topic`` / ``title``
+            # still wins via the ``meta.update(fm)`` below.
+            if entry_path.name == "index.md":
+                meta["topic"] = entry_path.parent.name
+            meta.update(fm)
+            knowledge_meta.append(meta)
         if snapshot["knowledge"] != new_k:
             snapshot["knowledge"] = new_k
             snap_changed = True

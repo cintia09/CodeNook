@@ -1,3 +1,25 @@
+## v0.28.0 (2026-04-25) — T-004 unified plugin+memory discovery
+
+**Breaking change**: introduces unified sub-directory drop-in discovery
+for plugins and workspace memory. Every discoverable entity
+(skill / knowledge / role / case / playbook / error) is now a
+self-contained directory with a required `index.md` carrying YAML
+frontmatter (`id, type, title, summary, keywords` REQUIRED).
+
+- New module `_lib/discovery/scan.py` — filesystem scanner with
+  process-scoped mtime cache; discovery is live (no reindex required).
+- New CLI `codenook discover plugins|memory|--all [--json]`.
+- Plugin role files migrate from flat `roles/<role>.md` to sub-dir
+  `roles/<role>/role.md` (+ `index.md`). Dispatcher + validator accept
+  both during the migration window.
+- `available_skills:` key in `plugin.yaml` is removed from all bundled
+  plugins (now derived from scan).
+- Memory layout restructured: topic sub-dirs
+  `cases/ playbooks/ errors/ skills/ knowledge/` each with
+  `<slug>/index.md` entities.
+
+See task `T-004-统一-plugin-memory` for full design + migration plan.
+
 ## v0.27.24 (2026-04-24)
 
 Bootloader hardening — fixes 10 issues found by deep review of the

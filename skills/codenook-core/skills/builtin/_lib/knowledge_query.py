@@ -231,6 +231,7 @@ def find_relevant(
             continue
         hits.append(
             {
+                "title": str(entry.get("title") or ""),
                 "path": str(entry.get("path") or ""),
                 "summary": str(entry.get("summary") or ""),
                 "tags": list(entry.get("tags") or []),
@@ -334,3 +335,69 @@ def resolve_top_n(workspace: Path | str, default: int = 8) -> int:
     if isinstance(val, int) and val > 0:
         return val
     return default
+
+
+# ---------------------------------------------------------------- v0.28.3
+# Single-brace ``{KNOWLEDGE_HITS}`` placeholder — compact markdown list,
+# default top-5, EMPTY string on zero hits (no "no hits" stub).
+#
+# Distinct from the legacy double-brace ``{{KNOWLEDGE_HITS}}`` which
+# emits a verbose header + "no hits" stub. New phase prompt templates
+# use the single-brace form so the "## 相关 workspace 知识" section
+# stays clean when the index has nothing to offer.
+
+SINGLE_KH_PLACEHOLDER = "{KNOWLEDGE_HITS}"
+
+DEFAULT_SINGLE_TOP_N = 5
+
+
+def render_hits_block_compact(hits: list[dict[str, Any]]) -> str:
+    """Format hits as a compact markdown bullet list.
+
+    Returns the empty string when ``hits`` is empty so callers can drop
+    a clean blank into the rendered prompt rather than a "no hits"
+    advisory message.
+    """
+    if not hits:
+        return ""
+    lines: list[str] = []
+    for h in hits:
+        title = (h.get("title") or "").strip()
+        path = (h.get("path") or "").strip()
+        summary = (h.get("summary") or "").strip()
+        label = title or path or "(untitled entry)"
+        if summary:
+            lines.append(f"- **{label}** (`{path}`) — {summary}")
+        else:
+            lines.append(f"- **{label}** (`{path}`)")
+    return "\n".join(lines) + "\n"
+
+
+def substitute_single_placeholder(
+    body: str,
+    workspace: Path | str,
+    query: str,
+    role: str | None = None,
+    phase_id: str | None = None,
+    plugin: str | None = None,
+    top_n: int = DEFAULT_SINGLE_TOP_N,
+) -> str:
+    """Replace ``{KNOWLEDGE_HITS}`` (single-brace) with a compact list.
+
+    * If ``body`` does not contain the placeholder → return ``body``
+      unchanged (no I/O).
+    * If the search returns zero hits → replace with empty string
+      (clean blank, NOT a "no hits" stub).
+    * Otherwise → replace with markdown bullet list (title + summary).
+    """
+    if SINGLE_KH_PLACEHOLDER not in (body or ""):
+        return body
+    hits = find_relevant(
+        workspace,
+        query,
+        role=role,
+        phase_id=phase_id,
+        plugin=plugin,
+        top_n=top_n,
+    )
+    return body.replace(SINGLE_KH_PLACEHOLDER, render_hits_block_compact(hits))

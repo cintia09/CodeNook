@@ -285,3 +285,83 @@ def test_orchestrator_render_phase_prompt_substitutes_knowledge_hits(
     assert out_without is not None
     assert "Auto-retrieved knowledge hits" not in out_without
     assert out_without.strip().endswith("(no placeholder here)")
+
+
+# ============================================================ v0.28.3
+# Single-brace ``{KNOWLEDGE_HITS}`` placeholder — compact list, top-5
+# default, EMPTY string on zero hits (no "no hits" stub).
+def test_single_brace_substitute_replaces_with_compact_list(tmp_path: Path):
+    ws = _make_ws(tmp_path)
+    _write_index(ws, [
+        {
+            "plugin": "p1",
+            "title": "Alpha entry",
+            "path": "p1/knowledge/alpha.md",
+            "summary": "alpha guide for testing.",
+            "tags": ["alpha"],
+        },
+        {
+            "plugin": "p1",
+            "title": "Alpha runbook",
+            "path": "p1/knowledge/alpha-rb.md",
+            "summary": "alpha runbook.",
+            "tags": ["alpha"],
+        },
+    ])
+    body = "Header\n\n{KNOWLEDGE_HITS}\n\nFooter\n"
+    out = kq.substitute_single_placeholder(body, ws, query="alpha")
+    assert "{KNOWLEDGE_HITS}" not in out
+    # Should contain entry titles + summaries, NOT the legacy
+    # "Auto-retrieved knowledge hits" header.
+    assert "Auto-retrieved knowledge hits" not in out
+    assert "Alpha entry" in out
+    assert "alpha guide for testing." in out
+    assert "Header" in out and "Footer" in out
+
+
+def test_single_brace_substitute_no_op_when_absent(tmp_path: Path):
+    ws = _make_ws(tmp_path)
+    _write_index(ws, [
+        {
+            "plugin": "p1",
+            "title": "Alpha entry",
+            "path": "p1/knowledge/alpha.md",
+            "summary": "alpha guide.",
+            "tags": ["alpha"],
+        },
+    ])
+    body = "no placeholder here"
+    assert kq.substitute_single_placeholder(body, ws, query="alpha") == body
+
+
+def test_single_brace_substitute_emits_empty_string_on_zero_hits(tmp_path: Path):
+    ws = _make_ws(tmp_path)
+    _write_index(ws, [])
+    body = "Before\n\n{KNOWLEDGE_HITS}\n\nAfter\n"
+    out = kq.substitute_single_placeholder(body, ws, query="zzz-no-match")
+    # Token gone; replaced with empty string — NOT a "no hits" stub.
+    assert "{KNOWLEDGE_HITS}" not in out
+    assert "No matches found" not in out
+    assert "no hits" not in out.lower()
+    # Surrounding content preserved.
+    assert "Before" in out and "After" in out
+    # The replacement is literally "" so the two blank lines collapse.
+    assert out == "Before\n\n\n\nAfter\n"
+
+
+def test_single_brace_default_top_n_is_five(tmp_path: Path):
+    ws = _make_ws(tmp_path)
+    _write_index(ws, [
+        {
+            "plugin": "p1",
+            "title": f"Entry {i}",
+            "path": f"p1/knowledge/e{i}.md",
+            "summary": f"alpha entry number {i}.",
+            "tags": ["alpha"],
+        }
+        for i in range(8)
+    ])
+    body = "{KNOWLEDGE_HITS}"
+    out = kq.substitute_single_placeholder(body, ws, query="alpha")
+    # 5 bullets max.
+    assert out.count("- **") == 5

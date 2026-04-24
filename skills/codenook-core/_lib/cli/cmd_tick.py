@@ -215,6 +215,17 @@ def _augment_envelope(ctx: CodenookContext, task: str, tick_out: str) -> str:
                 plugin=plugin,
                 top_n=top_n,
             )
+            # v0.28.3 — single-brace {KNOWLEDGE_HITS} (top-5, empty on
+            # zero hits). Used by new phase templates; co-exists with
+            # the legacy double-brace substitution above.
+            body = _kq.substitute_single_placeholder(
+                body,
+                ctx.workspace,
+                query=query,
+                role=role,
+                phase_id=str(phase),
+                plugin=plugin,
+            )
         except Exception:
             # Backward-compat: never fail dispatch on retrieval errors.
             # Leave any unsubstituted placeholder literal so a later run
@@ -235,7 +246,12 @@ def _augment_envelope(ctx: CodenookContext, task: str, tick_out: str) -> str:
         else f".codenook/tasks/{task}/{expected}"
     )
     prompt_rel = f".codenook/tasks/{task}/prompts/{prompt_p.name}"
-    system_rel = f".codenook/plugins/{plugin}/roles/{role}.md"
+    # T-004 unified layout: roles/<role>/role.md preferred; flat legacy fallback.
+    _role_subdir = ctx.workspace / ".codenook" / "plugins" / plugin / "roles" / role / "role.md"
+    if _role_subdir.is_file():
+        system_rel = f".codenook/plugins/{plugin}/roles/{role}/role.md"
+    else:
+        system_rel = f".codenook/plugins/{plugin}/roles/{role}.md"
 
     # v0.19 — per-task execution_mode picks the dispatch action.
     # Tasks without the field behave exactly as v0.18.x (sub-agent).

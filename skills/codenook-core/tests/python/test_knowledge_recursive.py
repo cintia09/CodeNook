@@ -31,24 +31,33 @@ def _make_plugin(root: Path, plugin: str) -> Path:
 
 # ---------------------------------------------------------------- 1. recursion
 def test_recursive_scan_finds_nested_files(tmp_path: Path):
+    """Canonical descriptors only: root-level flat short form +
+    nested ``<slug>/index.md``. Sibling ``case.md`` / ``entry.md``
+    files are intentionally ignored (T-006 §2.4)."""
     pdir = _make_plugin(tmp_path, "p1")
     _write(pdir / "knowledge" / "top.md", "# Top\n\nbody.\n")
-    _write(pdir / "knowledge" / "baselines" / "APHA" / "startup.md",
+    _write(pdir / "knowledge" / "baselines" / "APHA" / "index.md",
            "# APHA Startup\n\nReference cold-start sequence.\n")
-    _write(pdir / "knowledge" / "cases" / "issue-01" / "case.md",
+    _write(pdir / "knowledge" / "cases" / "issue-01" / "index.md",
            "# Case 1\n\nA case.\n")
+    # A legacy sibling that MUST be ignored — proves the duplicate-hit
+    # bug fix-pass 1 closed (reviewer MF-1 / MF-2).
+    _write(pdir / "knowledge" / "cases" / "issue-01" / "case.md",
+           "# Stale sibling\n\nshould not appear\n")
     recs = ki.discover_knowledge(pdir)
-    paths = [Path(r["path"]).name for r in recs]
+    paths = [Path(r["path"]).relative_to(pdir / "knowledge").as_posix()
+             for r in recs]
     assert "top.md" in paths
-    assert "startup.md" in paths
-    assert "case.md" in paths
+    assert "baselines/APHA/index.md" in paths
+    assert "cases/issue-01/index.md" in paths
+    assert "cases/issue-01/case.md" not in paths
     assert len(recs) == 3
 
 
 # ---------------------------------------------------------------- 2. tags from path
 def test_implicit_tags_from_directory_path(tmp_path: Path):
     pdir = _make_plugin(tmp_path, "p1")
-    _write(pdir / "knowledge" / "baselines" / "APHA" / "startup.md",
+    _write(pdir / "knowledge" / "baselines" / "APHA" / "index.md",
            "# APHA Startup\n\nbody.\n")
     recs = ki.discover_knowledge(pdir)
     assert len(recs) == 1
@@ -72,17 +81,17 @@ def test_summary_extraction_from_h1_and_paragraph(tmp_path: Path):
 # ---------------------------------------------------------------- 4. INDEX.yaml
 def test_index_yaml_overrides_implicit(tmp_path: Path):
     pdir = _make_plugin(tmp_path, "p1")
-    _write(pdir / "knowledge" / "baselines" / "APHA" / "startup.baseline.md",
+    _write(pdir / "knowledge" / "baselines" / "APHA" / "index.md",
            "# Generic body heading\n\nbody.\n")
     _write(pdir / "knowledge" / "INDEX.yaml", """\
         entries:
-          - path: baselines/APHA/startup.baseline.md
+          - path: baselines/APHA/index.md
             title: APHA Startup Baseline
             summary: Reference cold-start sequence for APHA board family.
             tags: [baselines, APHA, startup]
         """)
     recs = ki.discover_knowledge(pdir)
-    rec = next(r for r in recs if r["path"].endswith("startup.baseline.md"))
+    rec = next(r for r in recs if r["path"].endswith("index.md"))
     assert rec["title"] == "APHA Startup Baseline"
     assert "cold-start" in rec["summary"]
     assert rec["tags"] == ["baselines", "APHA", "startup"]
@@ -90,7 +99,7 @@ def test_index_yaml_overrides_implicit(tmp_path: Path):
 
 def test_index_yaml_directory_path_picks_primary_md(tmp_path: Path):
     pdir = _make_plugin(tmp_path, "p1")
-    _write(pdir / "knowledge" / "cases" / "issue-01" / "case.md",
+    _write(pdir / "knowledge" / "cases" / "issue-01" / "index.md",
            "# raw\nbody\n")
     _write(pdir / "knowledge" / "INDEX.yaml", """\
         entries:
@@ -100,7 +109,7 @@ def test_index_yaml_directory_path_picks_primary_md(tmp_path: Path):
             tags: [case, foo]
         """)
     recs = ki.discover_knowledge(pdir)
-    rec = next(r for r in recs if r["path"].endswith("case.md"))
+    rec = next(r for r in recs if r["path"].endswith("index.md"))
     assert rec["title"] == "Issue 1 Title"
     assert rec["tags"] == ["case", "foo"]
 
@@ -204,6 +213,66 @@ def test_reindex_is_idempotent(tmp_path: Path):
     a.pop("generated_at")
     b.pop("generated_at")
     assert a == b
+
+
+# --------------------------------------------------- 8b. memory subdir reindex
+def test_full_index_walks_memory_subdirectory_knowledge_entries(tmp_path: Path):
+    """T-006 fix-pass 2 / F-1 regression: ``knowledge reindex`` must
+    surface hand-placed ``memory/knowledge/<slug>/index.md`` sub-
+    directory entries — not just the legacy flat ``<slug>.md`` form.
+    Before the fix, ``discover memory`` walked these recursively but
+    ``build_full_index`` (memory_index.build_index) used a non-
+    recursive scandir and silently dropped them, so they were
+    invisible to ``codenook knowledge search``.
+    """
+    mem_k = tmp_path / ".codenook" / "memory" / "knowledge"
+    # Flat short form (already supported pre-fix).
+    _write(mem_k / "flat-note.md", """\
+        ---
+        title: Flat note
+        summary: legacy short form
+        tags: [memory, flat]
+        ---
+        body
+        """)
+    # Sub-directory canonical form (the bug — must now be picked up).
+    _write(mem_k / "unify-plugin-memory" / "index.md", """\
+        ---
+        id: unify-plugin-memory-structure
+        title: Unify plugin+memory structure
+        summary: sub-directory drop-in discovery
+        tags: [memory, structure, drop-in]
+        ---
+        body
+        """)
+    # Legacy sibling that MUST be ignored (canonical-descriptor contract).
+    _write(mem_k / "unify-plugin-memory" / "entry.md",
+           "# stale sibling — should not appear\n")
+
+    payload = fi.build_full_index(tmp_path)
+    mem_entries = [e for e in payload["knowledge"] if e.get("plugin") is None]
+    paths = {Path(e["path"]).as_posix() for e in mem_entries}
+    titles = {e.get("title") for e in mem_entries}
+
+    # Both shapes surface.
+    assert any(p.endswith("flat-note.md") for p in paths), paths
+    assert any(p.endswith("unify-plugin-memory/index.md") for p in paths), paths
+    # Frontmatter title (not the directory slug, not "index") wins.
+    assert "Unify plugin+memory structure" in titles
+    # Orphan sibling must NOT appear.
+    assert not any(p.endswith("unify-plugin-memory/entry.md") for p in paths), paths
+
+    # And the entry must be searchable end-to-end via find_relevant.
+    aggregated: dict[str, list[dict]] = {"(memory)": []}
+    for e in mem_entries:
+        aggregated["(memory)"].append({
+            "path": e["path"],
+            "title": e.get("title", ""),
+            "summary": e.get("summary", ""),
+            "tags": list(e.get("tags") or []),
+        })
+    hits = ki.find_relevant("unify plugin memory structure", aggregated, limit=5)
+    assert any("unify-plugin-memory/index.md" in h["path"] for h in hits), hits
 
 
 # ---------------------------------------------------------------- 9. CLI search

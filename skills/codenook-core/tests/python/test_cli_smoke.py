@@ -269,12 +269,20 @@ def test_plugin_lint_clean_and_broken(
     payload = json.loads(cp.stdout)
     assert payload["ok"] is True, payload
 
-    # Corrupt: remove a roles/<role>.md and re-lint a copied plugin.
+    # Corrupt: remove a role and re-lint a copied plugin. Since T-004
+    # the development plugin uses the sub-dir layout
+    # (roles/<role>/role.md) — remove that directory entirely so the
+    # phase reference becomes unresolvable.
     bad = tmp_path / "broken-plugin"
     import shutil
     shutil.copytree(
         ws / ".codenook" / "plugins" / "development", bad)
-    (bad / "roles" / "implementer.md").unlink()
+    impl = bad / "roles" / "implementer"
+    if impl.is_dir():
+        shutil.rmtree(impl)
+    else:
+        # legacy flat layout fallback
+        (bad / "roles" / "implementer.md").unlink()
 
     cp = _run(_bin_cmd(ws) + ["plugin", "lint", str(bad), "--json"],
               check=False)
