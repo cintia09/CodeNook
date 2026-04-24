@@ -103,16 +103,18 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
     if type_filter:
         # Validate against the appropriate DISCOVERY_ROOTS slice so that
         # typos (e.g. `roles` vs `role`) fail loudly instead of silently
-        # producing zero entities.
+        # producing zero entities.  T-006: memory + plugin "knowledge"
+        # root carries 4 frontmatter sub-types — accept all of them.
         roots = discovery.DISCOVERY_ROOTS  # type: ignore[attr-defined]
+        knowledge_subtypes = set(discovery.KNOWLEDGE_TYPES)  # type: ignore[attr-defined]
         if want_all:
-            allowed = set(roots["plugin"]) | set(roots["memory"])
+            allowed = (set(roots["plugin"]) | set(roots["memory"]) | knowledge_subtypes)
             ctx_label = "plugins+memory"
         elif sub == "plugins":
-            allowed = set(roots["plugin"])
+            allowed = set(roots["plugin"]) | knowledge_subtypes
             ctx_label = "plugins"
         else:  # memory
-            allowed = set(roots["memory"])
+            allowed = set(roots["memory"]) | knowledge_subtypes
             ctx_label = "memory"
         if type_filter not in allowed:
             sys.stderr.write(
