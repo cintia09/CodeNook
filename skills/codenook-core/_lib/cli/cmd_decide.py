@@ -123,8 +123,13 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
                     break
 
     if not entry_id:
-        hint = (f" (pending gates: {', '.join(pending_gates)})"
-                if pending_gates else "")
+        if pending_gates:
+            hint = f" (pending gates: {', '.join(pending_gates)})"
+        else:
+            hint = (" (no gate has been registered for this task yet — "
+                    "run `codenook tick --task {task} --json` first; the "
+                    "tick is what writes the gate JSON to "
+                    ".codenook/hitl-queue/)").format(task=task)
         sys.stderr.write(
             f"codenook decide: no pending HITL entry for task={task} "
             f"phase={phase} (gate={gate}){hint}\n")

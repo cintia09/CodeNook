@@ -1984,6 +1984,7 @@ def _task_delete(ctx: CodenookContext, args: list[str]) -> int:
                 purge = True
             elif a == "--force":
                 force = True
+                yes = True  # --force implies skipping the y/N prompt
             elif a == "--yes":
                 yes = True
             elif a == "--dry-run":

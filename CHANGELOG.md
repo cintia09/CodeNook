@@ -1,3 +1,31 @@
+## v0.29.4 — Smoke-test UX polish
+
+### Fixed
+
+Three small UX rough edges discovered during the prnook v0.4.6
+smoke test in a fresh user workspace (T-010 acceptance run):
+
+- **DEL-1 (`task delete --force`)**: `--force` now implies
+  `--yes` and skips the `Proceed? [y/N]` interactive prompt.
+  Previously `--force` only allowed deleting `status=in_progress`
+  tasks but still blocked on stdin in non-tty contexts (e.g. when
+  the LLM conductor chained commands), causing the call to hang
+  indefinitely. Workflows that genuinely want to confirm can omit
+  `--force` and answer the prompt as before.
+- **DEC-1 (`decide` ergonomic error)**: when `codenook decide` is
+  invoked before the matching `tick` has written the gate JSON to
+  `.codenook/hitl-queue/`, the error message now spells out
+  exactly that — "no gate has been registered for this task yet
+  — run `codenook tick --task <id> --json` first; the tick is
+  what writes the gate JSON". Previously the message just said
+  "no pending HITL entry", which read like the gate had been
+  consumed. Behaviour unchanged when `pending_gates` is non-empty.
+
+No schema changes. No new CLI flags. Pure error-path / default-
+behaviour polish.
+
+---
+
 ## v0.29.3 — Plugin entry-questions persistability (P0 fix)
 
 ### Fixed
