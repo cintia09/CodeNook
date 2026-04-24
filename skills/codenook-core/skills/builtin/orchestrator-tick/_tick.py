@@ -540,6 +540,17 @@ def _render_phase_prompt(workspace: Path, state: dict, phase: dict) -> str | Non
                 plugin=plugin,
                 top_n=top_n,
             )
+            # v0.28.3 — single-brace {KNOWLEDGE_HITS} (top-5, empty on
+            # zero hits). New phase templates use this form; the legacy
+            # double-brace substitution above is kept for compatibility.
+            rendered = _kq.substitute_single_placeholder(
+                rendered,
+                workspace,
+                query=query,
+                role=str(phase.get("role") or ""),
+                phase_id=str(phase.get("id") or ""),
+                plugin=plugin,
+            )
         except Exception:
             pass
         return rendered

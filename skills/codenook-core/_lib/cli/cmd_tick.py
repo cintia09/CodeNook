@@ -215,6 +215,17 @@ def _augment_envelope(ctx: CodenookContext, task: str, tick_out: str) -> str:
                 plugin=plugin,
                 top_n=top_n,
             )
+            # v0.28.3 — single-brace {KNOWLEDGE_HITS} (top-5, empty on
+            # zero hits). Used by new phase templates; co-exists with
+            # the legacy double-brace substitution above.
+            body = _kq.substitute_single_placeholder(
+                body,
+                ctx.workspace,
+                query=query,
+                role=role,
+                phase_id=str(phase),
+                plugin=plugin,
+            )
         except Exception:
             # Backward-compat: never fail dispatch on retrieval errors.
             # Leave any unsubstituted placeholder literal so a later run
