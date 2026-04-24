@@ -74,12 +74,15 @@ def test_issue5_unknown_tick_status_handled():
 
 
 # ---------------------------------------------------------------------
-# Issue #6 — missing/empty index.yaml
+# Issue #6 — missing/empty memory inventory
 # ---------------------------------------------------------------------
 
-def test_issue6_missing_index_yaml_handled():
+def test_issue6_missing_memory_inventory_handled():
+    """v0.29.0+: there is no on-disk index.yaml; the bootloader must
+    still tell the conductor what to do when memory holds zero entries
+    on a fresh install."""
     out = render()
-    assert _has(out, r"(missing|empty|fails to parse).{0,200}index\.yaml|index\.yaml.{0,200}(missing|empty|fails to parse)")
+    assert _has(out, r"memory holds zero entries.{0,200}(normal|note|fresh install)|fresh install.{0,200}normal")
 
 
 # ---------------------------------------------------------------------
@@ -118,14 +121,15 @@ def test_issue9_multiple_gates_serial():
 
 
 # ---------------------------------------------------------------------
-# Issue #10 — knowledge search vs cached index.yaml
+# Issue #10 — knowledge search is the live disk-walk surface (v0.29.0)
 # ---------------------------------------------------------------------
 
-def test_issue10_search_vs_cached_disambiguated():
+def test_issue10_search_is_live_disk_scan():
     out = render()
-    # Section must explicitly describe both paths and when to use each.
-    assert _has(out, r"cached.{0,80}index\.yaml|index\.yaml.{0,80}cached")
-    assert _has(out, r"(when in doubt|trivial single-topic).{0,200}knowledge search")
+    # The Proactive knowledge lookup section must describe the live
+    # disk scan and recommend `knowledge search` as the surface.
+    assert _has(out, r"(walks?|live).{0,80}(plugin|memory|disk).{0,200}knowledge search|knowledge search.{0,200}(walk|live|disk)")
+    assert _has(out, r"no on-disk index|no index file|live disk scan")
 
 
 # ---------------------------------------------------------------------
@@ -139,16 +143,14 @@ def test_issue12_model_verbatim_scope_clarified():
 
 
 # ---------------------------------------------------------------------
-# Issue #13 — _pending/ is extractor-only, not searched
+# Issue #13 — manual entries (v0.29.0+: no _pending/, no extractor)
 # ---------------------------------------------------------------------
 
-def test_issue13_pending_is_extractor_staging():
+def test_issue13_manual_knowledge_path_documented():
+    """v0.29.0 removed the auto-extraction pipeline. The bootloader
+    must tell the conductor where to write a manual knowledge entry
+    and that no reindex step is required."""
     out = render()
-    # Three independent assertions — the layout-table mention of `_pending/`
-    # confounds positional regexes, so just check the substantive wording exists.
-    assert _has(out, r"extractor staging area")
-    assert _has(out, r"NOT.{0,40}searched by.{0,40}knowledge search|NOT in .index\.yaml")
     assert _has(out, r"memory/knowledge/<slug>/index\.md")
-    assert _has(out, r"flat\s+.?<slug>\.md.?\s+(file\s+)?is\s+silently\s+ignored")
-    assert _has(out, r"Do not write hand-authored\s+notes to .?_pending"), \
-        "must explicitly forbid manual writes to _pending/"
+    # Must also mention there's no _pending/ or reindex step any more.
+    assert _has(out, r"no\s+`?_pending|no\s+reindex|reindex.{0,80}any\s+more")

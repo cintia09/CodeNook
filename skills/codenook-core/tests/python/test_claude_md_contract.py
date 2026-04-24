@@ -150,9 +150,9 @@ def test_contract_04_required_subcommands_documented():
 # =====================================================================
 
 def test_contract_05_boot_ritual_lists_authoritative_files():
-    """CONTRACT-05: conductor is told to read state.json, plugin.yaml, memory index."""
+    """CONTRACT-05: conductor is told to read state.json, plugin.yaml, memory."""
     out = render()
-    for needle in ("state.json", "plugin.yaml", "memory/index.yaml"):
+    for needle in ("state.json", "plugin.yaml", "memory/"):
         assert needle in out, f"Boot-ritual reference missing: {needle}"
 
 
@@ -372,14 +372,15 @@ def test_contract_12_just_go_does_not_skip_exec_or_model_ask():
 
 
 def test_contract_13_session_start_ritual_is_mandatory_in_hard_rules():
-    """Regression: agents skip memory/index.yaml in the boot ritual
-    because it 'doesn't look needed yet'. A MUST line in §Hard
-    rules must mark the boot batch atomic and call out memory/
-    index.yaml by name."""
+    """Regression: agents skip the boot-ritual memory read because it
+    'doesn't look needed yet'. A MUST line in §Hard rules must mark
+    the boot batch atomic and reference the live memory walk
+    (knowledge list / scan of memory/) — there is no longer an
+    ``index.yaml`` to name explicitly (v0.29.0+)."""
     out = render()
-    # MUST line referencing the ritual + memory/index.yaml + atomicity
+    # MUST line referencing the ritual + memory walk + atomicity
     assert re.search(
-        r"\*\*MUST\*\*.*?(Session-?start ritual|boot ritual).*?memory/index\.yaml",
+        r"\*\*MUST\*\*.*?(Session-?start ritual|boot ritual).*?memory",
         out, flags=re.IGNORECASE | re.DOTALL,
     ), "No MUST rule pins the boot ritual atomicity."
     # Ritual heading itself should be marked MANDATORY/atomic

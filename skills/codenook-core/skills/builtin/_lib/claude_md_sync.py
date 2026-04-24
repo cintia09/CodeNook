@@ -147,12 +147,10 @@ user's request is substantial; the user always confirms before
   §Pick a profile.
 - **MUST** complete the §Session-start ritual reads as a single
   batch (`state.json` + every installed `plugin.yaml` +
-  `memory/index.yaml` + `<codenook> status`) before answering
-  any CodeNook-related request. Skipping `memory/index.yaml`
-  because it "doesn't look needed yet" is a common failure
-  mode — it is part of the inventory, not optional context;
-  read it on every fresh session even when only one of the
-  other items would be enough to act.
+  a live `<codenook> knowledge list` (or quick scan of
+  `memory/{{knowledge,skills}}/`) + `<codenook> status`) before
+  answering any CodeNook-related request. There is no longer an
+  `index.yaml` to read — discovery walks the disk live each call.
 - **MUST** run `<codenook> task suggest-parent` after the pre-
   task interview and BEFORE `task new`, then surface any
   non-empty result to the user as a continue / chain / create-
@@ -162,12 +160,13 @@ user's request is substantial; the user always confirms before
 - **MUST NOT** interpret, paraphrase, or summarise the HITL `prompt`
   field or per-phase outputs. Relay verbatim.
 - **MUST** proactively query workspace knowledge and skills via
-  `<codenook> knowledge search "<keywords>"` (and a keyword scan
-  of `memory/index.yaml` skill entries) BEFORE answering any
-  investigation, debugging, "how do I …", "why does …", symptom,
-  or explanation request that might be covered by indexed
-  content. Do not answer from LLM training alone when the index
-  has a plausible hit. See §Proactive knowledge lookup.
+  `<codenook> knowledge search "<keywords>"` (which walks the
+  plugin and memory `knowledge/` / `skills/` directories live —
+  no index file) BEFORE answering any investigation, debugging,
+  "how do I …", "why does …", symptom, or explanation request
+  that might be covered by indexed content. Do not answer from
+  LLM training alone when a live search has a plausible hit.
+  See §Proactive knowledge lookup.
 - **MUST** end every reply by asking the user what their next step
   is (use the host's interactive prompt facility when available).
   This applies whether or not a task is active.
@@ -182,7 +181,7 @@ user's request is substantial; the user always confirms before
 | `.codenook/codenook-core/` | Self-contained kernel | read-only |
 | `.codenook/schemas/` | `task-state`, `installed`, `hitl-entry`, `queue-entry` | read-only |
 | `.codenook/plugins/<id>/` | Phase prompts, roles, skills, knowledge. Each entry is a self-describing sub-directory: `knowledge/<slug>/index.md` (with `type` frontmatter selecting `case|playbook|error|knowledge`) and `skills/<slug>/SKILL.md` (filename = type). | read-only |
-| `.codenook/memory/` | `knowledge/<slug>/index.md`, `skills/<slug>/SKILL.md`, `history/`, `_pending/`, `config.yaml`, `index.yaml`. The flat layout (T-006) collapses the legacy `cases/` `playbooks/` `errors/` roots into `knowledge/` with the kind in frontmatter. | CLI only |
+| `.codenook/memory/` | `knowledge/<slug>/index.md`, `skills/<slug>/SKILL.md`, `history/<ISO>-<slug>/` (manual + auto session snapshots). Each entry is its own self-describing sub-directory; the discovery scanner ignores top-level loose `.md` files. | CLI only |
 | `.codenook/tasks/<id>/` | Per-task state, prompts, audit log | CLI only |
 | `.codenook/hitl-queue/` | Open HITL gate entries (JSON) | CLI only |
 | `.codenook/bin/codenook` (or `\bin\codenook.cmd`) | The wrapper | n/a |
@@ -213,35 +212,31 @@ the immediate next step "only needs" one of them.
    when you want a compact, one-shot read; fall back to reading
    each `plugin.yaml` only when you need fields `plugin list`
    omits.
-3. `.codenook/memory/index.yaml` — workspace knowledge + skill
-   inventory (a few KB; cheap). If this file is missing, empty,
-   or fails to parse, treat it as "no workspace memory indexed
-   yet" and continue the ritual without aborting — a fresh
-   install before the first promoted entry is normal, and the
-   post-install hook auto-creates it. Note the empty state once
-   in conductor scratchpad so trivial requests don't keep
-   re-checking. View specific entries by their `path` only when
-   their summary suggests they matter. Treat skill entries as
-   first-class candidates alongside plugin-shipped skills (which
-   live as sub-directories under each plugin's `skills/<name>/`
-   and are enumerated via `<codenook> discover plugins --type
-   skill`). For a unified view of every workspace memory entity
-   across types (knowledge, skills, cases, playbooks, errors),
-   use `<codenook> discover memory --type knowledge` (and the
-   sibling `--type` filters) — this is the canonical inventory
-   surface alongside `<codenook> knowledge search`.
+3. `<codenook> knowledge list` (or a directory scan of
+   `.codenook/memory/` and each `.codenook/plugins/<id>/{{knowledge,skills}}/`)
+   — workspace knowledge + skill inventory. There is no
+   `index.yaml` since v0.29.0; discovery is live each call by
+   walking the per-entry sub-directories. If memory holds zero
+   entries on a fresh install, that's normal — note the empty
+   state once in conductor scratchpad so trivial requests don't
+   keep re-checking. Treat skill entries as first-class
+   candidates alongside plugin-shipped skills (which live as
+   sub-directories under each plugin's `skills/<name>/` and are
+   enumerated via `<codenook> discover plugins --type skill`).
+   For a unified view of every workspace memory entity across
+   types, use `<codenook> discover memory --type knowledge` (and
+   the sibling `--type` filters) — this is the canonical
+   inventory surface alongside `<codenook> knowledge search`.
 
-   **Note on `_pending/`**: `.codenook/memory/_pending/` is
-   the **extractor staging area** — auto-extracted candidate
-   knowledge from completed tasks, awaiting human review. It is
-   **NOT** in `index.yaml` and **NOT** searched by
-   `knowledge search`. To make a manual knowledge entry
-   searchable, create a sub-directory
+   **Note on manual entries (v0.29.0+)**: knowledge extraction
+   is no longer automated. To add a workspace knowledge entry,
+   write it directly to
    `.codenook/memory/knowledge/<slug>/index.md` (with the
    required frontmatter: `id`, `type`, `title`, `summary`,
-   `tags`) and run `<codenook> knowledge reindex`. A flat
-   `<slug>.md` file is silently ignored by the discovery
-   scanner. Do not write hand-authored notes to `_pending/`.
+   `tags`); for an executable playbook, use
+   `.codenook/memory/skills/<slug>/SKILL.md`. The next
+   `knowledge search` call picks it up automatically — there is
+   no `_pending/` staging area or `reindex` step any more.
 4. `<codenook> status` — active tasks (id, phase, status, model,
    exec mode). Many host runtimes hide dot-directories from
    their default `glob`, so this CLI call is the only reliable
@@ -264,28 +259,21 @@ task is being started.
    tokens, domain nouns, tool names, CLI subcommand fragments,
    filenames).
 2. **Search the knowledge index** — for multi-keyword queries
-   or whenever the cached `index.yaml` from the session-start
-   ritual does not show 2-3 obviously-relevant summaries:
+   or whenever the in-memory cache from the session-start ritual
+   does not show 2-3 obviously-relevant summaries:
    ```bash
    <codenook> knowledge search "<keywords space-separated>" --limit 10
    ```
-   For trivial single-topic lookups where the cached
-   `index.yaml` already shows clearly relevant entries (right
-   keywords in title / summary / tags), it is fine to scan the
-   cached YAML directly and skip the shell call — the on-disk
-   index and `knowledge search` consume the same source data.
-   When in doubt, run `knowledge search`; the kernel's ranking
-   handles tag-only matches and stem variations the cached scan
-   misses.
-   The command ranks entries across every installed plugin's
-   `knowledge/` folder plus any promoted workspace knowledge
-   under `.codenook/memory/knowledge/`. Its output is safe to
+   The command walks every installed plugin's `knowledge/`
+   folder plus any workspace knowledge under
+   `.codenook/memory/knowledge/` live each call (no on-disk
+   index — discovery is direct disk scan). Output is safe to
    consume in conductor context — it returns summaries + paths,
    not file contents.
-3. **Scan `memory/index.yaml` skill entries** for the same
-   keywords (summary / title / tags). Skills are the workspace's
-   "how-to" playbooks and are often more actionable than pure
-   knowledge entries.
+3. **Walk `memory/skills/<slug>/SKILL.md`** for the same keywords
+   (summary / title / tags). Skills are the workspace's "how-to"
+   playbooks and are often more actionable than pure knowledge
+   entries.
 4. **Open what you're allowed to open:**
    - `.codenook/memory/` paths — open and read freely; cite the
      section you used.
@@ -341,11 +329,13 @@ must live in its own sub-directory.
 
 To add a workspace knowledge entry by hand: copy a
 self-contained directory under `.codenook/memory/knowledge/`
-(or `.codenook/memory/skills/` for an executable playbook),
-then run `<codenook> knowledge reindex`. For example::
+(or `.codenook/memory/skills/` for an executable playbook).
+The next `<codenook> knowledge search` call discovers it
+automatically — there is no `reindex` step (v0.29.0+). For
+example::
 
     cp -r ~/notes/my-runbook .codenook/memory/skills/my-runbook
-    .codenook/bin/codenook knowledge reindex
+    .codenook/bin/codenook knowledge search "my-runbook"
 
 The same drop-in shape works for plugin authors: copying a
 new entry under `plugins/<id>/{{knowledge,skills}}/` makes it
@@ -353,6 +343,34 @@ discoverable on the next `<codenook> discover plugins` call.
 Plugin skills, however, only reach a workspace's tool surface
 when the plugin's `plugin.yaml` declares them in
 `available_skills:` (the white-list gate).
+
+### History snapshots (v0.29.0+)
+
+Two flavours of session-history snapshot live side-by-side:
+
+* **Memory snapshots** — created ONLY when the user explicitly
+  says "save context" / "保存上下文". Conductor invokes:
+  ```bash
+  <codenook> history save --description "<short text>" \
+                          [--content-file <path> | --content "<body>"]
+  ```
+  The body is whatever the conductor passes (typically a
+  condensation of the user's main session messages plus the
+  recent assistant replies). Each call creates a fresh
+  `.codenook/memory/history/<ISO>-<slug>/` directory — there
+  is no dedup.
+
+* **Task snapshots** — written automatically by `<codenook>
+  tick` after every phase advance / terminal status, under
+  `.codenook/tasks/<T-NNN>/history/<ISO>-<phase>-<slug>/`.
+  Best-effort; never blocks tick exit.
+
+Retention defaults to 10 days. Operators can list / prune via:
+```bash
+<codenook> history list  [--scope memory|tasks|all]
+<codenook> history prune [--days N] [--scope memory|tasks|all] --yes
+```
+`--yes` is required for `prune` (no implicit deletes).
 
 ### Auto-engagement (substantial vs trivial)
 
@@ -383,8 +401,8 @@ For substantial requests, issue one `ask_user` with these choices:
    → §Duplicate / parent check → §Pre-creation config ask →
    `task new`.
 2. `No — handle inline` — answer the request directly. Still apply
-   §Proactive knowledge lookup; still consult cached
-   `memory/index.yaml` summaries.
+   §Proactive knowledge lookup; still consult the cached
+   `memory/` summaries from the session-start ritual.
 3. `Explain what CodeNook would do here` — give a one-paragraph
    summary of the recommended plugin / profile / phases, then
    re-issue the same `ask_user`.
@@ -422,8 +440,8 @@ opt out. Never skip the recommendation just to avoid asking.
 #### Pick a plugin (MANDATORY explicit confirm)
 
 Rank `installed_plugins` against the user's request using each
-plugin's `match` fields and the workspace skill entries from
-`memory/index.yaml`.
+plugin's `match` fields and the workspace skill entries surfaced
+by `<codenook> knowledge list`.
 
 **Edge cases first:**
 
@@ -814,12 +832,15 @@ runtimes on Windows.
   config before the first phase verdict is recorded.
 - `chain link` — wire `parent_id` / `chain_root` for task
   chains.
-- `knowledge reindex / list / search` — manage the workspace
-  knowledge index (auto-rebuilt on install / upgrade so it is
-  never empty).
+- `knowledge list / search` — discover & rank workspace
+  knowledge / skills (live disk scan; no on-disk index since
+  v0.29.0). `knowledge reindex` is a no-op kept for backward
+  compatibility.
+- `history save / list / prune` — manual + auto session-history
+  snapshots (see §History snapshots).
 
 The conductor MAY read `.codenook/plugins/*/plugin.yaml` and
-`.codenook/memory/{{knowledge,skills,history,_pending,config.yaml}}`
+`.codenook/memory/{{knowledge,skills,history}}/`
 freely for orientation — they are workspace-shared resources, not
 phase outputs.
 
@@ -827,9 +848,10 @@ phase outputs.
 
 - `docs/architecture.md` — kernel internals, install flow, and
   full CLI subcommand reference.
-- `docs/memory-and-extraction.md` — memory layout, knowledge
-  discovery (`{{KNOWLEDGE_HITS}}` placeholder, `INDEX.yaml`
-  override), pending-knowledge promotion.
+- `docs/memory-and-extraction.md` — memory layout + knowledge
+  discovery (`{{KNOWLEDGE_HITS}}` placeholder); the auto-extraction
+  pipeline is gone since v0.29.0 — knowledge entries are added
+  manually under `memory/knowledge/<slug>/index.md`.
 - The installed plugin's `README.md` — plugin-specific
   guidance, task-chain semantics.
 {END}
