@@ -23,7 +23,6 @@ ENTRIES = [
     ("preflight",         "preflight.py"),
     ("hitl-adapter",      "terminal.py"),
     ("dispatch-audit",    "emit.py"),
-    ("extractor-batch",   "extractor_batch.py"),
     ("router",            "bootstrap.py"),
     ("session-resume",    "resume.py"),
 ]

@@ -55,30 +55,22 @@ def test_seed_bin_defaults_to_sys_executable(tmp_path: Path):
     assert sys.executable in cmd
 
 
-# ---------------------------------------------------------- Bug 2
+# ---------------------------------------------------------- Bug 2 (v0.29.0)
+# Removed: tests for memory/index.yaml seeding. Since v0.29.0 the kernel
+# no longer creates memory/index.yaml — `codenook knowledge search`
+# walks the disk live each call. seed_memory only creates the three
+# remaining subdirs (knowledge/, skills/, history/).
 
 
-def test_seed_memory_creates_index_yaml(tmp_path: Path):
-    """Bug 2 — memory/index.yaml is seeded with the empty schema."""
+def test_seed_memory_creates_three_subdirs(tmp_path: Path):
+    """v0.29.0 — only knowledge/, skills/, history/ are seeded."""
     seed_workspace.seed_memory(KERNEL_ROOT, tmp_path)
-    idx = tmp_path / ".codenook" / "memory" / "index.yaml"
-    assert idx.is_file()
-    text = idx.read_text(encoding="utf-8")
-    assert "version: 1" in text
-    assert "skills: []" in text
-    assert "knowledge: []" in text
-
-
-def test_seed_memory_index_yaml_is_idempotent(tmp_path: Path):
-    """Existing non-empty index.yaml must not be overwritten."""
     mem = tmp_path / ".codenook" / "memory"
-    mem.mkdir(parents=True)
-    pre_existing = "version: 1\nskills:\n  - name: foo\n"
-    (mem / "index.yaml").write_text(pre_existing, encoding="utf-8")
-
-    seed_workspace.seed_memory(KERNEL_ROOT, tmp_path)
-
-    assert (mem / "index.yaml").read_text(encoding="utf-8") == pre_existing
+    for sub in ("knowledge", "skills", "history"):
+        assert (mem / sub).is_dir(), f"missing {sub}/"
+    assert not (mem / "_pending").exists()
+    assert not (mem / "config.yaml").exists()
+    assert not (mem / "index.yaml").exists()
 
 
 # ---------------------------------------------------------- Bug 3

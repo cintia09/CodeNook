@@ -52,7 +52,7 @@ Subcommands:
   decide   --task T-NNN --phase <id> --decision approve|reject|needs_changes
                                     [--comment "…"]
   hitl     <list|show|decide|serve|notify> [args...]
-  extract  --task T-NNN --reason <reason> [--phase <phase>]
+  history  <save|list|prune> [args...]
   status   [--task T-NNN]
   chain    link  --child T-X --parent T-Y [--force]
   chain    show  <task>
@@ -135,9 +135,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if sub == "hitl":
         from . import cmd_hitl
         return cmd_hitl.run(ctx, rest)
-    if sub == "extract":
-        from . import cmd_extract
-        return cmd_extract.run(ctx, rest)
+    if sub == "history":
+        from . import cmd_history
+        return cmd_history.run(ctx, rest)
     if sub == "status":
         from . import cmd_status
         return cmd_status.run(ctx, rest)

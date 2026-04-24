@@ -584,10 +584,13 @@ def dispatch_agent(workspace: Path, state: dict, phase: dict, n: int = 1) -> str
 
 
 def dispatch_distiller(workspace: Path, task_id: str) -> None:
-    pdir = workspace / ".codenook" / "memory" / "_pending"
-    pdir.mkdir(parents=True, exist_ok=True)
-    atomic_write_json(str(pdir / f"{task_id}.json"),
-                      {"task_id": task_id, "queued_at": now_iso()})
+    """Deprecated since v0.29.0 — distiller skill removed.
+
+    Was queuing JSON stubs under memory/_pending/ for the (removed)
+    distiller skill. Kept as a no-op so callers in tick() that fire
+    on `complete` transitions don't blow up.
+    """
+    del workspace, task_id
 
 
 # ── post_validate (skip with _warning if missing) ────────────────────────
@@ -1336,57 +1339,32 @@ def _legacy_log(state: dict, action: str, result: str) -> None:
 
 def after_phase(workspace_root: Path, task_id: str, phase: str | None,
                 summary_status: str) -> None:
-    """M9.2 hook: dispatch extractor-batch when a tick produces a phase
-    transition or terminal status.  Best-effort — never raises (FR-EXT-5 /
-    AC-TRG-4).  Default batch path can be overridden via CN_EXTRACTOR_BATCH
-    (used by tests to inject a stub).
+    """v0.29.0 hook — auto-snapshot the task's history on phase advance.
 
-    v0.24.0 — direct in-process call to ``_extractor_batch.run`` so the
-    kernel works on Windows hosts without bash on PATH. The legacy
-    ``CN_EXTRACTOR_BATCH`` env-override (used by tests to inject a stub
-    .sh) is still honoured via sh_run when set, since the override
-    intentionally targets an external script.
+    The legacy extractor-batch dispatch (M9.2) is gone; the kernel no
+    longer auto-extracts knowledge / skills. Instead, every advancing
+    or terminal tick writes a per-phase snapshot under
+    ``.codenook/tasks/<id>/history/<ISO>-<phase>-<slug>/`` so the
+    record of what ran is preserved without needing the extractor
+    pipeline. Best-effort: never raises; tick exit is unaffected.
     """
     if summary_status not in ("done", "blocked", "advanced"):
         return
-    override = os.environ.get("CN_EXTRACTOR_BATCH", "")
-    if override:
-        # Test/operator override path — preserve historical behaviour.
-        if not os.path.exists(override):
-            return
-        try:
-            r = _sh_run([override,
-                     "--task-id", task_id,
-                     "--reason", "after_phase",
-                     "--workspace", str(workspace_root),
-                     "--phase", phase or ""],
-                    capture_output=True, text=True, timeout=10)
-            # _sh_run is a thin subprocess.run wrapper without check=True;
-            # surface a non-zero exit so the failure is observable but
-            # the tick itself is unaffected (the whole point of this hook
-            # is best-effort: TC-M9.2-05 asserts failure does not block).
-            if r.returncode != 0:
-                print(
-                    f"orchestrator-tick: extractor batch failed: "
-                    f"override={override} exit={r.returncode}",
-                    file=sys.stderr,
-                )
-        except Exception as e:
-            print(f"orchestrator-tick: extractor batch override failed: {e}",
-                  file=sys.stderr)
-        return
-
-    # In-process path (no subprocess, no bash).
     try:
+        # Resolve kernel _lib (sibling of orchestrator-tick).
         import sys as _sys
-        _eb_dir = Path(__file__).resolve().parent.parent / "extractor-batch"
-        if str(_eb_dir) not in _sys.path:
-            _sys.path.insert(0, str(_eb_dir))
-        import _extractor_batch  # type: ignore
-        _extractor_batch.run(task_id=task_id, reason="after_phase",
-                             workspace=workspace_root, phase=phase or "")
-    except Exception as e:
-        print(f"orchestrator-tick: extractor batch failed: {e}",
+        _lib_dir = Path(__file__).resolve().parent.parent.parent / "_lib"
+        if str(_lib_dir) not in _sys.path:
+            _sys.path.insert(0, str(_lib_dir))
+        import history as _hist  # type: ignore
+        _hist.snapshot_task_phase(
+            workspace=workspace_root,
+            task_id=task_id,
+            phase=phase or "",
+            status=summary_status,
+        )
+    except Exception as e:  # pragma: no cover — defensive
+        print(f"orchestrator-tick: history snapshot failed: {e}",
               file=sys.stderr)
 
 
