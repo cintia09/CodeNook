@@ -60,6 +60,10 @@ Subcommands:
   knowledge reindex
   knowledge list [--plugin <id>] [--limit N]
   knowledge search <query> [--limit N]
+  history save --description "<text>" [--content-file <path>]
+                                      [--content "<text>"]
+  history list [--scope memory|tasks|all]
+  history prune [--days N] [--scope memory|tasks|all] [--yes]
   discover plugins [--plugin <id>] [--type <t>] [--json]
   discover memory  [--type <t>] [--json]
   discover --all   [--json]
