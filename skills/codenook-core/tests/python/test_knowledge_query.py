@@ -1,5 +1,11 @@
 """Tests for v0.22.0 ``find_relevant`` API + ``{{KNOWLEDGE_HITS}}``
 template substitution (kernel-side knowledge auto-injection).
+
+v0.29.0 — knowledge entries are discovered live by walking
+``.codenook/plugins/<id>/knowledge/<slug>/index.md`` (or
+``.codenook/memory/knowledge/<slug>/index.md``); there is no
+``index.yaml``. The ``_write_index`` helper materialises sub-dir
+fixtures so the same scoring tests cover the new code path.
 """
 from __future__ import annotations
 
@@ -12,14 +18,44 @@ import knowledge_query as kq
 
 
 # ---------------------------------------------------------------- helpers
+def _slugify(s: str) -> str:
+    return "".join(c if c.isalnum() else "-" for c in s.strip().lower()).strip("-") or "entry"
+
+
 def _write_index(ws: Path, knowledge: list[dict]) -> Path:
-    p = ws / ".codenook" / "memory" / "index.yaml"
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(
-        yaml.safe_dump({"version": 1, "knowledge": knowledge, "skills": []}),
-        encoding="utf-8",
-    )
-    return p
+    """Materialise *knowledge* as on-disk plugin/memory entries.
+
+    Each input dict's ``plugin`` field decides the destination root:
+    plugin entries go under ``.codenook/plugins/<plugin>/knowledge/<slug>/``,
+    memory entries (plugin is None / missing) go under
+    ``.codenook/memory/knowledge/<slug>/``.
+    """
+    plugins_root = ws / ".codenook" / "plugins"
+    memory_root = ws / ".codenook" / "memory"
+    plugins_root.mkdir(parents=True, exist_ok=True)
+    memory_root.mkdir(parents=True, exist_ok=True)
+    for i, e in enumerate(knowledge):
+        plug = e.get("plugin")
+        title = e.get("title") or f"Entry {i}"
+        # Slug includes the index to keep entries unique even when
+        # callers pass duplicate ``path`` / ``title`` fields.
+        base = e.get("path") or title or f"e{i}"
+        slug = f"{i:02d}-{_slugify(base)}"
+        if plug:
+            kdir = plugins_root / plug / "knowledge" / slug
+        else:
+            kdir = memory_root / "knowledge" / slug
+        kdir.mkdir(parents=True, exist_ok=True)
+        fm = {
+            "title": title,
+            "summary": e.get("summary", ""),
+            "tags": list(e.get("tags") or []),
+        }
+        (kdir / "index.md").write_text(
+            "---\n" + yaml.safe_dump(fm, sort_keys=False) + "---\n\n# " + str(title) + "\n",
+            encoding="utf-8",
+        )
+    return memory_root
 
 
 def _make_ws(tmp_path: Path) -> Path:
@@ -56,7 +92,7 @@ def test_tag_match_outranks_summary_only_match(tmp_path: Path):
     ])
     hits = kq.find_relevant(ws, "alpha")
     assert len(hits) == 2
-    assert hits[0]["path"].endswith("tagged.md"), hits
+    assert "tagged" in hits[0]["path"], hits
     assert hits[0]["score"] > hits[1]["score"]
 
 
@@ -209,23 +245,16 @@ def test_substitute_placeholder_renders_empty_message_on_zero_hits(tmp_path: Pat
     assert "No matches found in index.yaml" in out
 
 
-# ---------------------------------------------------------------- 9. config top_n
-def test_resolve_top_n_reads_config_yaml(tmp_path: Path):
+# ---------------------------------------------------------------- 9. config top_n (v0.29.0)
+# ``resolve_top_n`` no longer reads any on-disk config; it always
+# returns the caller's ``default``. The legacy
+# ``.codenook/config.yaml :: knowledge_hits.top_n`` knob lived in
+# files that v0.29.0 removed from the workspace memory layout.
+def test_resolve_top_n_returns_default(tmp_path: Path):
     ws = _make_ws(tmp_path)
     cfg = ws / ".codenook" / "config.yaml"
     cfg.write_text("knowledge_hits:\n  top_n: 3\n", encoding="utf-8")
-    assert kq.resolve_top_n(ws) == 3
-
-
-def test_resolve_top_n_default_when_missing(tmp_path: Path):
-    ws = _make_ws(tmp_path)
-    assert kq.resolve_top_n(ws, default=8) == 8
-
-
-def test_resolve_top_n_default_on_invalid(tmp_path: Path):
-    ws = _make_ws(tmp_path)
-    cfg = ws / ".codenook" / "config.yaml"
-    cfg.write_text("knowledge_hits:\n  top_n: bogus\n", encoding="utf-8")
+    # Even with the legacy file present, the new helper ignores it.
     assert kq.resolve_top_n(ws, default=8) == 8
 
 
@@ -279,7 +308,9 @@ def test_orchestrator_render_phase_prompt_substitutes_knowledge_hits(
     assert out_with is not None
     assert "{{KNOWLEDGE_HITS}}" not in out_with
     assert "Auto-retrieved knowledge hits" in out_with
-    assert "cheat.md" in out_with
+    # Path now points at the on-disk index.md sub-dir; assert one of
+    # the discriminating fragments survives in the rendered block.
+    assert "implementer" in out_with.lower() and "cheat" in out_with.lower()
 
     out_without = tick._render_phase_prompt(ws, state, phase_without)
     assert out_without is not None

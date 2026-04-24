@@ -75,45 +75,50 @@ def _index_yaml_path(workspace: Path | str) -> Path:
 
 
 def _load_entries(workspace: Path | str) -> list[dict[str, Any]]:
-    """Return knowledge entries from ``index.yaml`` or a fallback scan.
+    """Walk the workspace knowledge directories live and return entries.
 
-    Each entry has at least ``path, summary, tags`` and may carry a
-    ``plugin`` key (``None`` for memory-extracted entries). Never
-    raises — corrupt YAML / missing files yield ``[]``.
+    v0.29.0+ — there is no on-disk ``index.yaml`` to read; every call
+    re-scans plugin and memory ``knowledge/`` directories directly.
+    Each returned entry has at least ``path, summary, tags`` and may
+    carry a ``plugin`` key (``None`` for memory-extracted entries).
+    Never raises — discovery errors yield ``[]``.
     """
-    p = _index_yaml_path(workspace)
-    if p.is_file():
-        try:
-            doc = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-        except (OSError, yaml.YAMLError):
-            doc = {}
-        if isinstance(doc, dict):
-            raw = doc.get("knowledge")
-            if isinstance(raw, list):
-                return [e for e in raw if isinstance(e, dict)]
-        # Malformed; fall through to fallback scan rather than blow up.
-
-    # Fallback: in-memory scan via aggregate_knowledge over installed
-    # plugins. Keeps find_relevant useful before the first reindex.
     try:
         import knowledge_index as ki  # type: ignore
     except ImportError:
         return []
-    plugins_root = Path(workspace) / CODENOOK_DIRNAME / "plugins"
-    if not plugins_root.is_dir():
-        return []
     out: list[dict[str, Any]] = []
-    for pdir in sorted(plugins_root.iterdir(), key=lambda x: x.name):
-        if not pdir.is_dir():
-            continue
+
+    plugins_root = Path(workspace) / CODENOOK_DIRNAME / "plugins"
+    if plugins_root.is_dir():
+        for pdir in sorted(plugins_root.iterdir(), key=lambda x: x.name):
+            if not pdir.is_dir():
+                continue
+            try:
+                recs = ki.discover_knowledge(pdir)
+            except Exception:
+                continue
+            for rec in recs:
+                out.append(
+                    {
+                        "plugin": pdir.name,
+                        "title": rec.get("title", ""),
+                        "path": rec.get("path", ""),
+                        "summary": rec.get("summary", ""),
+                        "tags": list(rec.get("tags") or []),
+                    }
+                )
+
+    memory_root = Path(workspace) / CODENOOK_DIRNAME / MEMORY_DIRNAME
+    if memory_root.is_dir():
         try:
-            recs = ki.discover_knowledge(pdir)
+            recs = ki.discover_knowledge(memory_root)
         except Exception:
-            continue
+            recs = []
         for rec in recs:
             out.append(
                 {
-                    "plugin": pdir.name,
+                    "plugin": None,
                     "title": rec.get("title", ""),
                     "path": rec.get("path", ""),
                     "summary": rec.get("summary", ""),
@@ -316,24 +321,15 @@ def substitute_placeholder(
 
 
 def resolve_top_n(workspace: Path | str, default: int = 8) -> int:
-    """Honour ``<ws>/.codenook/config.yaml`` key ``knowledge_hits.top_n``."""
-    cfg = Path(workspace) / CODENOOK_DIRNAME / "config.yaml"
-    if not cfg.is_file():
-        return default
-    try:
-        doc = yaml.safe_load(cfg.read_text(encoding="utf-8")) or {}
-    except (OSError, yaml.YAMLError):
-        return default
-    if not isinstance(doc, dict):
-        return default
-    sect = doc.get("knowledge_hits")
-    if not isinstance(sect, dict):
-        return default
-    val = sect.get("top_n")
-    if isinstance(val, bool):
-        return default
-    if isinstance(val, int) and val > 0:
-        return val
+    """Return ``default`` (v0.29.0+).
+
+    Previously honoured ``<ws>/.codenook/config.yaml`` key
+    ``knowledge_hits.top_n``; that knob lived in the now-removed
+    per-memory ``config.yaml``. The kernel hard-codes the default
+    again — callers can override per-call via the ``top_n`` argument
+    on ``find_relevant`` / ``substitute_*placeholder``.
+    """
+    del workspace
     return default
 
 

@@ -72,28 +72,19 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
 
 
 def _cmd_reindex(ctx: CodenookContext, args: list[str]) -> int:
+    """Deprecated since v0.29.0 — no-op with informative message."""
     if args:
         sys.stderr.write(
             f"codenook knowledge reindex: unexpected args: {' '.join(args)}\n"
         )
         return 2
-    _, build_full_index, write_index_yaml = _import_helpers()
-    payload = build_full_index(ctx.workspace)
-    target = write_index_yaml(ctx.workspace, payload)
-    n_k = len(payload.get("knowledge", []))
-    n_s = len(payload.get("skills", []))
-    plugins: set[str] = set()
-    for entry in payload.get("knowledge", []):
-        p = entry.get("plugin")
-        if isinstance(p, str):
-            plugins.add(p)
-    for entry in payload.get("skills", []):
-        p = entry.get("plugin")
-        if isinstance(p, str):
-            plugins.add(p)
+    del ctx
     sys.stdout.write(
-        f"codenook knowledge: wrote {target}\n"
-        f"  plugins: {len(plugins)}  knowledge: {n_k}  skills: {n_s}\n"
+        "codenook knowledge: reindex is a no-op since v0.29.0.\n"
+        "  Knowledge / skills are discovered live each call by walking\n"
+        "  .codenook/plugins/<id>/{knowledge,skills}/<slug>/ and\n"
+        "  .codenook/memory/{knowledge,skills}/<slug>/ — there is no\n"
+        "  on-disk index.yaml to rebuild.\n"
     )
     return 0
 
