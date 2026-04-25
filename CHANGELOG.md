@@ -1,3 +1,46 @@
+## v0.29.9 — R1-R6 audit fixes (concurrency P0 + 4 quality fixes)
+
+Bundles five fixes surfaced by rounds 1-6 of a 25+ round audit-fix-test
+loop driven from a real workspace (15+ end-to-end runs of the
+development pipeline + 15+ runs of the prnook pipeline, all status=done).
+
+### Concurrency
+
+- **(P0) flock JSONL appends in dispatch-audit emitter**: both
+  ``.codenook/history/dispatch.jsonl`` and per-task ``audit.jsonl`` are
+  now written under ``fcntl.LOCK_EX`` so concurrent ticks for different
+  tasks can no longer interleave bytes inside a single JSONL record.
+  Python text-mode writes are not guaranteed to be a single ``write()``
+  syscall, and macOS ``PIPE_BUF`` is only 512 bytes, so the prior
+  unlocked append could (and did, under load) corrupt records for any
+  line-oriented reader. Falls back to unlocked append on non-POSIX
+  hosts where ``fcntl`` is unavailable.
+
+### Fixed
+
+- **VERSION drift**: ``/VERSION``, ``skills/codenook-core/VERSION``, and
+  the hard-coded constant in ``install.py:22`` are now kept in sync
+  (sync was missed during the 0.29.7 → 0.29.8 release; install.py was
+  shipping the wrong number).
+- **EMPTY_BODY phase output**: phase outputs whose body is shorter than
+  40 chars after the frontmatter are now rejected with verdict-status
+  ``EMPTY_BODY`` instead of silently passing as ``ok``. Catches
+  stub / truncated / broken sub-agent replies that previously slipped
+  through the verdict gate.
+- **KNOWLEDGE_HITS cross-plugin pollution**: knowledge-search ranker
+  now hard-excludes entries belonging to *other* plugins when a plugin
+  pin is set (memory entries with ``plugin=None`` are still allowed).
+  Fixes a case where 50+ prnook knowledge entries were being injected
+  into a development task's designer prompt because the prior
+  ``+1 PLUGIN_BIAS`` was a soft preference, not a filter.
+- **Auto-snapshot content.md**: history snapshots written by
+  ``orchestrator-tick.after_phase`` previously contained only metadata
+  + the latest history entry, with no actual phase output, making them
+  near-useless for forensics. Now also locate the matching
+  ``outputs/phase-N-role.md`` (by phase token in filename, with
+  most-recently-modified fallback) and embed up to 8000 chars in a
+  fenced block.
+
 ## v0.29.8 — Plugin id path-traversal hardening
 
 ### Security
