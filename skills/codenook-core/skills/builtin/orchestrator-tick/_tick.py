@@ -77,6 +77,19 @@ def _check_task_id(tid: str) -> None:
         print(f"_tick.py: invalid task_id format: {tid!r}", file=sys.stderr)
         sys.exit(2)
 
+
+# ── plugin-id format guard (path-traversal hardening) ───────────────────
+# Plugin id is concatenated into filesystem paths in many places (phases.yaml,
+# transitions.yaml, role_path, post_validate script, etc.). Restrict to
+# kebab-case ASCII so a hostile state.json can't smuggle ".." or "/" segments.
+_PLUGIN_ID_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
+
+
+def _check_plugin_id(pid: str) -> None:
+    if not isinstance(pid, str) or not _PLUGIN_ID_RE.match(pid):
+        print(f"_tick.py: invalid plugin id: {pid!r}", file=sys.stderr)
+        sys.exit(2)
+
 try:
     import yaml  # PyYAML
 except ImportError as e:  # pragma: no cover
@@ -1406,6 +1419,11 @@ def main() -> None:
     # Mode select.
     if "plugin" not in state:
         sys.exit(_legacy_tick(workspace, state_file, dry_run, dispatch_cmd, task))
+
+    # Path-traversal hardening: plugin id is concatenated into many
+    # filesystem paths below. Validate once at entry.
+    _check_plugin_id(state["plugin"])
+    _check_task_id(task)
 
     if dry_run:
         # M4 dry-run: don't persist or dispatch; just compute.

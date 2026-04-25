@@ -126,6 +126,20 @@ def _augment_envelope(ctx: CodenookContext, task: str, tick_out: str) -> str:
     if not (plugin and phase and role and expected):
         return tick_out
 
+    # Path-traversal hardening: plugin/phase/role are concatenated into many
+    # filesystem paths below. Restrict to safe identifier shapes so a
+    # hostile state.json cannot smuggle "../" segments.
+    if not re.match(r"^[a-z][a-z0-9_-]{0,63}$", plugin):
+        return tick_out
+    if not re.match(r"^[A-Za-z0-9_-]{1,64}$", phase):
+        return tick_out
+    if not re.match(r"^[A-Za-z0-9_-]{1,64}$", role):
+        return tick_out
+    if "/" in expected.replace("\\", "/") and ".." in expected.replace("\\", "/").split("/"):
+        return tick_out
+    if expected.startswith("/") or expected.startswith("\\"):
+        return tick_out
+
     phase_idx = None
     template = None
     prompt_basename = None
