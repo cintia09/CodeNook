@@ -793,6 +793,18 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
     _persist_state(tdir / "state.json", state)
 
     if parent:
+        # v0.29.10 — validate parent exists BEFORE attaching. The previous
+        # path persisted state.json with parent_id then ran task_chain
+        # attach with check=False and a bare except, which silently
+        # swallowed missing-parent errors and left the new task with a
+        # phantom parent_id. Now we surface the failure clearly.
+        parent_dir = ctx.workspace / ".codenook" / "tasks" / parent
+        if not parent_dir.is_dir():
+            sys.stderr.write(
+                f"codenook task new: --parent {parent} does not exist "
+                f"(no .codenook/tasks/{parent}/ directory)\n"
+            )
+            return 2
         try:
             subprocess.run(
                 [sys.executable, "-m", "task_chain",
