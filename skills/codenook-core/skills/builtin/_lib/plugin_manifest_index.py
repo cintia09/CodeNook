@@ -55,9 +55,22 @@ def discover_plugins(workspace_root: Path) -> list[dict]:
         try:
             with manifest.open("r", encoding="utf-8") as fh:
                 data = yaml.safe_load(fh)
-        except (yaml.YAMLError, OSError):
+        except (yaml.YAMLError, OSError) as exc:
+            # v0.29.10 \u2014 surface broken manifests instead of silently
+            # skipping. Operators debugging "why is my plugin missing?"
+            # used to have to grep for the file by hand.
+            import sys as _sys
+            _sys.stderr.write(
+                f"plugin-discovery: skipping {entry.name} "
+                f"(plugin.yaml parse error: {exc})\n"
+            )
             continue
         if not isinstance(data, dict):
+            import sys as _sys
+            _sys.stderr.write(
+                f"plugin-discovery: skipping {entry.name} "
+                f"(plugin.yaml top-level is not a mapping)\n"
+            )
             continue
         rel = manifest.relative_to(workspace_root).as_posix()
         data["_path"] = rel
