@@ -68,6 +68,8 @@ robustness.
 
 
 
+## v0.29.9 — R1-R6 audit fixes (concurrency P0 + 4 quality fixes)
+
 Bundles five fixes surfaced by rounds 1-6 of a 25+ round audit-fix-test
 loop driven from a real workspace (15+ end-to-end runs of the
 development pipeline + 15+ runs of the prnook pipeline, all status=done).
