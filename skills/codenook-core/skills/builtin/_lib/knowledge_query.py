@@ -231,6 +231,16 @@ def find_relevant(
 
     hits: list[dict[str, Any]] = []
     for entry in entries:
+        # When pinned to a specific active plugin, exclude entries shipped
+        # by *other* plugins. Memory entries (entry["plugin"] is None) and
+        # entries shipped by the active plugin are kept. This prevents
+        # cross-plugin noise (e.g. prnook investigation knowledge bleeding
+        # into a development task's prompts) where weak tag-overlap on
+        # high-volume foreign plugins would otherwise out-rank the few
+        # active-plugin entries.
+        ep = entry.get("plugin")
+        if plugin and ep is not None and ep != plugin:
+            continue
         score, reasons = _score_entry(entry, tokens, plugin)
         if score <= 0:
             continue
