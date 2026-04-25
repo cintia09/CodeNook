@@ -57,17 +57,23 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
             env=_subproc.kernel_env(ctx),
             text=True,
         )
-        sf = ctx.workspace / ".codenook" / "tasks" / child / "state.json"
-        if sf.is_file():
-            try:
-                d = json.loads(sf.read_text(encoding="utf-8"))
-                print(json.dumps({
-                    "child": d.get("task_id"),
-                    "parent_id": d.get("parent_id"),
-                    "chain_root": d.get("chain_root"),
-                }))
-            except Exception:
-                pass
+        # v0.29.10 — only emit the success-shaped JSON when attach
+        # actually succeeded. Previously we read child/state.json and
+        # printed parent_id/chain_root regardless of cp.returncode,
+        # producing JSON that looked like success even though stderr
+        # carried the real error.
+        if cp.returncode == 0:
+            sf = ctx.workspace / ".codenook" / "tasks" / child / "state.json"
+            if sf.is_file():
+                try:
+                    d = json.loads(sf.read_text(encoding="utf-8"))
+                    print(json.dumps({
+                        "child": d.get("task_id"),
+                        "parent_id": d.get("parent_id"),
+                        "chain_root": d.get("chain_root"),
+                    }))
+                except Exception:
+                    pass
         return cp.returncode
 
     if sub == "show":
