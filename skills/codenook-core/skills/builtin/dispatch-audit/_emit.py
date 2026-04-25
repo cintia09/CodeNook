@@ -75,8 +75,7 @@ def run(*, role: str, payload: str, workspace: "str | Path") -> int:
         "payload_preview": redact(payload)[:PREVIEW_LEN],
     }
     line = json.dumps(entry, ensure_ascii=False) + "\n"
-    with log_path.open("a", encoding="utf-8") as f:
-        f.write(line)
+    _locked_append(log_path, line)
 
     try:
         task_id = json.loads(payload).get("task")
@@ -86,12 +85,39 @@ def run(*, role: str, payload: str, workspace: "str | Path") -> int:
         try:
             tdir = ws / ".codenook" / "tasks" / str(task_id)
             tdir.mkdir(parents=True, exist_ok=True)
-            with (tdir / "audit.jsonl").open("a", encoding="utf-8") as f:
-                f.write(line)
+            _locked_append(tdir / "audit.jsonl", line)
         except OSError:
             pass
 
     return 0
+
+
+def _locked_append(path: Path, line: str) -> None:
+    """Append *line* to *path* under an exclusive advisory lock.
+
+    R6 audit (P0): without flock, concurrent ticks for different tasks
+    could interleave bytes inside a single JSONL record because Python
+    text-mode writes are not guaranteed to map to one atomic write()
+    syscall (and macOS PIPE_BUF is only 512). On non-POSIX hosts where
+    fcntl is unavailable we fall back to the unlocked append — better
+    than crashing.
+    """
+    try:
+        import fcntl  # POSIX only
+    except Exception:
+        with path.open("a", encoding="utf-8") as f:
+            f.write(line)
+        return
+    with path.open("a", encoding="utf-8") as f:
+        try:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            f.write(line)
+            f.flush()
+        finally:
+            try:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            except Exception:
+                pass
 
 
 def main() -> int:
