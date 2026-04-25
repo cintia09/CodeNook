@@ -19,29 +19,7 @@ BEGIN = "<!-- codenook:begin -->"
 END = "<!-- codenook:end -->"
 
 
-def _render_seed_line(plugins: list[str]) -> str:
-    if not plugins:
-        return ""
-    if len(plugins) == 1:
-        names = f"**{plugins[0]}**"
-        verb = "Workspace has plugin installed:"
-    else:
-        names = ", ".join(f"**{p}**" for p in plugins)
-        verb = "Workspace has plugins installed:"
-    return (
-        f"{verb} {names} "
-        f"(the conductor picks one per task via `task new --plugin <id>`).\n\n"
-    )
-
-
-def render_block(version: str, plugin) -> str:
-    if isinstance(plugin, str):
-        plugins = [plugin] if plugin else []
-    elif plugin is None:
-        plugins = []
-    else:
-        plugins = [p for p in plugin if p]
-    seed_line = _render_seed_line(plugins)  # noqa: F841 — kept for API stability; no longer rendered.
+def render_block(version: str, plugin) -> str:  # noqa: ARG001 — `plugin` kept for API stability (callers pass str/None/list).
     return rf"""{BEGIN}
 <!-- DO NOT EDIT BY HAND. Managed by `python install.py`. To remove
      this block, re-run install.py with --no-claude-md and delete
