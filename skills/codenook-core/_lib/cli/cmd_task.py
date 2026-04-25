@@ -2329,7 +2329,35 @@ def _task_restore(ctx: CodenookContext, args: list[str]) -> int:
         plan.append({"src": candidates[0]})
 
     for arc_name in explicit_archives:
+        # Validate arc_name is a single safe path component (no traversal,
+        # no separators) before joining onto arc_root, then verify the
+        # resolved path stays inside arc_root. Without these guards, an
+        # operator typo or a hostile --from value (e.g. '../../etc') would
+        # let `shutil.move` later relocate arbitrary directories into
+        # tasks/.
+        if (
+            not arc_name
+            or arc_name in (".", "..")
+            or "/" in arc_name
+            or "\\" in arc_name
+            or "\x00" in arc_name
+        ):
+            sys.stderr.write(
+                "codenook task restore: invalid --from value: "
+                f"{arc_name!r} (must be a single archive entry name)\n")
+            rc_resolve = 1
+            continue
         src = arc_root / arc_name
+        try:
+            resolved = src.resolve(strict=False)
+            arc_root_resolved = arc_root.resolve(strict=False)
+            resolved.relative_to(arc_root_resolved)
+        except (OSError, ValueError):
+            sys.stderr.write(
+                "codenook task restore: --from escapes archive root: "
+                f"{arc_name!r}\n")
+            rc_resolve = 1
+            continue
         if not src.is_dir():
             sys.stderr.write(
                 f"codenook task restore: not an archive entry: {arc_name}\n")

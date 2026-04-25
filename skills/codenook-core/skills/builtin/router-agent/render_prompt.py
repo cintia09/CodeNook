@@ -369,9 +369,32 @@ def _read_user_turn(args: argparse.Namespace) -> str:
 
 
 def cmd_prepare(args: argparse.Namespace) -> int:
+    # Defense-in-depth: cmd_router validates --task before invoking us, but
+    # the helper can also be called directly. Reject any task id containing
+    # path separators or '..' so workspace/.codenook/tasks/<task_id>/
+    # cannot escape the tasks/ root via mkdir(parents=True, exist_ok=True).
+    tid = args.task_id or ""
+    if (
+        not tid
+        or tid in (".", "..")
+        or "/" in tid
+        or "\\" in tid
+        or "\x00" in tid
+        or ".." in Path(tid).parts
+    ):
+        sys.stderr.write(
+            f"render_prompt: invalid --task-id: {tid!r} "
+            "(must be a single path-safe component)\n")
+        return 2
     workspace = Path(args.workspace).resolve()
     codenook = workspace / ".codenook"
     task_dir = codenook / "tasks" / args.task_id
+    try:
+        task_dir.resolve().relative_to((codenook / "tasks").resolve())
+    except (OSError, ValueError):
+        sys.stderr.write(
+            f"render_prompt: --task-id {tid!r} escapes tasks/ root\n")
+        return 2
     task_dir.mkdir(parents=True, exist_ok=True)
 
     ctx_path = task_dir / "router-context.md"

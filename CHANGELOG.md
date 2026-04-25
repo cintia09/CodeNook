@@ -1,4 +1,32 @@
-## v0.29.5 — Pass-1 deep-review fixes (P1 hardening)
+## v0.29.6 — Pass-2 deep-review path-traversal patches
+
+### Fixed
+
+Two P1 path-traversals that pass-1 missed (cmd_router was not in the
+v0.29.5 PT-1 sweep; `task restore --from` had no validation at all):
+
+- **PT-2 (cmd_router → render_prompt path traversal)**:
+  `codenook router --task "T-../../x"` passed the
+  `startswith("T-")` smell test inside `cmd_router.run`, so the
+  raw string flowed into `render_prompt.py`'s
+  `task_dir = workspace / ".codenook" / "tasks" / args.task_id`
+  followed by `mkdir(parents=True, exist_ok=True)` — which honours
+  `..` segments and silently creates directories anywhere the
+  workspace user can write. Now both layers validate:
+  `cmd_router.run` calls `is_safe_task_component()` before invoking
+  the helper, and `render_prompt.cmd_prepare` re-validates and
+  asserts the resolved `task_dir` is inside `tasks/` (defense in
+  depth — the helper is also reachable directly via the legacy
+  `bash spawn.sh` path).
+- **PT-3 (`task restore --from` archive-name traversal)**:
+  `cmd_task_restore`'s explicit-archive loop joined the user-
+  supplied `--from <name>` value onto `arc_root` raw, and a later
+  `shutil.move` would relocate whatever directory that resolved
+  to into `tasks/`. Pass-1 left this unfixed. Now rejects names
+  containing `/`, `\\`, `..`, NUL, or that resolve outside
+  `arc_root`.
+
+
 
 ### Fixed
 

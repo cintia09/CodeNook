@@ -21,7 +21,7 @@ import sys
 from typing import Sequence
 
 from . import _subproc
-from .config import CodenookContext
+from .config import CodenookContext, is_safe_task_component
 
 
 def run(ctx: CodenookContext, args: Sequence[str]) -> int:
@@ -53,6 +53,13 @@ def run(ctx: CodenookContext, args: Sequence[str]) -> int:
 
     if not task:
         sys.stderr.write("codenook router: --task required\n")
+        return 2
+
+    if not is_safe_task_component(task):
+        sys.stderr.write(
+            f"codenook router: invalid --task value: {task!r} "
+            "(task ids must be path-safe; '..' / '/' / '\\' not allowed)\n"
+        )
         return 2
 
     helper = ctx.kernel_dir / "router-agent" / "render_prompt.py"
