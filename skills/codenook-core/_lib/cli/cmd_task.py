@@ -578,9 +578,14 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
         )
         return 2
 
-    if not title:
-        sys.stderr.write("codenook task new: --title is required\n")
+    # v0.29.10 — empty OR whitespace-only titles are rejected. Previously
+    # only the truthiness check (``if not title``) ran, which let a value
+    # like "   " through; downstream slug derivation stripped it back to
+    # "" and we ended up burning a task slot for an unnamed task.
+    if not title or not title.strip():
+        sys.stderr.write("codenook task new: --title is required (non-empty)\n")
         return 2
+    title = title.strip()
     if priority not in ALLOWED["priority"]:
         sys.stderr.write(
             f"codenook task new: invalid --priority '{priority}' "

@@ -298,9 +298,17 @@ def resolve_task_id(workspace: Path, partial: str) -> tuple[str | None, list[str
     # shouldn't shadow `T-003-real-task/`). Treat exact-and-prefix
     # collision as ambiguous so the operator picks consciously.
     exact_hit = (tasks_dir / partial).is_dir()
+    # v0.29.10 — case-insensitive prefix match. On macOS / Windows the
+    # `(tasks_dir / partial).is_dir()` check above succeeds when the
+    # caller types `t-001` even though the on-disk name is `T-001-…`,
+    # but the prefix scan below used a case-sensitive `startswith`,
+    # making `t-001` resolve to the bare directory while `t-001-foo`
+    # silently failed. Lower-case both sides for the prefix scan so
+    # both paths line up with what `is_dir()` reports.
     prefix = partial + "-"
+    prefix_lc = prefix.lower()
     matches = [c.name for c in tasks_dir.iterdir()
-               if c.is_dir() and c.name.startswith(prefix)]
+               if c.is_dir() and c.name.lower().startswith(prefix_lc)]
     if exact_hit and matches:
         return None, sorted([partial, *matches])
     if exact_hit:
