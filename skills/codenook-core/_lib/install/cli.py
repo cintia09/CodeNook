@@ -95,6 +95,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         return _check_workspace(workspace)
 
+    # v0.29.10 — refuse silent re-install. Honour the documented
+    # exit code 3 contract: ``state.json`` already present and the
+    # caller did not pass ``--upgrade``.
+    state_file = workspace / ".codenook" / "state.json"
+    if state_file.is_file() and not args.upgrade and not args.dry_run:
+        sys.stderr.write(
+            f"install: workspace already initialised: {state_file}\n"
+            f"install: re-run with --upgrade to refresh kernel + plugins, "
+            f"or with --check to inspect status.\n"
+        )
+        return 3
+
     repo_root = _repo_root()
     core_src = repo_root / "skills" / "codenook-core"
     if not core_src.is_dir():

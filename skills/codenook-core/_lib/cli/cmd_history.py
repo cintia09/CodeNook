@@ -150,6 +150,7 @@ def _cmd_prune(ctx: CodenookContext, args: list[str]) -> int:
     days = 10
     scope = "all"
     yes = False
+    really_yes = False
     it = iter(args)
     try:
         for a in it:
@@ -159,6 +160,8 @@ def _cmd_prune(ctx: CodenookContext, args: list[str]) -> int:
                 scope = next(it)
             elif a in ("--yes", "-y"):
                 yes = True
+            elif a == "--really-yes":
+                really_yes = True
             else:
                 sys.stderr.write(f"codenook history prune: unknown arg: {a}\n")
                 return 2
@@ -180,6 +183,21 @@ def _cmd_prune(ctx: CodenookContext, args: list[str]) -> int:
             f"(would prune snapshots older than {days} days, scope={scope})\n")
         return 2
     h = _import_history()
+    # v0.29.10 — destructive-action guard. Refuse to wipe >90% of snapshots
+    # in one go unless the caller passes --really-yes. Counts current
+    # snapshots in-scope and aborts if eligible/total > 0.90 and total >= 5.
+    try:
+        total, eligible = h.count_for_prune(ctx.workspace, days=days, scope=scope)
+    except AttributeError:
+        # Older `history` module without count helper — skip guard but warn.
+        total, eligible = (0, 0)
+    if total >= 5 and eligible >= max(1, int(total * 0.9)) and not really_yes:
+        sys.stderr.write(
+            f"codenook history prune: would delete {eligible}/{total} "
+            f"snapshots in scope={scope} (>=90%). Refusing without "
+            f"--really-yes.\n"
+        )
+        return 2
     deleted = h.prune(ctx.workspace, days=days, scope=scope)
     sys.stdout.write(f"codenook history: pruned {len(deleted)} snapshot(s)\n")
     for p in deleted:

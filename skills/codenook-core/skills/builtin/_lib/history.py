@@ -236,6 +236,48 @@ def _iter_dir(history_dir: Path, default_scope: str,
 
 
 # ---------------------------------------------------------------- prune
+def _eligible_for_prune(workspace: Path, days: int, scope: str,
+                        now: _dt.datetime | None = None) -> list[dict]:
+    """Return snapshot entries whose timestamp is older than *days*."""
+    n = now or _now_utc()
+    cutoff = n - _dt.timedelta(days=days)
+    out: list[dict] = []
+    for entry in list_snapshots(workspace, scope=scope):
+        ts = entry.get("timestamp")
+        stamp: _dt.datetime | None = None
+        if isinstance(ts, str):
+            try:
+                stamp = _dt.datetime.strptime(
+                    ts, "%Y-%m-%dT%H:%M:%SZ"
+                ).replace(tzinfo=_dt.timezone.utc)
+            except ValueError:
+                try:
+                    base = Path(entry["path"]).name.split("-", 4)
+                    if len(base) >= 4:
+                        stamp_str = "-".join(base[:4]).rstrip("Z") + "Z"
+                        stamp = _dt.datetime.strptime(
+                            stamp_str, "%Y-%m-%dT%H-%M-%SZ"
+                        ).replace(tzinfo=_dt.timezone.utc)
+                except Exception:
+                    stamp = None
+        if stamp is not None and stamp < cutoff:
+            out.append(entry)
+    return out
+
+
+def count_for_prune(workspace: Path, days: int = 10, scope: str = "all",
+                    now: _dt.datetime | None = None) -> tuple[int, int]:
+    """Return ``(total, eligible)`` snapshot counts for the given scope.
+
+    *total* is every snapshot the scope sees; *eligible* is the subset
+    that ``prune()`` would delete with the same arguments. Used by the
+    CLI's destructive-action guard.
+    """
+    total = len(list_snapshots(workspace, scope=scope))
+    eligible = len(_eligible_for_prune(workspace, days, scope, now=now))
+    return total, eligible
+
+
 def prune(workspace: Path, days: int = 10, scope: str = "all",
           now: _dt.datetime | None = None) -> list[Path]:
     """Delete snapshots older than *days*. Returns deleted paths.
