@@ -194,13 +194,22 @@ class _OutputState:
     NO_FRONTMATTER = "no_frontmatter"
     YAML_PARSE_ERROR = "yaml_parse_error"
     BAD_VERDICT = "bad_verdict"
+    EMPTY_BODY = "empty_body"
+
+
+# Minimum non-frontmatter body length (chars after the closing ---).
+# Below this the role output is treated as a stub / placeholder and the
+# phase is rejected with a clear reason. Calibrated so legitimate one-line
+# verdicts ("# OK\n\nNo issues found.") pass and pure stubs fail.
+_MIN_BODY_CHARS = 40
 
 
 def read_verdict_detailed(workspace: Path, task_id: str,
                           expected_output: str) -> tuple[str | None, str, str]:
     """Returns ``(verdict, status, detail)``.
 
-    status ∈ {ok, missing, no_frontmatter, yaml_parse_error, bad_verdict}.
+    status ∈ {ok, missing, no_frontmatter, yaml_parse_error, bad_verdict,
+              empty_body}.
     detail is human-readable (parse error message / file path / etc).
     """
     root = task_root(workspace, task_id)
@@ -217,9 +226,15 @@ def read_verdict_detailed(workspace: Path, task_id: str,
     except yaml.YAMLError as e:
         return None, _OutputState.YAML_PARSE_ERROR, f"{rel}: {str(e).splitlines()[0]}"
     v = fm.get("verdict") if isinstance(fm, dict) else None
-    if v in ("ok", "needs_revision", "blocked"):
-        return v, "ok", str(rel)
-    return None, _OutputState.BAD_VERDICT, f"{rel}: verdict={v!r}"
+    if v not in ("ok", "needs_revision", "blocked"):
+        return None, _OutputState.BAD_VERDICT, f"{rel}: verdict={v!r}"
+    body = text[m.end():].strip()
+    if len(body) < _MIN_BODY_CHARS:
+        return None, _OutputState.EMPTY_BODY, (
+            f"{rel}: body too short ({len(body)} < {_MIN_BODY_CHARS} chars); "
+            f"role likely returned a placeholder"
+        )
+    return v, "ok", str(rel)
 
 
 def output_ready(workspace: Path, task_id: str, expected_output: str) -> bool:
@@ -1100,6 +1115,7 @@ def _tick_body(workspace: Path, state: dict) -> dict:
                 _OutputState.NO_FRONTMATTER: "no_frontmatter",
                 _OutputState.YAML_PARSE_ERROR: "yaml_parse_error",
                 _OutputState.BAD_VERDICT: "bad_verdict",
+                _OutputState.EMPTY_BODY: "empty_body",
             }
             reason = reason_map.get(vstatus, "malformed_output")
             print(
