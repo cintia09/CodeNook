@@ -196,6 +196,18 @@ Options:
                                        phase output itself; no sub-agent
                                        spawn. Best for chatty / serial
                                        phases.
+  --phase-chain <ids>     v0.21 — advanced. Override the profile's phase
+                          chain with a custom comma- (or space-) separated
+                          list of phase ids. Each id MUST be declared in
+                          the plugin's phases.yaml :: phases catalogue
+                          (unknown ids are rejected with the valid set).
+                          Repetition is allowed — e.g.
+                          "clarify,implement,test,implement,test,ship"
+                          spins up a TDD-style implement↔test loop. When
+                          set, --profile becomes informational only and
+                          transitions resolve via the 'default' table.
+                          The wizard ('--interactive') exposes the same
+                          capability via a "custom" profile pick.
 """
 
 HELP_SET_MODEL = """\
