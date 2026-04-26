@@ -89,7 +89,7 @@ Three first-party plugins ship in this repo and install through the same `python
 
 | Plugin | Version | Domain | Phase chain (default profile) |
 |---|---|---|---|
-| 🛠️ **`development`** | `v0.5.0` | Software delivery — feature work, hotfixes, refactors, docs, reviews. | `clarify → design → plan → dfmea → implement → build → review → submit → test-plan → test → accept → ship` |
+| 🛠️ **`development`** | `v0.5.1` | Software delivery — feature work, hotfixes, refactors, docs, reviews. | `clarify → design → plan → dfmea → implement → build → review → submit → test-plan → test → accept → ship` |
 | ✍️ **`writing`** | `v0.3.0` | Long-form authoring — articles, docs, RFCs. | `outline → draft → review → revise → publish` |
 | 🧰 **`generic`** | `v0.3.0` | Low-priority catch-all for tasks that don't match a specialised plugin. | `clarify → execute → review` |
 

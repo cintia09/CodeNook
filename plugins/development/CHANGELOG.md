@@ -1,5 +1,34 @@
 # development plugin — changelog
 
+## 0.5.1 — Doc sync: surface DFMEA in plugin.yaml + README
+
+The `dfmea` phase was added in v0.5.0 but the plugin's `summary`
+field (rendered by the conductor when proposing the plugin) and
+`README.md` still listed the v0.4.x 11-phase chain. As a result,
+users picking the plugin from the conductor's recommendation saw
+the old chain and assumed DFMEA had been dropped.
+
+Doc-only fix:
+
+- `plugin.yaml` `summary` — bumped to v0.5.x and the chain now
+  includes `dfmea`.
+- `README.md` — opening paragraph, profile table, and layout
+  block all updated:
+  - 11-phase → 12-phase catalogue.
+  - `feature` and `refactor` chains include `dfmea`.
+  - Other profile chains corrected to match `phases.yaml`
+    (the previous README listed several stale chains for
+    `hotfix` / `test-only` / `docs` / `design` / `review`
+    that hadn't been updated since v0.2.x).
+  - Gate count 10 → 11; role count 10 → 11 (dfmea-analyst);
+    template count 11 → 12.
+  - Validators line corrected from `.sh` to `.py`.
+  - Install command updated to the v0.14+ `python3 install.py`
+    surface (was still showing the legacy `init.sh`
+    `--install-plugin` form).
+
+No phase-graph or HITL-gate behaviour change.
+
 ## 0.5.0 — DFMEA phase between plan and implement
 
 New phase `dfmea` (id: `phase-3b-dfmea`) inserted between `plan`

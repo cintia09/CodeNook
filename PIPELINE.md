@@ -62,7 +62,7 @@ The development plugin's `phases.yaml` has **two top-level keys**:
 The `feature` profile uses every phase in the catalogue:
 
 ```
-clarify → design → plan → implement → build → review →
+clarify → design → plan → dfmea → implement → build → review →
 submit → test-plan → test → accept → ship
 ```
 
@@ -73,6 +73,7 @@ submit → test-plan → test → accept → ship
 | 1 | `clarify` | `roles/clarifier.md` | `outputs/phase-1-clarifier.md` | `requirements_signoff` | — |
 | 2 | `design` | `roles/designer.md` | `outputs/phase-2-designer.md` | `design_signoff` | `dual_mode_compatible` |
 | 3 | `plan` | `roles/planner.md` | `outputs/phase-3-planner.md` | `plan_signoff` | `allows_fanout` |
+| 3b | `dfmea` | `roles/dfmea-analyst.md` | `outputs/phase-3b-dfmea.md` | `dfmea_signoff` | `supports_iteration` |
 | 4 | `implement` | `roles/implementer.md` | `outputs/phase-4-implementer.md` | *(none)* | `supports_iteration`, `allows_fanout`, `dual_mode_compatible`, `post_validate` |
 | 5 | `build` | `roles/builder.md` | `outputs/phase-5-builder.md` | `build_signoff` | `post_validate` |
 | 6 | `review` | `roles/reviewer.md` | `outputs/phase-6-reviewer.md` | `local_review_signoff` | — |
@@ -153,11 +154,11 @@ Gate: `ship_signoff`. Approval transitions the task to
 
 | Profile | Length | Phases | Skips |
 |---------|-------:|--------|-------|
-| `feature` | 11 | clarify, design, plan, implement, build, review, submit, test-plan, test, accept, ship | — |
-| `refactor` | 9 | clarify, design, plan, implement, build, review, test-plan, test, ship | submit, accept |
-| `hotfix` | 7 | clarify, implement, build, review, test-plan, test, ship | design, plan, submit, accept |
-| `test-only` | 4 | clarify, test-plan, test, accept | design, plan, implement, build, review, submit, ship |
-| `docs` | 4 | clarify, implement, review, ship | design, plan, build, submit, test-plan, test, accept |
+| `feature` | 12 | clarify, design, plan, dfmea, implement, build, review, submit, test-plan, test, accept, ship | — |
+| `refactor` | 10 | clarify, design, plan, dfmea, implement, build, review, test-plan, test, ship | submit, accept |
+| `hotfix` | 7 | clarify, implement, build, review, test-plan, test, ship | design, plan, dfmea, submit, accept |
+| `test-only` | 4 | clarify, test-plan, test, accept | design, plan, dfmea, implement, build, review, submit, ship |
+| `docs` | 4 | clarify, implement, review, ship | design, plan, dfmea, build, submit, test-plan, test, accept |
 | `design` | 3 | clarify, design, ship | everything between |
 | `review` | 3 | clarify, review, ship | everything between |
 
