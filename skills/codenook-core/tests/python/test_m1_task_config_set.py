@@ -27,7 +27,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[4]
 SET_SH = (REPO / "skills" / "codenook-core" / "skills" / "builtin"
-          / "task-config-set" / "set.sh")
+          / "task-config-set" / "set.py")
 
 
 def _run(args: list[str]) -> subprocess.CompletedProcess:

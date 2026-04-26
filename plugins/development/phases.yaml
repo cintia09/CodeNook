@@ -59,13 +59,13 @@ phases:
     supports_iteration: true
     allows_fanout: true
     dual_mode_compatible: true
-    post_validate: validators/post-implement.sh
+    post_validate: validators/post-implement.py
     # No gate: implement is the only gate-less phase per design §2.
 
   build:
     role: builder
     produces: outputs/phase-5-builder.md
-    post_validate: validators/post-build.sh
+    post_validate: validators/post-build.py
     gate: build_signoff
 
   review:
@@ -87,7 +87,7 @@ phases:
     role: tester
     produces: outputs/phase-9-tester.md
     supports_iteration: true
-    post_validate: validators/post-test.sh
+    post_validate: validators/post-test.py
     gate: test_signoff
 
   accept:

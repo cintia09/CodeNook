@@ -27,7 +27,7 @@ phases:
     produces: outputs/phase-2-drafter.md
     supports_iteration: true
     dual_mode_compatible: true
-    post_validate: validators/post-draft.sh
+    post_validate: validators/post-draft.py
 
   - id: review
     role: reviewer

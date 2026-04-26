@@ -1,7 +1,7 @@
 # codenook-core (v6 kernel skeleton)
 
 This package is the **v6 internal kernel** for CodeNook: shell loader, builtin
-agents/skills, and the `init.sh` installer/plugin-manager dispatcher.
+agents/skills, and the `init.py` installer/plugin-manager dispatcher.
 
 It is the v6 successor to the now-removed v5 monolithic PoC; v5 source
 has been deleted from the repo as of v0.11.1 (see top-level CHANGELOG).
@@ -11,8 +11,8 @@ The historical migration map is preserved in `docs/architecture.md`
 ## Layout (M1 + M2 + M3)
 
 ```
-install.sh                  M2 plugin install CLI (12-gate pipeline)
-init.sh                     M1 command dispatcher (--install-plugin, --refresh-models, …)
+install.py                  M2 plugin install CLI (12-gate pipeline)
+init.py                     M1 command dispatcher (--install-plugin, --refresh-models, …)
 VERSION                     semver of the core skeleton
 core/shell.md               main session loader (≤3K hard limit)
 agents/                     builtin agent profiles (router, distiller, security-auditor, hitl-adapter, config-mutator)
@@ -54,7 +54,7 @@ tests/fixtures/plugins/     static plugin fixtures (one per gate failure mode)
 ## Status
 
 - M1.1–M1.4 — kernel skeleton, config/model subsystem, agent profiles, post-review fixes
-- M2.1–M2.2 — Plugin install pipeline (12-gate `install.sh`)
+- M2.1–M2.2 — Plugin install pipeline (12-gate `install.py`)
 - **M3.1 — Router + self-scan (this drop):**
   - `router/bootstrap.sh` — first sub-agent dispatched by main session;
     self-bootstraps from agents/router.md + core/shell.md + state.json +

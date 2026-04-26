@@ -1,3 +1,53 @@
+## v0.29.17 — Shell→Python port + skills/scripts Python-only policy
+
+### Removed
+
+- **All bootstrap & test shell scripts** replaced by Python
+  ports, completing the v0.29.x shell→Python migration:
+  - `skills/codenook-core/init.sh` → `init.py`
+  - `skills/codenook-core/install.sh` → `install.py`
+  - `skills/codenook-core/templates/pre-commit-hook.sh`
+    → `pre-commit-hook.py` (uses `subprocess.run(['git', ...])`
+    + direct `secret_scan` import; works in `.git/hooks/`).
+  - `skills/codenook-core/tests/run_all.sh` → `run_all.py`
+  - `skills/codenook-core/tests/behavioral/bootloader_behaviour.sh`
+    → `bootloader_behaviour.py` (preserves all 7 scenarios,
+    `claude -p` driver, scenario-id CLI selection).
+- Plugin validators (`plugins/{development,generic,writing}/
+  validators/post-*.sh`) and 28 builtin skill `.sh` wrappers
+  (`emit.sh`, `terminal.sh`, `tick.sh`, `preflight.sh`,
+  `spawn.sh`, `bootstrap.sh`, `resume.sh`, …) all removed —
+  `.py` siblings remain. The kernel's `_sh_run()` helper
+  invokes them by full path; `#!/usr/bin/env python3` shebang
+  + `chmod +x` makes the swap transparent.
+- Workspace memory `.sh` scripts ported (`cb15586-ci-monitor/
+  ci_monitor.{sh→py}`, `full_loop.{sh→py}`, `prnook-nokia-
+  bundle/scripts/migrate-prnook-workspace.{sh→py}`).
+- The only `.sh` files that remain are two test fixtures
+  under `tests/fixtures/plugins/{good-minimal,good-with-sig}/
+  skills/x/run.sh` — they exist to test shell-skill discovery
+  itself.
+
+### Added
+
+- **Bootloader hard-rule:** any executable artefact emitted
+  into a workspace knowledge / skill entry, plugin `skills/`,
+  plugin `validators/`, or any other CodeNook surface MUST be
+  Python 3 — never `.sh`. The "Drop-in copy semantics" and
+  "Manual entries" sections now reiterate this script-language
+  policy. Use `subprocess.run([...])` from Python to call out
+  to existing CLI tools when needed.
+
+### Changed
+
+- `.github/workflows/test.yml` "Verify kernel structure" step
+  now checks `init.py` / `tick.py` / `terminal.py` /
+  `install.py` instead of the deleted `.sh` counterparts.
+- `skills/codenook-core/README.md` and `docs/README.md` updated
+  to refer to `init.py` / `install.py` instead of legacy `.sh`
+  names.
+
+
 ## v0.29.16 — Custom phase composition (`--phase-chain` + wizard composer)
 
 ### Added

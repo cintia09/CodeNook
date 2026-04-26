@@ -18,7 +18,7 @@ phases:
   - id: execute
     role: executor
     produces: outputs/phase-3-executor.md
-    post_validate: validators/post-execute.sh
+    post_validate: validators/post-execute.py
 
   - id: deliver
     role: deliverer

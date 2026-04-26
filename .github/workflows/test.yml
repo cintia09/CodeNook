@@ -24,12 +24,12 @@ jobs:
 
       - name: Verify kernel structure
         run: |
-          test -f skills/codenook-core/install.sh
+          test -f skills/codenook-core/install.py
           test -f skills/codenook-core/VERSION
           test -d skills/codenook-core/skills/builtin
-          test -x skills/codenook-core/skills/builtin/init/init.sh
-          test -x skills/codenook-core/skills/builtin/orchestrator-tick/tick.sh
-          test -x skills/codenook-core/skills/builtin/hitl-adapter/terminal.sh
+          test -x skills/codenook-core/skills/builtin/init/init.py
+          test -x skills/codenook-core/skills/builtin/orchestrator-tick/tick.py
+          test -x skills/codenook-core/skills/builtin/hitl-adapter/terminal.py
           test -f skills/codenook-core/templates/codenook-bin
           echo "✅ Kernel structure intact"
 

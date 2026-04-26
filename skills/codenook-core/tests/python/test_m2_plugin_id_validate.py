@@ -15,7 +15,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[4]
 GATE_SH = (REPO / "skills" / "codenook-core" / "skills" / "builtin"
-           / "plugin-id-validate" / "id-validate.sh")
+           / "plugin-id-validate" / "id-validate.py")
 
 
 def _run(args: list[str]) -> subprocess.CompletedProcess:

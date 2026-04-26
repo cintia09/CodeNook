@@ -83,6 +83,6 @@ epic for v0.12.
   + plugin behaviour at execution time).
 - [`../CHANGELOG.md`](../CHANGELOG.md) — release history.
 - [`../skills/codenook-core/README.md`](../skills/codenook-core/README.md)
-  — kernel package overview (subsystems, builtin skills, init.sh).
+  — kernel package overview (subsystems, builtin skills, init.py).
 - [`../plugins/development/README.md`](../plugins/development/README.md)
   — development plugin overview (8 phases, verdict contract, validators).

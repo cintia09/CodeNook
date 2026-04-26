@@ -183,6 +183,24 @@ user's request is substantial; the user always confirms before
   disambiguator (`<target-basename>-2`,
   `<target-basename>-<short-hash>`) and surface the choice in
   one `ask_user` rather than silently overwriting.
+- **MUST** generate **Python 3** (not bash / shell) for any
+  executable artefact emitted into a workspace knowledge / skill
+  entry, plugin `skills/`, plugin `validators/`, or any other
+  CodeNook surface. This includes:
+  - Skill payloads under `.codenook/memory/skills/<slug>/`
+    (write `<slug>/SKILL.md` plus `*.py` helpers; no `*.sh`).
+  - Plugin skills under `plugins/<id>/skills/<name>/`.
+  - Plugin validators under `plugins/<id>/validators/post-*.py`.
+  - Any helper script the conductor proposes to drop into the
+    workspace as part of an extraction or knowledge-write step.
+  Use `subprocess.run([...])` to call out to existing shell tools
+  when needed; never emit a new `.sh` file. When the user asks to
+  "extract this into a skill" or "save this as a knowledge entry
+  with a script", the script you write MUST be `.py`. Pre-existing
+  `.sh` files in plugins or memory are being phased out — convert
+  rather than imitate. Only the two test fixture shells under
+  `tests/fixtures/plugins/{{good-minimal,good-with-sig}}/skills/x/run.sh`
+  may stay shell (they exist to test shell-skill discovery itself).
 - If a rule looks like it must be broken, surface the problem to
   the user instead of working around it.
 
@@ -250,6 +268,9 @@ the immediate next step "only needs" one of them.
    `.codenook/memory/skills/<slug>/SKILL.md`. The next
    `knowledge search` call picks it up automatically — there is
    no `_pending/` staging area or `reindex` step any more.
+   **Any executable helpers the entry ships MUST be Python 3
+   (`*.py`) — never `*.sh`.** Use `subprocess.run([...])` from
+   Python to invoke external CLI tools when needed.
 4. `<codenook> status` — active tasks (id, phase, status, model,
    exec mode). Many host runtimes hide dot-directories from
    their default `glob`, so this CLI call is the only reliable
@@ -356,6 +377,16 @@ discoverable on the next `<codenook> discover plugins` call.
 Plugin skills, however, only reach a workspace's tool surface
 when the plugin's `plugin.yaml` declares them in
 `available_skills:` (the white-list gate).
+
+**Script-language policy:** every executable shipped with a
+knowledge / skill entry (memory or plugin) MUST be Python 3.
+The `cp -r` example above is fine for whole-directory drops,
+but the `<slug>/` you copy in must contain `*.py` helpers, not
+`*.sh`. Plugin `validators/post-*.py` files are also part of
+this rule — the kernel invokes them via `_sh_run()` regardless
+of extension, so a Python file with a `#!/usr/bin/env python3`
+shebang and `chmod +x` works in place of the legacy shell
+validators.
 
 ### History snapshots (v0.29.0+)
 
