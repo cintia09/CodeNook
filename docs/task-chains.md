@@ -1,4 +1,4 @@
-# Task Chains (v0.14.0 / development v0.2.0)
+# Task Chains (v0.29.17 / development v0.5.0)
 
 How phases chain into a complete task lifecycle: the catalogue +
 profiles split, the seven shipped profiles, HITL gates between

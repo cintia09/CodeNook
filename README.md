@@ -5,33 +5,46 @@
 <h1 align="center">🤖 CodeNook</h1>
 
 <p align="center">
+  <strong>Plug domain expertise into your AI coding session.</strong><br/>
+  Turn any Claude Code or Copilot CLI workspace into a phase-gated, multi-agent task pipeline — one <code>install.py</code> away.
+</p>
+
+<p align="center">
   <a href="https://github.com/cintia09/CodeNook/releases"><img src="https://img.shields.io/github/v/release/cintia09/CodeNook?style=for-the-badge&color=6366f1" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
   <a href="https://github.com/cintia09/CodeNook/stargazers"><img src="https://img.shields.io/github/stars/cintia09/CodeNook?style=for-the-badge&color=f59e0b" alt="Stars"></a>
+  <img src="https://img.shields.io/badge/python-3.9%2B-3776ab?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.9+">
 </p>
 
 <p align="center">
-  <strong>CodeNook is a multi-agent framework that installs a phase-gated task pipeline — driven by your Claude Code or Copilot CLI session — into any workspace.</strong>
-</p>
-
-<p align="center">
-  <a href="#quick-start">Quick Start</a> ·
-  <a href="#architecture">Architecture</a> ·
-  <a href="#how-it-works">How it works</a> ·
-  <a href="#plugins">Plugins</a> ·
+  <a href="#-the-3-concepts">Concepts</a> ·
+  <a href="#-quick-start">Quick Start</a> ·
+  <a href="#-why-codenook">Why</a> ·
+  <a href="#-plugin-catalogue">Plugins</a> ·
+  <a href="#-architecture">Architecture</a> ·
   <a href="PIPELINE.md">Pipeline walkthrough</a> ·
-  <a href="docs/README.md">Design docs</a>
+  <a href="docs/README.md">Docs</a>
 </p>
 
 ---
 
-## What you get
+## ✨ The 3 concepts
 
-CodeNook turns a single workspace into a **task-orchestration node**. The CLI session you already use (Claude Code, Copilot CLI) becomes a **pure conductor**: it relays user intent to a small Python kernel, which dispatches sub-agents through a phase-gated pipeline, with **human-in-the-loop (HITL) gates** between phases and a **persistent memory layer** that grows as tasks land.
+CodeNook stands on three deliberately small ideas. If you only read one section of this README, read this one.
 
-Nothing is global. Everything lives under `<workspace>/.codenook/`. Pull the workspace to a new machine and the kernel, plugins, tasks, queue, and memory come with it.
+| Concept | What it is | Real-world analogue |
+|---|---|---|
+| 🧩 **Plugin** | A **business domain** — packaged. Bundles the vocabulary, workflows, role definitions, gate policies, and reusable knowledge of a specific kind of work (software delivery, PR investigation, long-form writing, …). | A *team handbook* for a specific discipline. |
+| 🔄 **Phase** | A **stage in a workflow**. Each plugin declares an ordered chain of phases (e.g. `clarify → design → plan → dfmea → implement → review → ship`). Phases have entry conditions, output contracts, and optional human-in-the-loop gates. | A *step on a process map*. |
+| 🤖 **Agent** | An **executor** — the AI sub-agent that does the work of one phase. Each phase ships its own role profile, system prompt, allowed tool surface, and verdict format. The kernel dispatches them; the conductor (your CLI session) relays. | A *specialist* you'd hire for one specific step. |
 
-## Quick start
+> **The mental model in one sentence:** install a plugin, get its domain knowledge and workflow; the kernel walks the workflow phase-by-phase, dispatching the right specialist agent at each step, with you as the human gate-keeper between phases.
+
+This is the whole product. Everything else — the kernel, the CLI, the memory layer, the HITL queue — exists to make those three concepts work cleanly together.
+
+---
+
+## 🚀 Quick start
 
 ```bash
 # 1. Clone (or download a release)
@@ -42,89 +55,147 @@ cd CodeNook
 python3 install.py --target ~/code/my-project --plugin development --yes
 
 # 3. Open your workspace in Claude Code or Copilot CLI and just talk:
-#    "use codenook to add a --tag filter to the xueba CLI list command"
+#    "use codenook to add a --tag filter to the CLI list command"
 ```
 
-The Python installer is the **only sanctioned entry point** as of v0.14.0 — there are no manual `cp` steps, no shell wrapper, no per-OS installers. Pass `--plugin all` to install every shipped plugin, or `--upgrade` to refresh an existing workspace in place.
+That's it. The conductor (your CLI session) reads the bootloader block in `CLAUDE.md` on the next start, and the next time you say "use codenook to …" it spins up a task, dispatches phase agents, surfaces HITL gates for your approval, and walks the work to completion.
 
-After install, the workspace contains:
+Pass `--plugin all` to install every shipped plugin, or `--upgrade` to refresh an existing workspace in place.
+
+---
+
+## 🎯 Why CodeNook
+
+Today's AI coding assistants are powerful but **monolithic**: one giant prompt, one giant context window, one improvised plan per conversation. That's fine for "fix this typo" — and a mess for anything multi-step or domain-specific.
+
+CodeNook splits the work along the natural grain of how humans actually deliver:
+
+| Without CodeNook | With CodeNook |
+|---|---|
+| One huge agent juggles requirements, design, code, tests, and reviews in the same context. | Each phase has its own specialist agent with a focused prompt and limited tool surface. |
+| You re-explain the project's conventions every session. | Conventions live in plugins (`knowledge/`, `skills/`); every agent reads them automatically. |
+| "Did the AI consider security?" — you hope so. | Explicit phases like **DFMEA** force the question; gates make you sign off. |
+| State lives in chat history. Pause = lose context. | State lives on disk under `<workspace>/.codenook/`. Resume tomorrow, on another machine, mid-phase. |
+| One-off plans, no learning. | Memory layer captures reusable knowledge & skills across tasks. |
+| Long autonomous runs that go off the rails silently. | HITL gates between phases. The AI proposes; you approve, reject, or amend. |
+
+If you've ever wanted your AI assistant to **work like a team instead of a soloist**, that's the gap CodeNook fills.
+
+---
+
+## 🧩 Plugin catalogue
+
+Three first-party plugins ship in this repo and install through the same `python3 install.py` pipeline. Community plugins follow the same contract — see [`docs/plugin-authoring.md`](docs/architecture.md) and the `plugins/` folder for reference layouts.
+
+| Plugin | Version | Domain | Phase chain (default profile) |
+|---|---|---|---|
+| 🛠️ **`development`** | `v0.5.0` | Software delivery — feature work, hotfixes, refactors, docs, reviews. | `clarify → design → plan → dfmea → implement → build → review → submit → test-plan → test → accept → ship` |
+| ✍️ **`writing`** | `v0.3.0` | Long-form authoring — articles, docs, RFCs. | `outline → draft → review → revise → publish` |
+| 🧰 **`generic`** | `v0.3.0` | Low-priority catch-all for tasks that don't match a specialised plugin. | `clarify → execute → review` |
+
+The development plugin alone ships **7 profiles** (`feature`, `hotfix`, `refactor`, `test-only`, `docs`, `review`, `design`) — each a different ordering of the same 12-phase catalogue. The clarifier picks the profile from your intent, so you never need to know the profile names.
+
+For the full development walkthrough — every phase, every gate, every verdict — see [`PIPELINE.md`](PIPELINE.md).
+
+> 💡 **Building your own plugin?** A plugin is just a directory with `plugin.yaml` + `phases.yaml` + `hitl-gates.yaml` + `roles/<name>/role.md` files. No code required for most domains; you're declaring a workflow, not implementing one.
+
+---
+
+## 🏗️ Architecture
+
+CodeNook is a **three-layer system** — and the layers map 1:1 onto the three concepts above.
+
+| Layer | Lives in | Concept it serves | Role |
+|---|---|---|---|
+| **Kernel** | `<ws>/.codenook/codenook-core/` | runs **agents** + walks **phases** | Plugin-agnostic. Ships the `codenook` CLI (`tick`, `decide`, `task`, `knowledge`, `history`, …), the orchestrator state machine, the memory layer, and the HITL adapter. |
+| **Plugins** | `<ws>/.codenook/plugins/<id>/` | encodes a **business domain** | Each plugin declares its phase catalogue (`phases.yaml`), gate policy (`hitl-gates.yaml`), per-phase role files, manifest templates, and optional knowledge / skills / validators. |
+| **Workspace state** | `<ws>/.codenook/{tasks,memory,hitl-queue,history}/` | the running **work** | Per-task and cross-task runtime data. Plain JSON / YAML / Markdown — resumable, auditable, diff-able, version-controllable. |
 
 ```
 <workspace>/.codenook/
-├── codenook-core/          ← kernel (CLI + builtin skills, plugin-agnostic)
-├── plugins/<id>/           ← installed plugins (read-only)
-├── bin/codenook(.cmd)      ← thin Python shim, on $PATH-style
-├── tasks/                  ← per-task state, prompts, outputs
-├── memory/                 ← cross-task knowledge + skills + index.yaml
-├── hitl-queue/             ← pending HITL gate entries
-└── extraction-log.jsonl    ← audit trail for memory writes
+├── codenook-core/       ← kernel (CLI + orchestrator + builtin skills)
+├── plugins/<id>/        ← installed plugins (read-only)
+├── bin/codenook(.cmd)   ← thin Python shim
+├── tasks/<T-NNN>/       ← per-task state, prompts, outputs, history
+├── memory/              ← cross-task knowledge, skills, history snapshots
+├── hitl-queue/          ← pending HITL gate entries
+└── state.json           ← installed-plugins manifest
 ```
 
-A single bootloader block is appended (idempotently) to your workspace `CLAUDE.md` so the conductor knows the protocol on the next session start.
+Nothing is global. Pull the workspace to a new machine and the kernel, plugins, tasks, queue, and memory come with it. The conductor (your Claude/Copilot session) reads a single bootloader block appended idempotently to `<ws>/CLAUDE.md` and follows the protocol from there.
 
-## Architecture
+For the deep dive — kernel internals, plugin contract, concurrency model, dispatch envelope — see [`docs/architecture.md`](docs/architecture.md).
 
-CodeNook is a **three-layer system**:
+---
 
-| Layer | Lives in | Role |
-|-------|----------|------|
-| **Kernel** | `<ws>/.codenook/codenook-core/` | Plugin-agnostic. Ships the `codenook` CLI (`tick`, `decide`, `hitl-show`, `preflight`, `extract`, …), the orchestrator state machine, the three memory extractors, and the HITL adapter. |
-| **Plugins** | `<ws>/.codenook/plugins/<id>/` | Domain knowledge. Each plugin defines `phases.yaml` (catalogue + profiles), `hitl-gates.yaml`, role files, manifest templates, optional knowledge / skills / validators. |
-| **Workspace state** | `<ws>/.codenook/tasks/`, `memory/`, `hitl-queue/` | Per-task and cross-task runtime data. State is plain JSON / YAML / Markdown — resumable, auditable, diff-able. |
+## 🔁 How a task actually runs
 
-The diagram at the top of this README shows the same picture with the dispatch arrows drawn in. For the full deep dive, see [`docs/architecture.md`](docs/architecture.md).
+```
+┌──────────────┐                  ┌──────────────┐                  ┌──────────────┐
+│              │  "use codenook   │              │   tick --json    │              │
+│     YOU      │ ───────────────▶│   CONDUCTOR  │ ────────────────▶│    KERNEL    │
+│              │   to add ..."    │ (Claude/CLI) │                  │   (Python)   │
+└──────────────┘                  └──────┬───────┘                  └──────┬───────┘
+       ▲                                 │                                 │
+       │                                 │   dispatches sub-agent          │
+       │                                 │◀────────────────────────────────│
+       │                                 │   (designer / planner /         │
+       │  HITL gate:                     │    implementer / reviewer …)    │
+       │  approve? reject? amend?        │                                 │
+       │◀────────────────────────────────│                                 │
+       │                                 │   writes phase output           │
+       │  approve ───────────────────────▶  decide --decision approve ────▶│  next phase…
+       │                                 │                                 │
+```
 
-### Special directories under `.codenook/`
-
-A few prefixed directories are managed automatically and skipped by every "active list" iterator (`task list`, `status`, `iter_active_task_dirs`):
-
-| Path | Created by | Purpose | Restored / cleared by |
-|------|------------|---------|----------------------|
-| `tasks/_archive/<orig>-<UTC-ts>/` | `codenook task delete` (default mode) | Soft-deleted task snapshots. Leading `_` keeps them out of the active task table. | `codenook task restore` (or `rm -rf` for hard delete). |
-| `hitl-queue/_consumed/` | `codenook hitl decide` and `codenook task delete` | Decided HITL gate entries (audit trail) plus undecided gates moved here when their task is archived. | `codenook task restore` re-promotes the undecided ones; decided ones stay forever. |
-| `tasks/.archive/` | legacy v0.13.x and earlier | Pre-v0.27.10 archive folder. Kept readable; new archives land under `_archive/`. | manual. |
-
-You can hard-delete a task (skipping `_archive/`) with `codenook task delete <T-NNN> --purge --yes`.
-
-## How it works
-
-1. **Install** — `python3 install.py --target <ws> --plugin <id>` stages the kernel and plugin atomically into `<ws>/.codenook/`, then syncs the bootloader block in `<ws>/CLAUDE.md`.
-2. **Conductor reads `CLAUDE.md`** — on the next CLI session start, your Claude/Copilot reads the bootloader. When you trigger a task ("use codenook to …"), it allocates a `T-NNN-<slug>` id (slug auto-derived from your input; falls back to plain `T-NNN` when no input is given) and calls `codenook tick --task T-NNN[-slug] --json`.
-3. **Tick loop dispatches sub-agents** — `codenook tick` advances the state machine one phase at a time: it loads the role file from the plugin, renders a manifest into `tasks/<T>/prompts/`, dispatches a sub-agent, reads its `verdict`-stamped output from `tasks/<T>/outputs/`, runs `post_validate`, and triggers `extractor-batch` to harvest memory.
-4. **HITL gates approve transitions** — when a phase has a gate, tick parks the task with `status: waiting` and writes an entry to `hitl-queue/`. The conductor surfaces the gate verbatim; you approve / reject / amend; the conductor calls `codenook decide --task T-NNN --phase <id> --decision <verb>`; tick resumes.
+1. **Install** → `python3 install.py --target <ws> --plugin <id>` stages the kernel + plugin atomically.
+2. **Conductor reads `CLAUDE.md`** → learns the protocol on the next CLI session start.
+3. **Tick loop** → `codenook tick` advances one phase: loads the role file, renders a manifest, dispatches a sub-agent, reads its `verdict`-stamped output, runs validators, snapshots history.
+4. **HITL gates** → tick parks the task with `status: waiting`; conductor surfaces the gate verbatim; you approve / reject / amend; `codenook decide` resumes the loop.
+5. **Memory** → finished tasks can be promoted into `memory/knowledge/<slug>/index.md` or `memory/skills/<slug>/SKILL.md` for reuse by future tasks.
 
 Loop until `status` is `done` or `blocked`.
 
-## Plugins
+---
 
-Three first-party plugins ship in this repo and install through the same pipeline:
-
-| Plugin | Version | Purpose |
-|--------|---------|---------|
-| **`development`** | v0.2.0 | Profile-aware software-engineering pipeline. 11-phase catalogue (clarify → design → plan → implement → build → review → submit → test-plan → test → accept → ship) with 7 profiles (`feature`, `hotfix`, `refactor`, `test-only`, `docs`, `review`, `design`). Clarifier picks the profile from the user's intent. |
-| **`writing`** | v0.1.1 | Long-form authoring (outline → draft → review → revise → publish). |
-| **`generic`** | v0.1.2 | Low-priority catch-all for tasks that don't match a specialised plugin. |
-
-For the full development pipeline walkthrough — every phase, every gate, every profile — see [`PIPELINE.md`](PIPELINE.md).
-
-## Documentation map
+## 📚 Documentation
 
 | Doc | What's inside |
 |-----|---------------|
 | [`PIPELINE.md`](PIPELINE.md) | End-to-end runtime walkthrough for the development plugin's `feature` profile. |
 | [`docs/architecture.md`](docs/architecture.md) | Three-layer deep dive: kernel internals, plugin contract, workspace schema, concurrency model, bootloader. |
-| [`docs/skills-mechanism.md`](docs/skills-mechanism.md) | How builtin / plugin / extracted skills are discovered and dispatched. |
-| [`docs/memory-and-extraction.md`](docs/memory-and-extraction.md) | The memory layer (`memory/skills/`, `memory/knowledge/`, `index.yaml`), the three extractors, the context-pressure path, the audit log. |
-| [`docs/task-chains.md`](docs/task-chains.md) | Catalogue + profiles, iteration, fanout, dual-mode, worked example through all 11 feature phases. |
+| [`docs/skills-mechanism.md`](docs/skills-mechanism.md) | How builtin / plugin / memory skills are discovered and dispatched. |
+| [`docs/memory-and-extraction.md`](docs/memory-and-extraction.md) | The memory layer (`memory/skills/`, `memory/knowledge/`, history snapshots, retention). |
+| [`docs/task-chains.md`](docs/task-chains.md) | Catalogue + profiles, iteration, fanout, dual-mode, worked example through every phase. |
 | [`docs/vibe-coding-and-multi-agent.md`](docs/vibe-coding-and-multi-agent.md) | Concept primer: why structured multi-agent work beats free-form vibe-coding. |
 | [`CHANGELOG.md`](CHANGELOG.md) | Release-by-release history. |
 
-> **Deprecated.** The `router-agent` (described in `docs/router-agent.md`) is hidden from the v0.14.0 bootloader and the CLI flag warns on use. It is scheduled for hard removal in the next major release; the conductor protocol now drives `codenook` directly.
+---
 
-## Contributing
+## 🤝 Contributing
 
-Bug reports, plugin contributions, and design discussions are welcome via GitHub issues / PRs. When adding a plugin, mirror the layout of `plugins/development/` (manifest + `phases.yaml` + `hitl-gates.yaml` + `roles/` + `manifest-templates/`) and validate locally with `python3 install.py --check`.
+Bug reports, plugin contributions, and design discussions are welcome via GitHub issues / PRs.
 
-## License
+When adding a plugin, mirror the layout of `plugins/development/` (`plugin.yaml` + `phases.yaml` + `hitl-gates.yaml` + `roles/` + `manifest-templates/`) and validate locally with:
+
+```bash
+python3 install.py --check
+```
+
+A few non-negotiables for contributors (these match the bootloader rules):
+
+- Executable artefacts shipped in plugin `skills/` or `validators/` must be **Python 3** — no `.sh`.
+- Plugin role files address sub-agents, never the conductor; keep imperative language scoped to the role.
+- Don't hand-edit `state.json`, queue entries, or task history — go through the CLI.
+
+---
+
+## 📜 License
 
 MIT — see [`LICENSE`](LICENSE).
+
+---
+
+<p align="center">
+  <sub>Built for people who want their AI assistant to <strong>work like a team</strong>, not a soloist.</sub>
+</p>

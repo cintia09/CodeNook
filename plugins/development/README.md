@@ -6,7 +6,7 @@ A v6 CodeNook plugin that drives software-engineering tasks through a
 the 11-phase catalogue: **clarify → design → plan → implement → build
 → review → submit → test-plan → test → accept → ship**.
 
-Built on the v6 plugin framework (`docs/implementation.md` §M6).
+Built on the v6 plugin framework (see [`docs/architecture.md`](../../docs/architecture.md)).
 
 ## Install
 

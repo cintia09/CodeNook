@@ -1,4 +1,4 @@
-# Skills Mechanism (v0.14.0)
+# Skills Mechanism (v0.29.17)
 
 How CodeNook discovers, dispatches, and persists skills.
 

@@ -1,4 +1,4 @@
-# CodeNook Architecture (v0.14.0 / development v0.2.0)
+# CodeNook Architecture (v0.29.17 / development v0.5.0)
 
 > Deep-dive companion to [`README.md`](../README.md) and
 > [`PIPELINE.md`](../PIPELINE.md). Read those first if you have not.
@@ -356,20 +356,3 @@ The block tells the conductor:
 Every commit on this repo passes `claude_md_linter.py`, which
 enforces the bootloader rules against the in-repo
 `skills/codenook-core/...CLAUDE.md` reference.
-
----
-
-## §7. Router-agent (deprecated)
-
-`docs/router-agent.md` describes a *router-agent* that previously
-sat between the user turn and the orchestrator, drafting a
-`tasks/<T>/draft-config.yaml` for the user to confirm before
-handoff. As of `077428e` (v0.14.0 series) the router-agent is:
-
-- Hidden from the bootloader template.
-- Emits a deprecation warning when invoked via `codenook router`.
-- Scheduled for hard removal in the next major release.
-
-The current main-session protocol drives `codenook` directly
-(`task new` + `tick` + `decide` + `hitl`); no router round-trip is
-involved. The legacy doc is preserved as a design archive only.

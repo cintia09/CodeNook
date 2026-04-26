@@ -1,4 +1,11 @@
-# Memory & Extraction (v0.14.0)
+# Memory & Extraction (v0.29.17)
+
+> **Note (v0.29+).** The auto-extraction pipeline described in earlier
+> revisions has been retired. Memory entries are now created manually
+> by writing to `.codenook/memory/knowledge/<slug>/index.md` (or
+> `memory/skills/<slug>/SKILL.md` for executable playbooks); discovery
+> is a live disk scan — there is no on-disk index. The history snapshot
+> system (`<codenook> history save / list / prune`) is unchanged.
 
 How CodeNook persists what tasks learn, after the v0.14.0 deletion
 of the `task_specific` extraction route.

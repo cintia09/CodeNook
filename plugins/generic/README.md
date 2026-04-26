@@ -9,13 +9,8 @@ Selected by the M7 router whenever no specialised plugin
 
 ## Pinned design
 
-Per `docs/implementation.md` §M7.1 (L833-846) the spec lists
-phases `clarify / analyze / execute / deliver` with roles
-`clarifier / analyzer / executor / deliverer`. The M7 task prompt
-mentions an alternative wording (`clarify -> execute -> review -> ship`,
-roles clarifier/executor/reviewer/packager); we **pin to the spec**
-because the spec is the authoritative reference and the prompt
-explicitly invites the implementer to "pin and document".
+The plugin pins phases `clarify / analyze / execute / deliver` with roles
+`clarifier / analyzer / executor / deliverer` as the authoritative spec.
 
 `routing.priority: 10` -- intentionally low; specialised plugins
 (`development` ships at priority 50) always win ties.
