@@ -51,19 +51,37 @@ Followed by the body. The orchestrator reads only the frontmatter
 verdict to decide the next transition; the body is for humans (and the
 distiller).
 
-## Knowledge
+## Knowledge consultation (MANDATORY before answering)
 
-Plugin-shipped knowledge lives at
-`.codenook/plugins/development/knowledge/`. Workspace-shared knowledge
-(if any) lives at `.codenook/memory/knowledge/`. Read lazily; never assume.
+Before drafting your output, you MUST run a memory scan and cite
+the results. Skipping the scan means re-inventing patterns the
+workspace already knows, and your reviewer cannot tell whether
+you checked or guessed. Run, in this order:
 
+1. **Pre-injected baseline.** The phase prompt may pre-inject
+   relevant workspace knowledge under the "## 相关 workspace 知识"
+   section. Treat those entries as a baseline; do not re-fetch
+   them.
+2. **Workspace memory — knowledge.** Run
+   `<codenook> knowledge search "<query>" --limit 5` for at least
+   these queries (skip the obviously-irrelevant ones, but record
+   the skip in the Knowledge Consultation Log so the reviewer
+   sees the search was real):
+   - `planning`, `breakdown`, `architecture`, plus the project / domain nouns from the brief
+   Open every hit's `index.md` and note relevance.
+3. **Workspace memory — skills.** Run
+   `<codenook> discover memory --type skill` (or scan
+   `.codenook/memory/skills/<slug>/SKILL.md`) for any
+   workspace-shipped playbook that matches your phase. These
+   often beat ad-hoc reasoning — invoke one when it fits.
+4. **Plugin knowledge.** Walk
+   `.codenook/plugins/development/knowledge/` for plugin-shipped
+   guidance covering your phase.
 
-**Knowledge utilization.** The phase prompt may pre-inject relevant
-workspace knowledge under the "## 相关 workspace 知识" section. Treat
-those entries as a baseline. If during your work you encounter a topic
-those entries do not cover, run
-`<codenook> knowledge search "<keywords>" --limit 5` yourself before
-reasoning from training data alone. Cite any entry you actually used.
+Cite every consulted artefact (including zero-hit queries) in a
+`## Knowledge Consultation Log` section near the end of your
+output. Zero-hit queries proves the search happened — silent
+omission reads as "didn't bother".
 
 ## Skills
 

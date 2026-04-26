@@ -1,5 +1,36 @@
 # development plugin — changelog
 
+## 0.4.1 — memory scan hardening across all 7 worker roles
+
+All 7 worker roles (planner, designer, implementer, tester,
+reviewer, acceptor, builder) had a passive `## Knowledge` /
+`## Skills` block that said "read lazily, never assume". This
+let phase agents skip memory entirely when the pre-injected
+"## 相关 workspace 知识" baseline looked sufficient — no audit
+trail proved a search ever happened.
+
+Aligning with prnook v0.5.3's pattern, all 7 roles now carry a
+`## Knowledge consultation (MANDATORY before answering)` section
+that requires, in order:
+
+1. Pre-injected baseline as starting point.
+2. Workspace knowledge search via `<codenook> knowledge search`
+   with at least the per-role suggested queries (planner gets
+   `planning/breakdown/architecture`, tester gets
+   `testing/test-strategy/fixture/mock`, etc.).
+3. Workspace skills scan via `<codenook> discover memory --type
+   skill` — previously invisible to all dev roles.
+4. Plugin knowledge walk.
+
+Zero-hit queries MUST be recorded in a Knowledge Consultation
+Log section, so reviewers can see the search happened.
+
+Roles unchanged: clarifier (runs inline; the conductor handles
+its memory scan), submitter and test-planner (already had memory-
+first patterns from v0.4.0).
+
+No phase-chain change. Bumps to 0.4.1.
+
 ## 0.4.0 — memory-first generic skills
 
 Plugin pivot away from hard-coded device / remote-review knowledge:
