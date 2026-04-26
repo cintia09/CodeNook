@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
+import stat
 import sys
 import tempfile
 from pathlib import Path
@@ -19,6 +20,16 @@ _EXCLUDE_SUFFIXES = (".pyc",)
 # Name of the per-install content fingerprint file written into ``dst``.
 # Used to detect in-version source edits that VERSION alone would miss.
 _FINGERPRINT_NAME = ".fingerprint"
+
+# Defensive +x guarantee. ``shutil.copy2`` already preserves source mode,
+# but if a contributor ever commits one of these without the executable
+# bit (e.g. on Windows / via web UI), the kernel becomes unusable post-
+# install. Force +x on these well-known entry points after staging.
+_REQUIRE_EXEC = (
+    "skills/builtin/init/init.py",
+    "skills/builtin/orchestrator-tick/tick.py",
+    "skills/builtin/hitl-adapter/terminal.py",
+)
 
 
 def _ignore(_dir: str, names: list[str]) -> set[str]:
@@ -115,6 +126,17 @@ def stage_kernel(core_src: Path, workspace: Path) -> Path:
         # final ``dst`` always has a fingerprint matching its contents.
         fp = _compute_tree_fingerprint(core_src)
         (staging / _FINGERPRINT_NAME).write_text(fp + "\n", encoding="utf-8")
+
+        # Defensive: ensure well-known entry points are +x even if the
+        # source tree lost the bit (Windows checkout, web UI commit, etc.).
+        for rel in _REQUIRE_EXEC:
+            f = staging / rel
+            if f.is_file():
+                try:
+                    m = f.stat().st_mode
+                    f.chmod(m | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                except OSError:
+                    pass
 
         if dst.is_dir():
             backup = dst.with_name(dst.name + ".old")
