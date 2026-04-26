@@ -1,3 +1,39 @@
+## v0.29.19 — Bootloader guardrail against destructive .codenook ops
+
+### Added
+
+- Bootloader (`claude_md_sync.py`) — new MUST NOT hard rule
+  forbidding the conductor from running destructive
+  filesystem operations against any `.codenook/` directory or
+  its sub-paths (`rm -rf .codenook`, `rm -rf .codenook/tasks`,
+  `rm -rf .codenook/memory`, etc.). Such operations silently
+  destroy every task, HITL gate, knowledge entry, skill, and
+  history snapshot — non-recoverable when no Time Machine /
+  git backup exists. Rule spells out the legitimate ways to
+  mutate workspace state (`task delete`, `install.py
+  --upgrade`, targeted memory edits) and requires explicit
+  `ask_user` consent before any operation that would lose
+  task/memory data. Also instructs the conductor to verify
+  CLI changes in the current workspace, not by wiping a
+  sibling workspace.
+
+### Fixed
+
+- `task new --help` (`cmd_task.py:HELP_NEW`) — now lists the
+  `--phase-chain` flag (added in v0.21 but never documented in
+  help text), with a TDD-loop example
+  (`"clarify,implement,test,implement,test,ship"`) and a note
+  that `--profile` becomes informational when set.
+
+### Notes
+
+- Pure bootloader + help-text update. No CLI flag changes,
+  no schema migrations, no data migrations.
+- Workspaces should re-run `python3 install.py --upgrade` to
+  pick up the refreshed CLAUDE.md bootloader block.
+
+---
+
 ## v0.29.18 — Fix ask_user tool-call shape in HITL conductor instruction
 
 ### Fixed

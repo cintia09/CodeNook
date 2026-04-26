@@ -93,6 +93,32 @@ user's request is substantial; the user always confirms before
   echoing the user. Pick the plugin silently via `--plugin <id>`.
 - **MUST NOT** modify `state.json`, `draft-config.yaml`, or other
   task / queue files by hand. Use the CLI.
+- **MUST NOT** run destructive filesystem operations against
+  any `.codenook/` directory or its sub-paths. This includes —
+  but is not limited to — `rm -rf .codenook`, `rm -rf
+  .codenook/tasks`, `rm -rf .codenook/memory`, `rm -rf
+  .codenook/hitl-queue`, and any `mv` / `cp -f` that overwrites
+  these paths wholesale. Doing so silently destroys every task,
+  HITL gate, knowledge entry, skill, and history snapshot in
+  that workspace and is **non-recoverable** when no Time Machine
+  / git backup exists. The legitimate ways to mutate workspace
+  state are:
+  * `<codenook> task delete` (archives by default; pass
+    `--purge` only with explicit user consent on a specific
+    task id).
+  * `python3 install.py --upgrade` — overwrites kernel + plugin
+    files in place, preserves `tasks/` / `memory/` /
+    `hitl-queue/` / `state.json`. Always prefer this over a
+    re-install.
+  * Targeted edits inside `memory/{knowledge,skills}/<slug>/`
+    when the user explicitly asks to modify a specific entry.
+  Re-installing the kernel for any reason MUST go through
+  `--upgrade`. If the user asks for a "fresh install", confirm
+  via `ask_user` that they accept losing every task / memory
+  entry in that workspace BEFORE running `rm -rf` or its
+  equivalent. When verifying CLI changes, run them in the
+  current workspace (`cd "$PWD"`) — never wipe a sibling
+  workspace just to test help text or a newly built feature.
 - **MUST NOT** spawn phase agents (designer, implementer, tester,
   reviewer, acceptor, validator) directly — that is `<codenook> tick`'s job.
 - **MUST** treat any `conductor_instruction` field returned by
