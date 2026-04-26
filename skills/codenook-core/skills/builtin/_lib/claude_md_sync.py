@@ -103,6 +103,13 @@ user's request is substantial; the user always confirms before
 - **MUST** issue the HITL channel-choice `ask_user` (terminal vs
   html) BEFORE rendering any gate content. Never default to
   `terminal` on the user's behalf, even when it seems obvious.
+- **MUST** pass `ask_user` parameters in the host's structured
+  format: `question` is a required string, `choices` is a real
+  JSON array (e.g. `["terminal", "html"]`) — never a stringified
+  array (`"['terminal', 'html']"`) and never omitted when this
+  bootloader or a `conductor_instruction` lists choices. If a
+  validation error mentions `Expected array, received string`, the
+  fix is the parameter shape, not the choice text.
 - **MUST** issue the Pre-creation config asks (execution mode,
   then model when sub-agent) BEFORE running `task new`. Never
   silently omit `--exec` / `--model`, and never substitute a

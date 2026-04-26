@@ -1,3 +1,30 @@
+## v0.29.18 — Fix ask_user tool-call shape in HITL conductor instruction
+
+### Fixed
+
+- `orchestrator-tick/_tick.py` — the `conductor_instruction`
+  emitted with every HITL `waiting` envelope previously used
+  Python list literal syntax for the channel-choice ask
+  (`['terminal', 'html']`). Some hosts/models copied that
+  verbatim into the tool call, producing
+  `choices: "['terminal', 'html']"` (stringified array) and
+  triggering the host's `Expected array, received string`
+  validation error. Rewritten to spell out the schema-correct
+  parameter shape (`question: "..."` + `choices: ["terminal",
+  "html"]`) and to do the same for the approve/reject/
+  needs_changes follow-up ask.
+- Bootloader (`claude_md_sync.py`) — added a global hard rule
+  reminding the conductor that `ask_user` requires `question`
+  (string) and `choices` (real JSON array, never a stringified
+  one), with the validation-error fingerprint to look for.
+
+### Notes
+
+- Pure documentation / instruction fix. No CLI flag changes,
+  no schema migrations, no data migrations.
+
+---
+
 ## v0.29.17 — Shell→Python port + skills/scripts Python-only policy
 
 ### Removed
