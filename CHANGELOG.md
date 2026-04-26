@@ -1,8 +1,56 @@
+## v0.29.21 — Sub-agent ask_user-shape preamble + bootloader rewrite
+
+### Added
+
+- `skills/codenook-core/skills/builtin/_lib/prompt_preamble.py` —
+  new helper that supplies a short, host-agnostic
+  "interactive-prompt tool — schema reminder" preamble for
+  every rendered phase prompt. Both phase-prompt renderers
+  (`_lib/cli/cmd_tick.py` — the live CLI path used by
+  `<codenook> tick` — and `skills/builtin/orchestrator-tick/_tick.py`
+  — the parity path used by direct callers / tests) now prepend
+  it to the body before writing `prompts/phase-N-<role>.md`.
+  Idempotent via an HTML-comment marker so re-renders don't
+  stack copies.
+
+### Changed
+
+- Bootloader (`claude_md_sync.py`) — the v0.29.18 ask_user-shape
+  hard rule was rewritten in v0.29.21 to be host-agnostic. The
+  rule now talks about "the host's interactive-question tool"
+  (Claude Code: `ask_user`; VS Code Copilot: `vscode_askQuestions`;
+  other hosts: their own facility) and lists the SHAPE rules
+  separately from the tool name: required question / prompt
+  field, real JSON arrays for choices-like fields, declared
+  types preserved, common validation-error fingerprints
+  (`"question": Required`, `Expected array, received string`)
+  + the fix for each. The rule explicitly states it applies to
+  EVERY interactive-prompt call from any context — conductor,
+  inline clarifier, inline phase worker, or sub-agent — not
+  only HITL gates.
+
+### Why
+
+The v0.29.18 fix only touched the conductor's bootloader and
+the HITL `conductor_instruction`. Sub-agents that handle phase
+work never read the workspace bootloader (CLAUDE.md /
+copilot-instructions.md); they only see their `role.md` plus
+the per-phase prompt the kernel renders for them. As a result,
+the `"question": Required` and `"choices": Expected array,
+received string` validation errors kept recurring inside
+sub-agent contexts even on workspaces upgraded to v0.29.20.
+Prepending a tool-name-agnostic schema reminder to every phase
+prompt closes that gap; rewriting the bootloader rule to be
+host-agnostic stops the rule from looking Claude-specific to
+non-Claude hosts.
+
+---
+
+
+
 ## v0.29.20 — Hotfix: escape brace literal in v0.29.19 bootloader rule
 
 ### Fixed
-
-- `claude_md_sync.py:render_block` raised `KeyError` when
   rendering the v0.29.19 destructive-ops rule because the
   literal text `memory/{knowledge,skills}/<slug>/` was
   interpreted as a `str.format` placeholder. Escaped to

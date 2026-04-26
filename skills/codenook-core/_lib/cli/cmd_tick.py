@@ -251,6 +251,16 @@ def _augment_envelope(ctx: CodenookContext, task: str, tick_out: str) -> str:
             # Leave any unsubstituted placeholder literal so a later run
             # (post-fix) can still inject hits.
             pass
+        # v0.29.21 — prepend host-agnostic interactive-tool shape
+        # reminder so sub-agents (which never read the workspace
+        # bootloader) get the schema rules for ask_user-style calls.
+        try:
+            _lib = ctx.kernel_dir / "_lib"
+            sys.path.insert(0, str(_lib))
+            import prompt_preamble as _pp  # type: ignore[import-not-found]
+            body = _pp.prepend_interactive_preamble(body)
+        except Exception:
+            pass
         prompt_p.write_text(body, encoding="utf-8")
     elif not prompt_p.is_file():
         prompt_p.write_text(

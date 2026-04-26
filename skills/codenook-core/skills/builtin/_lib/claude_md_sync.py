@@ -129,13 +129,33 @@ user's request is substantial; the user always confirms before
 - **MUST** issue the HITL channel-choice `ask_user` (terminal vs
   html) BEFORE rendering any gate content. Never default to
   `terminal` on the user's behalf, even when it seems obvious.
-- **MUST** pass `ask_user` parameters in the host's structured
-  format: `question` is a required string, `choices` is a real
-  JSON array (e.g. `["terminal", "html"]`) — never a stringified
-  array (`"['terminal', 'html']"`) and never omitted when this
-  bootloader or a `conductor_instruction` lists choices. If a
-  validation error mentions `Expected array, received string`, the
-  fix is the parameter shape, not the choice text.
+- **MUST** call the host's interactive-question tool with its
+  NATIVE structured parameters — never collapse a multi-field
+  schema into one prose string, and never stringify a list-typed
+  field. Tool name varies by host (Claude Code: `ask_user`;
+  VS Code Copilot: `vscode_askQuestions`; other hosts: whatever
+  their interactive-prompt facility is called); the SHAPE rules
+  below are universal:
+  - The question / prompt field is required — pass the question
+    text in that field, do **not** put the question inside a
+    `choices` / `options` / `items` field or as part of a
+    free-form blob.
+  - The choices / options field, when present, is a real JSON
+    array of short strings (e.g. `["terminal", "html"]`). Never
+    a stringified array (`"['terminal', 'html']"`), never a
+    newline-joined string, never omitted when this bootloader or
+    a `conductor_instruction` enumerates the allowed answers.
+  - Other typed fields (booleans like `allow_freeform`, etc.)
+    keep their declared types — booleans stay booleans, numbers
+    stay numbers.
+  - Common validation-error fingerprints and their fix:
+    `"question": Required` / `"prompt": Required` → you forgot
+    the question field, or you put the text in the wrong field.
+    `Expected array, received string` on a choices-like field →
+    pass a real JSON array, not its string repr.
+  - This rule applies to EVERY interactive-prompt call from ANY
+    context — conductor, inline clarifier, inline phase worker,
+    or sub-agent — not only to HITL gates.
 - **MUST** issue the Pre-creation config asks (execution mode,
   then model when sub-agent) BEFORE running `task new`. Never
   silently omit `--exec` / `--model`, and never substitute a

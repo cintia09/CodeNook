@@ -602,6 +602,17 @@ def _render_phase_prompt(workspace: Path, state: dict, phase: dict) -> str | Non
             )
         except Exception:
             pass
+        # v0.29.21 — prepend host-agnostic interactive-tool shape
+        # reminder so sub-agents that don't read CLAUDE.md still see
+        # the ask_user-style schema rules.
+        try:
+            _lib = Path(__file__).resolve().parent.parent / "_lib"
+            import sys as _sys
+            _sys.path.insert(0, str(_lib))
+            import prompt_preamble as _pp
+            rendered = _pp.prepend_interactive_preamble(rendered)
+        except Exception:
+            pass
         return rendered
     except Exception:
         return None
