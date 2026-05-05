@@ -32,6 +32,17 @@ def is_missing(value: str | None) -> bool:
     return not value or value.strip().lower() in {"", "missing", "none", "null", "todo", "tbd"}
 
 
+def normalize_yes_no(value: str | None) -> str | None:
+    if value is None:
+        return None
+    v = value.strip().lower().replace("_", "-")
+    if v in {"yes", "y", "true", "required", "yes-real-e2e", "real-e2e"}:
+        return "yes"
+    if v in {"no", "n", "false", "not-required", "no-local-ok", "local-ok"}:
+        return "no"
+    return None
+
+
 def main(argv=None) -> int:
     args = (argv if argv is not None else sys.argv)[1:]
     if not args:
@@ -50,7 +61,14 @@ def main(argv=None) -> int:
         print(f"post-test-plan: {out} lacks verdict frontmatter", file=sys.stderr)
         return 1
 
-    required_frontmatter = ["case_count", "runner", "environment", "environment_source", "submitted_ref"]
+    required_frontmatter = [
+        "case_count",
+        "runner",
+        "real_e2e_required",
+        "environment",
+        "environment_source",
+        "submitted_ref",
+    ]
     missing_frontmatter = [key for key in required_frontmatter if is_missing(fm.get(key))]
     if verdict == "ok" and missing_frontmatter:
         print(
@@ -60,6 +78,20 @@ def main(argv=None) -> int:
         return 1
 
     if verdict == "ok":
+        real_e2e_required = normalize_yes_no(fm.get("real_e2e_required"))
+        if real_e2e_required is None:
+            print(
+                f"post-test-plan: {out} real_e2e_required must be yes or no for verdict=ok",
+                file=sys.stderr,
+            )
+            return 1
+        environment = (fm.get("environment") or "").strip().lower()
+        if real_e2e_required == "yes" and environment.startswith("local-"):
+            print(
+                f"post-test-plan: {out} cannot use {environment} when real_e2e_required=yes",
+                file=sys.stderr,
+            )
+            return 1
         try:
             case_count = int(fm.get("case_count", "0"))
         except ValueError:

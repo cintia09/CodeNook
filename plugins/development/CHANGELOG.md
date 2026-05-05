@@ -1,5 +1,13 @@
 # development plugin — changelog
 
+## Unreleased
+
+- `test-plan` now always asks whether real-device / deployed-runtime E2E
+  is required before resolving the execution environment.
+- `post-test-plan.py` now requires `real_e2e_required: yes|no` for
+  passing plans and rejects `local-*` environments when real E2E was
+  requested.
+
 ## 0.5.2 — Bind submit/test to submitted refs and harden E2E evidence
 
 Tightens the feature/hotfix/refactor testing boundary so `submit` means

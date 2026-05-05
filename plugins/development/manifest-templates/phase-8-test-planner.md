@@ -48,6 +48,7 @@ verdict: ok                # or needs_revision / blocked
 summary: <≤200 chars>
 case_count: <int>
 runner: pytest|jest|go test|none
+real_e2e_required: yes|no
 environment: local-python|local-node|local-go|<recorded-name>|<user-answer>
 environment_source: <memory-entry-id-or-"user-asked">
 submitted_ref: <submitted ref, "n/a", or "missing">
@@ -65,7 +66,8 @@ Failure routing (per design §3):
 * `test-only`: `needs_revision` self-loops on `test-plan`.
 * All other profiles: `needs_revision` bounces to `implement`.
 
-The body must include `## Submitted Ref` and make clear whether tests are
+The body must include `## Submitted Ref`, record whether the user asked
+for real-device / deployed-runtime E2E, and make clear whether tests are
 local/pre-submit checks or real E2E against a deployed/runtime
 environment. Real E2E plans must say how the environment is verified to
 be running the submitted ref.
