@@ -1,3 +1,27 @@
+## v0.29.24 — Release metadata alignment + bootloader size cleanup
+
+### Changed
+
+- Bootloader (`claude_md_sync.py`) — trimmed the generated CodeNook
+  bootloader block so synced `CLAUDE.md` files stay below the
+  40k-character performance warning while preserving the required
+  conductor contracts, including the host interactive-prompt tool
+  rule.
+- Version metadata now aligns with the `v0.29.24` release across the
+  root `VERSION`, core `VERSION`, and `install.py`.
+- README plugin catalogue now lists the shipped development plugin as
+  `v0.5.2`.
+
+### Release hygiene
+
+- Removed the mistakenly created `v4.9.6` release/tag from GitHub and
+  kept `v0.29.24` as the current release line.
+- Rewrote the `v0.29.24` release notes to describe the current
+  installer flow (`python3 install.py ...`) instead of legacy
+  `curl ... multi-agent-framework ...` guidance.
+
+---
+
 ## v0.29.21 — Sub-agent ask_user-shape preamble + bootloader rewrite
 
 ### Added
@@ -6038,6 +6062,5 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - Violation response template: shows role, blocked action, and switch suggestion
 - agent-init Step 7a: CLAUDE.md template includes enforcement rules
 - Works in both Claude Code (hook-enforced) and Copilot CLI (self-check enforced)
-
 
 
