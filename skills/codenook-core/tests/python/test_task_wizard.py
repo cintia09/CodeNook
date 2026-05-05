@@ -152,7 +152,8 @@ def test_input_and_input_file_conflict(installed_ws: Path,
 def test_interactive_wizard(installed_ws: Path) -> None:
     # Stdin script: plugin (accept default) / profile (hotfix) /
     # title / input line / blank line to terminate input / model
-    # (blank) / exec (blank → default) / Y to confirm.
+    # (blank) / exec (blank → default) / HITL decider (blank → human)
+    # / target dir (blank → default) / Y to confirm.
     stdin = "\n".join([
         "",            # plugin = default
         "hotfix",      # profile
@@ -162,6 +163,8 @@ def test_interactive_wizard(installed_ws: Path) -> None:
         "",            # terminate multi-line input
         "",            # model = blank
         "",            # exec = default sub-agent
+        "",            # HITL decider = default human
+        "",            # target dir = default
         "Y",           # confirm
     ]) + "\n"
     cp = _run(_bin_cmd(installed_ws) + [
@@ -178,6 +181,7 @@ def test_interactive_wizard(installed_ws: Path) -> None:
     assert "second line" in s.get("task_input", "")
     # exec mode left as default ⇒ no field written, behaves as sub-agent.
     assert s.get("execution_mode") in (None, "sub-agent")
+    assert s.get("hitl_decider") == "human"
 
 
 # 7. set-profile works on phase-1 task; rejects after history.

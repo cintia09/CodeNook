@@ -17,11 +17,12 @@ codenook — workspace CLI
 
 Subcommands:
   task new --title "…" [--summary …] [--plugin <id>] [--profile <name>]
-                       [--input <text>] [--input-file <path>] [--interactive]
-                       [--target-dir <p>] [--dual-mode serial|parallel]
-                       [--max-iterations N] [--parent T-X]
-                       [--priority P0|P1|P2|P3] [--accept-defaults]
-                       [--model <name>] [--exec sub-agent|inline]
+                        [--input <text>] [--input-file <path>] [--interactive]
+                        [--target-dir <p>] [--dual-mode serial|parallel]
+                        [--max-iterations N] [--parent T-X]
+                        [--priority P0|P1|P2|P3] [--accept-defaults]
+                        [--model <name>] [--exec sub-agent|inline]
+                        [--hitl-decider human|main-session-llm]
   task list [--status <s>] [--phase <p>] [--plugin <id>]
             [--include-done] [--json]
   task show <T-NNN> [--json] [--history-limit N]

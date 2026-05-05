@@ -127,8 +127,13 @@ user's request is substantial; the user always confirms before
   Do not skip a step because it feels redundant or because the
   output preview is "obvious".
 - **MUST** issue the HITL channel-choice `ask_user` (terminal vs
-  html) BEFORE rendering any gate content. Never default to
-  `terminal` on the user's behalf, even when it seems obvious.
+  html) BEFORE rendering any human-decided gate content. Never
+  default to `terminal` on the user's behalf, even when it seems
+  obvious. Exception: when the task was created with
+  `--hitl-decider main-session-llm` and the tick
+  `conductor_instruction` explicitly says "LLM-DELEGATED HITL",
+  the main-session LLM decides itself and MUST NOT call `ask_user`
+  for human approval.
 - **MUST** call the host's interactive-question tool with its
   NATIVE structured parameters — never collapse a multi-field
   schema into one prose string, and never stringify a list-typed
@@ -157,12 +162,13 @@ user's request is substantial; the user always confirms before
     context — conductor, inline clarifier, inline phase worker,
     or sub-agent — not only to HITL gates.
 - **MUST** issue the Pre-creation config asks (execution mode,
-  then model when sub-agent) BEFORE running `task new`. Never
-  silently omit `--exec` / `--model`, and never substitute a
-  default just because the user said "你自己决定" / "just go" /
+  HITL decider, then model when sub-agent) BEFORE running
+  `task new`. Never silently omit `--exec` /
+  `--hitl-decider` / `--model`, and never substitute a default
+  just because the user said "你自己决定" / "just go" /
   "你看着办" — that exemption applies ONLY to the pre-task
-  interview, never to exec mode or model. See §Pre-creation
-  config ask for the exact protocol.
+  interview, never to exec mode, HITL decider, or model. See
+  §Pre-creation config ask for the exact protocol.
 - **MUST** explicitly confirm the chosen plugin with the user
   via `ask_user` BEFORE creating the task, even when the user's
   request maps unambiguously to a single installed plugin.
@@ -647,7 +653,7 @@ Skip the ask only when `suggest-parent` returns `[]`. Never
 silently aggregate or chain on the user's behalf — the choice
 between these three is the user's, not the conductor's.
 
-#### Pre-creation config ask (execution mode, then model) — MANDATORY
+#### Pre-creation config ask (execution mode, HITL decider, then model) — MANDATORY
 
 After the interview AND after the §Duplicate / parent check
 resolves to "create a new task" (independently or as a child),
@@ -655,10 +661,10 @@ resolves to "create a new task" (independently or as a child),
 the entire section when the duplicate check resolved to
 "continue an existing task" — that path tickets the existing
 task and never calls `task new`. Skipping these asks otherwise
-— i.e. running `task new` without
-both `--exec` and (when sub-agent) `--model` — silently locks the
-user into defaults they never consented to and is a contract
-violation, not a shortcut.
+— i.e. running `task new` without `--exec`, `--hitl-decider`,
+and (when sub-agent) `--model` — silently locks the user into
+defaults they never consented to and is a contract violation,
+not a shortcut.
 
 1. **Execution mode (always ask).** One `ask_user` with two
    choices: `sub-agent` (default; phase work runs in isolated
@@ -667,7 +673,15 @@ violation, not a shortcut.
    in this conversation, no sub-agent spawn overhead). Pass the
    choice as `--exec sub-agent` or `--exec inline`.
 
-2. **Model (ask ONLY when exec mode is `sub-agent`).** One
+2. **HITL decider (always ask).** One `ask_user` with two
+   choices: `human` (default; the conductor renders each gate and
+   asks the user to approve / reject / request changes) or
+   `main-session-llm` (the conductor's main-session LLM reads the
+   gate and role output, decides approve / reject / needs_changes
+   itself, and submits `codenook decide`). Pass the choice as
+   `--hitl-decider human` or `--hitl-decider main-session-llm`.
+
+3. **Model (ask ONLY when exec mode is `sub-agent`).** One
    `ask_user` offering the user's last-picked model (when known),
    `"platform default"`, and a short list of common options.
    Pass the chosen string as `--model <name>`; skip the flag
@@ -680,23 +694,25 @@ violation, not a shortcut.
 
 Skip the exec-mode ask **only** when the user already specified
 the mode in their request or `config.yaml` pins it. Skip the
-model ask under the same conditions plus whenever exec mode is
-`inline`.
+HITL-decider ask **only** when the user already specified that
+setting in their request. Skip the model ask under the same
+conditions as exec mode plus whenever exec mode is `inline`.
 
 A user saying "你自己决定" / "just go" / "你看着办" / "你看着办吧"
 **does NOT** exempt either ask — that phrasing only skips the
-pre-task interview. Both `--exec` and (when sub-agent) `--model`
-are real configuration choices with cost / latency / parallelism
-implications, so the user must be given the chance to pick. If
-they then answer "你自己决定" to the exec-mode or model ask
-itself, treat that as picking the default (`sub-agent` /
-`platform default`) and pass the corresponding flag explicitly
-or omit `--model` per the rules above.
+pre-task interview. `--exec`, `--hitl-decider`, and (when
+sub-agent) `--model` are real configuration choices with cost /
+latency / autonomy / review implications, so the user must be
+given the chance to pick. If they then answer "你自己决定" to the
+exec-mode, HITL-decider, or model ask itself, treat that as
+picking the default (`sub-agent` / `human` / `platform default`)
+and pass the corresponding flag explicitly or omit `--model` per
+the rules above.
 
-Both settings are decided **once at task creation** and apply
+All three settings are decided **once at task creation** and apply
 to every phase of the task — they are not re-asked per dispatch.
-The conductor MUST NOT silently default; ask explicitly even
-when defaults seem obvious.
+The conductor MUST NOT silently default; ask explicitly even when
+defaults seem obvious.
 
 #### Create the task
 
@@ -708,6 +724,7 @@ when defaults seem obvious.
                     --plugin <chosen-plugin-id> \
                     --profile <chosen-profile> \
                     --exec sub-agent \
+                    --hitl-decider human \
                     --model claude-opus-4-7 \
                     --accept-defaults
 
@@ -718,6 +735,7 @@ when defaults seem obvious.
                     --plugin <chosen-plugin-id> \
                     --profile <chosen-profile> \
                     --exec sub-agent \
+                    --hitl-decider human \
                     --accept-defaults
 ```
 
@@ -811,7 +829,8 @@ unavailable (older kernels) or when you need a field the
 
 **If multiple gates are open simultaneously, resolve them
 serially**, one full ritual per gate: process the first entry
-in `pending_hitl` (channel-choice ask → render → `decide`),
+in `pending_hitl` (human channel-choice ask → render → `decide`,
+or delegated main-session LLM decision → `decide`),
 then call `<codenook> tick` again to see whether the next gate
 is still pending (the kernel may auto-resolve or re-order
 gates after each `decide`). Never batch-render multiple gates
@@ -829,7 +848,17 @@ even when one feels redundant. The bullets below are the same
 ritual restated for reference — they do **not** override
 `conductor_instruction` when the two diverge.
 
-1. **Channel-choice ask (MANDATORY).** Issue exactly one `ask_user`
+If the pending task's state or the tick payload has
+`hitl_decider == "main-session-llm"` **and** the authoritative
+`conductor_instruction` says "LLM-DELEGATED HITL", do not ask the
+user for channel or decision. Read the gate prompt and role output
+yourself, decide `approve` / `reject` / `needs_changes`, then
+submit `codenook decide` with a `main-session-llm:` rationale in
+`--comment`. The numbered human ritual below applies only to
+human-decided gates.
+
+1. **Channel-choice ask (MANDATORY for human-decided gates).**
+   Issue exactly one `ask_user`
    with two choices: `terminal` (default) and `html`. Treat any
    answer other than `html` as `terminal`. Do **not** skip this
    step or pick `terminal` on the user's behalf — even when

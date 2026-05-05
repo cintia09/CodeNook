@@ -673,6 +673,17 @@ def run_post_validate(workspace: Path, plugin: str, script_rel: str,
 
 
 # ── HITL ────────────────────────────────────────────────────────────────
+HITL_DECIDER_HUMAN = "human"
+HITL_DECIDER_MAIN_SESSION_LLM = "main-session-llm"
+
+
+def hitl_decider(state: dict) -> str:
+    value = state.get("hitl_decider")
+    if value == HITL_DECIDER_MAIN_SESSION_LLM:
+        return HITL_DECIDER_MAIN_SESSION_LLM
+    return HITL_DECIDER_HUMAN
+
+
 def hitl_required(state: dict, phase: dict, cfg: dict) -> bool:
     if phase.get("gate"):
         return True
@@ -742,6 +753,54 @@ def write_hitl_entry(workspace: Path, state: dict, phase: dict,
     }
     atomic_write_json_validated(str(path), entry, HITL_ENTRY_SCHEMA)
     return path
+
+
+def _hitl_conductor_instruction(task_id: str, phase_id: str, gate_id: str,
+                                entry_id: str, decider: str) -> str:
+    if decider == HITL_DECIDER_MAIN_SESSION_LLM:
+        return (
+            "LLM-DELEGATED HITL ritual — main-session LLM decides; "
+            "do NOT call ask_user for human approval:\n"
+            "  1. Read the gate entry JSON "
+            f"(.codenook/hitl-queue/{entry_id}.json) and the role's "
+            "primary output referenced by its context_path.\n"
+            "  2. As the main-session LLM, evaluate the gate prompt and "
+            "role output. Pick exactly one decision: approve, reject, or "
+            "needs_changes. Use approve only when the output satisfies the "
+            "gate and the stored verdict can safely drive the transition.\n"
+            "  3. Submit via: codenook decide --task "
+            f"{task_id} --phase {phase_id} "
+            "--decision <approve|reject|needs_changes> "
+            "--comment \"main-session-llm: <brief rationale>\".\n"
+            "  4. Run codenook tick --task "
+            f"{task_id} --json to continue the task."
+        )
+    return (
+        "MANDATORY HITL ritual — do NOT skip steps:\n"
+        "  1. Call ask_user with these EXACT params "
+        "(choices MUST be a real JSON array, NOT a "
+        "stringified one):\n"
+        '       question: "Render this gate in terminal '
+        'or HTML?"\n'
+        '       choices:  ["terminal", "html"]\n'
+        "     Treat any non-'html' answer as 'terminal'.\n"
+        "  2a. If terminal: read the gate prompt "
+        f"(.codenook/hitl-queue/{entry_id}.json) + the role's "
+        "primary output, render as your normal markdown "
+        "response (NOT inside an ask_user modal), then "
+        "call ask_user again with question='Decision?' and "
+        'choices=["approve", "reject", "needs_changes"].\n'
+        "  2b. If html: produce a self-contained styled "
+        f"HTML file at .codenook/hitl-queue/{entry_id}.html, "
+        "open it (`open` on macOS, `xdg-open` on Linux, "
+        "`start \"\"` on Windows), then call ask_user with "
+        "question='Decision?' and "
+        'choices=["approve", "reject", "needs_changes"].\n'
+        "  3. Submit via: codenook decide --task "
+        f"{task_id} --phase {phase_id} "
+        "--decision <approve|reject|needs_changes> "
+        "[--comment \"...\"]"
+    )
 
 
 # ── HITL decision consumer ──────────────────────────────────────────────
@@ -1219,36 +1278,14 @@ def _tick_body(workspace: Path, state: dict) -> dict:
                 task_id = state.get("task_id", "")
                 phase_id = cur.get("id", "")
                 eid = f"{task_id}-{gate_id}"
+                decider = hitl_decider(state)
                 return {
                     "status": "waiting",
                     "next_action": f"hitl:{gate_id}",
                     "hitl_entry_id": eid,
-                    "conductor_instruction": (
-                        "MANDATORY HITL ritual — do NOT skip steps:\n"
-                        "  1. Call ask_user with these EXACT params "
-                        "(choices MUST be a real JSON array, NOT a "
-                        "stringified one):\n"
-                        '       question: "Render this gate in terminal '
-                        'or HTML?"\n'
-                        '       choices:  ["terminal", "html"]\n'
-                        "     Treat any non-'html' answer as 'terminal'.\n"
-                        "  2a. If terminal: read the gate prompt "
-                        f"(.codenook/hitl-queue/{eid}.json) + the role's "
-                        "primary output, render as your normal markdown "
-                        "response (NOT inside an ask_user modal), then "
-                        "call ask_user again with question='Decision?' and "
-                        'choices=["approve", "reject", "needs_changes"].\n'
-                        "  2b. If html: produce a self-contained styled "
-                        f"HTML file at .codenook/hitl-queue/{eid}.html, "
-                        "open it (`open` on macOS, `xdg-open` on Linux, "
-                        "`start \"\"` on Windows), then call ask_user with "
-                        "question='Decision?' and "
-                        'choices=["approve", "reject", "needs_changes"].\n'
-                        "  3. Submit via: codenook decide --task "
-                        f"{task_id} --phase {phase_id} "
-                        "--decision <approve|reject|needs_changes> "
-                        "[--comment \"...\"]"
-                    ),
+                    "hitl_decider": decider,
+                    "conductor_instruction": _hitl_conductor_instruction(
+                        task_id, phase_id, gate_id, eid, decider),
                 }
             # not_found + no in_flight + no verdict → the phase has never
             # been dispatched (e.g. fresh task, recovery, or after

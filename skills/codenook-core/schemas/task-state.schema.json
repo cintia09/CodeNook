@@ -121,6 +121,11 @@
       "enum": ["sub-agent", "inline", null],
       "description": "v0.19 — per-task execution dispatch mode. 'sub-agent' (default) emits phase_prompt envelopes; 'inline' emits inline_dispatch envelopes that the conductor handles in-process. Absence ⇒ default 'sub-agent'."
     },
+    "hitl_decider": {
+      "type": ["string", "null"],
+      "enum": ["human", "main-session-llm", null],
+      "description": "v0.30 — per-task HITL decision authority. Absence/null means human approval via ask_user. 'main-session-llm' delegates gate decisions to the conductor's main-session LLM, which must read the gate/output and submit codenook decide without asking a human."
+    },
     "task_input": {
       "type": ["string", "null"],
       "description": "v0.20 — initial task seed text supplied via `task new --input` / `--input-file` / `--interactive`. Surfaced verbatim in the tick dispatch envelope under the same key so phase agents and the inline conductor can use it."

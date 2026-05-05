@@ -274,6 +274,19 @@ def test_contract_09_channel_choice_ask_is_mandatory():
     ), "HITL channel-choice ask is no longer flagged as mandatory."
 
 
+def test_contract_09_main_session_llm_hitl_delegation_documented():
+    """Tasks can opt into main-session LLM HITL decisions; the bootloader
+    must document that this bypasses human ask_user approval only when the
+    tick instruction explicitly marks the gate as delegated."""
+    out = render()
+    assert "--hitl-decider" in out
+    assert "main-session-llm" in out
+    assert re.search(
+        r"main-session-llm.*?(do\s+NOT\s+call\s+`?ask_user|without\s+asking|decides?\s+itself)",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ), "LLM-delegated HITL path is not documented."
+
+
 # =====================================================================
 # CONTRACT-10 — Clarifier (inline) rule
 # =====================================================================
@@ -329,6 +342,19 @@ def test_contract_12_exec_mode_asked_at_task_creation():
         r"(ask_user|always ask).*?(execution mode|exec\s*mode|--exec)",
         out, flags=re.IGNORECASE | re.DOTALL,
     ), "Exec-mode ask at task creation is not documented."
+
+
+def test_contract_12_hitl_decider_asked_at_task_creation():
+    """Spec: HITL decider is asked once at task creation and passed via
+    --hitl-decider."""
+    out = render()
+    assert re.search(
+        r"(HITL decider|--hitl-decider).*?(ask_user|always ask)",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ) or re.search(
+        r"(ask_user|always ask).*?(HITL decider|--hitl-decider)",
+        out, flags=re.IGNORECASE | re.DOTALL,
+    ), "HITL-decider ask at task creation is not documented."
 
 
 def test_contract_12_model_skipped_when_inline():

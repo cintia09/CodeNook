@@ -135,6 +135,7 @@ Writable fields:
   summary         free text
   title           free text
   task_input      free text (use --value-file for multi-line / long input)
+  hitl_decider    human | main-session-llm
 
 Plugin entry-question fields (v0.29.3):
   Any field declared under `plugins/<id>/entry-questions.yaml` (in a
@@ -171,9 +172,9 @@ Options:
   --input-file <path>     v0.20 — read --input contents from a file.
                           Mutually exclusive with --input.
   --interactive           v0.20 — wizard mode: prompt for plugin /
-                          profile / title / input / model / exec mode
-                          via stdin/stdout. Mutually exclusive with
-                          --accept-defaults.
+                          profile / title / input / model / exec mode /
+                          HITL decider via stdin/stdout. Mutually
+                          exclusive with --accept-defaults.
   --target-dir <p>        defaults to src/
   --dual-mode <m>         serial | parallel
   --max-iterations <N>    positive integer (default: 3)
@@ -196,6 +197,12 @@ Options:
                                        phase output itself; no sub-agent
                                        spawn. Best for chatty / serial
                                        phases.
+  --hitl-decider <mode>   v0.30 — who resolves HITL gates. One of:
+                            human             (default) conductor asks a
+                                              human via ask_user.
+                            main-session-llm  conductor's main-session LLM
+                                              reads the gate and decides
+                                              approve/reject/needs_changes.
   --phase-chain <ids>     v0.21 — advanced. Override the profile's phase
                           chain with a custom comma- (or space-) separated
                           list of phase ids. Each id MUST be declared in
@@ -273,12 +280,19 @@ Forward jumps (skipping ahead) are also supported but will leave any
 intermediate phases unrun — `tick` will resume from the new pointer.
 """
 
+HITL_DECIDER_VALUES = ("human", "main-session-llm")
+
+
 ALLOWED = {
     "dual_mode": ("serial", "parallel"),
     "priority": ("P0", "P1", "P2", "P3"),
+    "hitl_decider": HITL_DECIDER_VALUES,
 }
 INT_FIELDS = {"max_iterations"}
-WRITABLE = {"dual_mode", "target_dir", "priority", "max_iterations", "summary", "title", "task_input"}
+WRITABLE = {
+    "dual_mode", "target_dir", "priority", "max_iterations", "summary",
+    "title", "task_input", "hitl_decider",
+}
 
 
 # Markers used by `_detect_default_target_dir` to pick the most-likely
@@ -616,6 +630,7 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
     task_id = ""
     model = ""
     exec_mode_val = ""
+    hitl_decider_val = ""
     profile = ""
     custom_phase_chain_raw = ""
     task_input = ""
@@ -660,6 +675,8 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
                 model = next(it)
             elif a == "--exec":
                 exec_mode_val = next(it)
+            elif a == "--hitl-decider":
+                hitl_decider_val = next(it)
             elif a == "--profile":
                 profile = next(it)
             elif a == "--phase-chain":
@@ -715,6 +732,12 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
         sys.stderr.write(
             f"codenook task new: invalid --exec '{exec_mode_val}' "
             f"(allowed: sub-agent|inline)\n")
+        return 2
+    if hitl_decider_val and hitl_decider_val not in HITL_DECIDER_VALUES:
+        sys.stderr.write(
+            f"codenook task new: invalid --hitl-decider "
+            f"'{hitl_decider_val}' (allowed: "
+            f"{'|'.join(HITL_DECIDER_VALUES)})\n")
         return 2
 
     if not target_dir:
@@ -833,6 +856,8 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
             sys.stdout.write(f"  model     : {model}\n")
         if exec_mode_val:
             sys.stdout.write(f"  exec mode : {exec_mode_val}\n")
+        if hitl_decider_val:
+            sys.stdout.write(f"  hitl      : {hitl_decider_val}\n")
         if dual_mode_set:
             sys.stdout.write(f"  dual-mode : {dual_mode}\n")
         if task_input:
@@ -939,6 +964,8 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
         state["model_override"] = model
     if exec_mode_val:
         state["execution_mode"] = exec_mode_val
+    if hitl_decider_val:
+        state["hitl_decider"] = hitl_decider_val
     if profile:
         state["profile"] = profile
     if custom_phase_chain:
@@ -1531,7 +1558,7 @@ def _task_new_interactive(ctx: CodenookContext, args: list[str]) -> int:
     """Wizard for `task new --interactive`.
 
     Walks the user through the minimum set of fields needed to create a
-    task: plugin, profile, title, input, model, execution mode.
+    task: plugin, profile, title, input, model, execution mode, HITL decider.
     Validates as we go (rejects empty title, validates profile against
     the chosen plugin). Final summary + Y/n confirmation, then dispatches
     to ``_task_new`` with the equivalent flag set.
@@ -1665,6 +1692,19 @@ def _task_new_interactive(ctx: CodenookContext, args: list[str]) -> int:
             if exec_mode is _PROMPT_EOF:
                 return _abort_eof()
 
+        hitl_decider = _prompt(
+            "HITL decider (human | main-session-llm)", default="human")
+        if hitl_decider is _PROMPT_EOF:
+            return _abort_eof()
+        while hitl_decider not in HITL_DECIDER_VALUES:
+            sys.stdout.write(
+                "  ! HITL decider must be 'human' or "
+                "'main-session-llm'.\n")
+            hitl_decider = _prompt(
+                "HITL decider (human | main-session-llm)", default="human")
+            if hitl_decider is _PROMPT_EOF:
+                return _abort_eof()
+
         # Target directory — submitter / tester / reviewer all need this
         # to find the actual source tree. Without a real target_dir,
         # `.gerrit` detection, `runner.sh --target-dir`, etc. silently
@@ -1690,6 +1730,7 @@ def _task_new_interactive(ctx: CodenookContext, args: list[str]) -> int:
             f"  input      : {(task_input[:60] + '...') if len(task_input) > 60 else (task_input or '(none)')}\n")
         sys.stdout.write(f"  model      : {model or '(plugin/phase default)'}\n")
         sys.stdout.write(f"  exec mode  : {exec_mode}\n")
+        sys.stdout.write(f"  hitl       : {hitl_decider}\n")
         sys.stdout.write(f"  target dir : {target_dir_in}\n")
         confirm_raw = _prompt("Create? [Y/n]", default="Y")
         if confirm_raw is _PROMPT_EOF:
@@ -1714,6 +1755,8 @@ def _task_new_interactive(ctx: CodenookContext, args: list[str]) -> int:
         new_args += ["--model", model]
     if exec_mode and exec_mode != "sub-agent":
         new_args += ["--exec", exec_mode]
+    if hitl_decider:
+        new_args += ["--hitl-decider", hitl_decider]
     if target_dir_in:
         new_args += ["--target-dir", target_dir_in]
     if custom_chain:
@@ -1723,8 +1766,8 @@ def _task_new_interactive(ctx: CodenookContext, args: list[str]) -> int:
     skip_next = False
     skip_keys = {
         "--title", "--plugin", "--profile", "--input", "--input-file",
-        "--model", "--exec", "--accept-defaults", "--target-dir",
-        "--phase-chain",
+        "--model", "--exec", "--hitl-decider", "--accept-defaults",
+        "--target-dir", "--phase-chain",
     }
     for a in forwarded:
         if skip_next:
@@ -2181,6 +2224,7 @@ def _task_show(ctx: CodenookContext, args: list[str]) -> int:
     print(f"  dual_mode    : {_val('dual_mode')}")
     exec_mode = state.get("execution_mode") or "sub-agent"
     print(f"  exec_mode    : {exec_mode}")
+    print(f"  hitl_decider : {_val('hitl_decider', 'human')}")
     print(f"  max_iter     : {_val('max_iterations')}")
     if state.get("model_override"):
         print(f"  model_over.  : {state.get('model_override')}")

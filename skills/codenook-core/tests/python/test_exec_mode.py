@@ -95,11 +95,42 @@ def test_task_new_invalid_exec_rejected(tmp_path: Path):
     assert rc == 2
 
 
+def test_task_new_hitl_decider_main_session_llm_writes_field(tmp_path: Path):
+    ws = _ws(tmp_path)
+    rc = cmd_task.run(_ctx(ws), [
+        "new", "--title", "T", "--accept-defaults",
+        "--id", "T-204", "--hitl-decider", "main-session-llm"])
+    assert rc == 0
+    state = json.loads(
+        (ws / ".codenook" / "tasks" / "T-204" / "state.json").read_text())
+    assert state["hitl_decider"] == "main-session-llm"
+
+
+def test_task_new_hitl_decider_human_writes_field_when_explicit(tmp_path: Path):
+    ws = _ws(tmp_path)
+    rc = cmd_task.run(_ctx(ws), [
+        "new", "--title", "T", "--accept-defaults",
+        "--id", "T-205", "--hitl-decider", "human"])
+    assert rc == 0
+    state = json.loads(
+        (ws / ".codenook" / "tasks" / "T-205" / "state.json").read_text())
+    assert state["hitl_decider"] == "human"
+
+
+def test_task_new_invalid_hitl_decider_rejected(tmp_path: Path):
+    ws = _ws(tmp_path)
+    rc = cmd_task.run(_ctx(ws), [
+        "new", "--title", "T", "--accept-defaults",
+        "--id", "T-206", "--hitl-decider", "robot"])
+    assert rc == 2
+
+
 def test_task_new_help_mentions_exec(capsys):
     rc = cmd_task.run(_ctx(Path.cwd()), ["new", "--help"])
     assert rc == 0
     out = capsys.readouterr().out
     assert "--exec" in out
+    assert "--hitl-decider" in out
 
 
 # ── CLI: task set-exec ──────────────────────────────────────────────────
@@ -136,6 +167,24 @@ def test_task_set_exec_rejects_invalid_mode(tmp_path: Path):
         "new", "--title", "T", "--accept-defaults", "--id", "T-212"])
     rc = cmd_task.run(_ctx(ws), [
         "set-exec", "--task", "T-212", "--mode", "remote-agent"])
+    assert rc == 2
+
+
+def test_task_set_hitl_decider_validates_enum(tmp_path: Path):
+    ws = _ws(tmp_path)
+    cmd_task.run(_ctx(ws), [
+        "new", "--title", "T", "--accept-defaults", "--id", "T-213"])
+    sf = ws / ".codenook" / "tasks" / "T-213" / "state.json"
+
+    rc = cmd_task.run(_ctx(ws), [
+        "set", "--task", "T-213", "--field", "hitl_decider",
+        "--value", "main-session-llm"])
+    assert rc == 0
+    assert json.loads(sf.read_text())["hitl_decider"] == "main-session-llm"
+
+    rc = cmd_task.run(_ctx(ws), [
+        "set", "--task", "T-213", "--field", "hitl_decider",
+        "--value", "robot"])
     assert rc == 2
 
 
