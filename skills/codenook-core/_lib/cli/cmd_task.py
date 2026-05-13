@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -129,7 +130,7 @@ Usage: codenook task set --task T-NNN --field <field> (--value <val> | --value-f
 
 Writable fields:
   dual_mode       serial | parallel
-  target_dir      directory path (e.g. src/)
+  target_dir      task working directory (relative to workspace or absolute)
   priority        P0 | P1 | P2 | P3
   max_iterations  positive integer
   summary         free text
@@ -175,7 +176,9 @@ Options:
                           profile / title / input / model / exec mode /
                           HITL decider via stdin/stdout. Mutually
                           exclusive with --accept-defaults.
-  --target-dir <p>        defaults to src/
+  --target-dir <p>        task working directory. Defaults to
+                          target/<task-id>; created when missing. May be
+                          relative to the workspace or an absolute path.
   --dual-mode <m>         serial | parallel
   --max-iterations <N>    positive integer (default: 3)
   --parent <T-NNN>
@@ -295,36 +298,136 @@ WRITABLE = {
 }
 
 
-# Markers used by `_detect_default_target_dir` to pick the most-likely
-# source root inside a workspace when the caller omitted --target-dir
-# AND passed --accept-defaults. The order is significant: the first
-# directory that exists wins, falling back to "src/" for backward
-# compatibility (even when no marker dir matches). See v0.29.15
-# docs/architecture.md for the rationale.
-TARGET_DIR_CANDIDATES = (
-    "src",
-    "lib",
-    "app",
-    "pkg",
-    "internal",
-    "cmd",
-)
+TARGET_DIR_ROOT = "target"
 
 
-def _detect_default_target_dir(workspace: Path) -> str:
-    """Pick a sensible default target_dir for a fresh task.
+def _target_seed(title: str = "", summary: str = "", task_id: str = "") -> str:
+    """Return the stable directory leaf used for default target_dir."""
+    if task_id:
+        return task_id
+    seed = title or summary or "task"
+    return slugify(seed) or "task"
 
-    Looks for common source-root markers under ``workspace``. Returns a
-    trailing-slash path when a marker dir exists; otherwise falls back
-    to ``"src/"`` (kernel default for backward compatibility, even if
-    it doesn't yet exist — entry-question gates can still surface it).
+
+def _detect_default_target_dir(
+    workspace: Path,
+    *,
+    title: str = "",
+    summary: str = "",
+    task_id: str = "",
+) -> str:
+    """Pick the default task working directory for a fresh task.
+
+    CodeNook tasks now run inside an explicit target directory rather
+    than treating ``target_dir`` as an optional source-root hint. The
+    default is a per-task sandbox under ``<workspace>/target/``; callers
+    may still pass a relative or absolute ``--target-dir`` to reuse an
+    existing workspace or point at any external location.
     """
-    for cand in TARGET_DIR_CANDIDATES:
-        if (workspace / cand).is_dir():
-            return f"{cand}/"
-    # Last-resort: kernel default "src/" for backward compatibility,
-    # even when no standard source dir exists in the workspace.
-    return "src/"
+    return f"{TARGET_DIR_ROOT}/{_target_seed(title, summary, task_id)}"
+
+
+def _looks_absolute_target_dir(raw: str) -> bool:
+    """Cross-platform absolute-path check, including Windows drives."""
+    s = raw.strip()
+    if not s:
+        return False
+    if Path(s).expanduser().is_absolute():
+        return True
+    if s.startswith(("/", "\\")):
+        return True
+    return len(s) >= 3 and s[1] == ":" and s[2] in ("/", "\\")
+
+
+def _normalise_target_dir_arg(raw: str) -> tuple[str | None, str | None]:
+    """Validate and normalize a target_dir CLI value.
+
+    Absolute paths are allowed because a task may work in any target
+    workspace. Relative paths remain confined by rejecting ``..``.
+    Returns ``(value, error)``.
+    """
+    value = raw.strip()
+    if not value:
+        return None, "empty target directory"
+    if _looks_absolute_target_dir(value):
+        return str(Path(value).expanduser()), None
+    normalised = value.replace("\\", "/")
+    parts = [p for p in normalised.split("/") if p]
+    if not parts:
+        return None, "empty target directory"
+    if any(p == ".." for p in parts):
+        return None, "relative target directory must not contain '..'"
+    return "/".join(parts), None
+
+
+def _target_dir_path(workspace: Path, target_dir: str) -> Path:
+    if _looks_absolute_target_dir(target_dir):
+        return Path(target_dir).expanduser()
+    return workspace / target_dir
+
+
+def _scan_target_dir(path: Path, limit: int = 5000) -> dict:
+    """Return a bounded scan summary for an existing target directory."""
+    summary = {
+        "files": 0,
+        "dirs": 0,
+        "truncated": False,
+        "git": (path / ".git").exists(),
+        "top": [],
+    }
+    try:
+        summary["top"] = [
+            p.name + ("/" if p.is_dir() else "")
+            for p in sorted(path.iterdir(), key=lambda item: item.name.lower())[:12]
+        ]
+    except OSError:
+        summary["top"] = []
+    for _root, dirnames, filenames in os.walk(path):
+        summary["dirs"] += len(dirnames)
+        summary["files"] += len(filenames)
+        if summary["dirs"] + summary["files"] >= limit:
+            summary["truncated"] = True
+            break
+    return summary
+
+
+def _prepare_target_dir(
+    workspace: Path,
+    target_dir: str,
+    *,
+    label: str,
+) -> tuple[bool, str | None]:
+    """Create/scan the target working directory and notify the user."""
+    target_path = _target_dir_path(workspace, target_dir)
+    existed = target_path.exists()
+    if existed and not target_path.is_dir():
+        return False, f"target directory exists but is not a directory: {target_path}"
+    scan = _scan_target_dir(target_path) if existed else None
+    try:
+        target_path.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        return False, f"failed to create target directory {target_path}: {exc}"
+
+    sys.stderr.write(
+        f"codenook {label}: target_dir is the task working directory: "
+        f"{target_path}\n"
+    )
+    if scan is None:
+        sys.stderr.write(
+            f"codenook {label}: created target directory "
+            f"{target_path}\n"
+        )
+    else:
+        truncated = " (scan truncated)" if scan.get("truncated") else ""
+        top = ", ".join(scan.get("top") or [])
+        sys.stderr.write(
+            f"codenook {label}: existing target directory scanned: "
+            f"{scan.get('dirs', 0)} dirs, {scan.get('files', 0)} files, "
+            f"git={'yes' if scan.get('git') else 'no'}{truncated}\n"
+        )
+        if top:
+            sys.stderr.write(f"codenook {label}: top-level entries: {top}\n")
+    return True, None
 
 
 
@@ -621,6 +724,7 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
             return 2
         return _task_new_interactive(ctx, args)
     title = summary = plugin = target_dir = ""
+    target_dir_set = False
     dual_mode = ""
     dual_mode_set = False
     priority = "P2"
@@ -647,13 +751,15 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
             elif a == "--plugin":
                 plugin = next(it)
             elif a == "--target-dir":
-                target_dir = next(it)
-                _normalized = target_dir.replace("\\", "/")
-                if _normalized.startswith("/") or ".." in _normalized.split("/"):
+                raw_target_dir = next(it)
+                target_dir_set = True
+                normalised, err = _normalise_target_dir_arg(raw_target_dir)
+                if err:
                     sys.stderr.write(
-                        f"codenook task new: invalid --target-dir (absolute path "
-                        f"or path traversal): {target_dir!r}\n")
+                        f"codenook task new: invalid --target-dir "
+                        f"{raw_target_dir!r}: {err}\n")
                     return 2
+                target_dir = normalised or ""
             elif a == "--dual-mode":
                 dual_mode = next(it); dual_mode_set = True
             elif a == "--max-iterations":
@@ -739,9 +845,6 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
             f"'{hitl_decider_val}' (allowed: "
             f"{'|'.join(HITL_DECIDER_VALUES)})\n")
         return 2
-
-    if not target_dir:
-        target_dir = _detect_default_target_dir(ctx.workspace)
 
     prompted_any = False
     if not plugin:
@@ -874,6 +977,7 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
             sys.stdout.write("aborted.\n")
             return 1
 
+    created_task_dir = False
     if not task_id:
         # Reserve the slot atomically by mkdir(exist_ok=False). Two
         # concurrent `task new` invocations that compute the same
@@ -900,6 +1004,7 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
             tdir = tasks_root / task_id
             try:
                 tdir.mkdir(parents=False, exist_ok=False)
+                created_task_dir = True
                 break
             except FileExistsError:
                 task_id = ""
@@ -921,6 +1026,7 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
         # (operator may have pre-created it) by checking for state.json.
         try:
             tdir.mkdir(parents=True, exist_ok=False)
+            created_task_dir = True
         except FileExistsError:
             if (tdir / "state.json").is_file():
                 sys.stderr.write(
@@ -932,6 +1038,25 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
             sys.stderr.write(
                 f"codenook task new: failed to create {tdir}: {e}\n")
             return 1
+
+    if not target_dir:
+        target_dir = _detect_default_target_dir(
+            ctx.workspace, title=title, summary=summary, task_id=task_id)
+
+    ok, err = _prepare_target_dir(
+        ctx.workspace, target_dir, label="task new")
+    if not ok:
+        if created_task_dir and (tdir / "state.json").exists() is False:
+            try:
+                shutil.rmtree(tdir)
+            except OSError:
+                pass
+        sys.stderr.write(f"codenook task new: {err}\n")
+        return 1
+    if target_dir_set:
+        sys.stderr.write(
+            "codenook task new: using caller-provided target_dir; this "
+            "directory is the current task working directory.\n")
 
     (tdir / "outputs").mkdir(parents=True, exist_ok=True)
     (tdir / "prompts").mkdir(parents=True, exist_ok=True)
@@ -1117,6 +1242,19 @@ def _task_set(ctx: CodenookContext, args: list[str]) -> int:
             sys.stderr.write(
                 f"codenook task set: {field} must be an integer\n")
             return 2
+    elif field == "target_dir":
+        normalised, err = _normalise_target_dir_arg(value)
+        if err:
+            sys.stderr.write(
+                f"codenook task set: invalid target_dir {value!r}: {err}\n")
+            return 2
+        assert normalised is not None
+        ok, prep_err = _prepare_target_dir(
+            ctx.workspace, normalised, label="task set")
+        if not ok:
+            sys.stderr.write(f"codenook task set: {prep_err}\n")
+            return 1
+        typed_value = normalised
 
     state = json.loads(sf.read_text(encoding="utf-8"))
     state[field] = typed_value
@@ -1705,14 +1843,14 @@ def _task_new_interactive(ctx: CodenookContext, args: list[str]) -> int:
             if hitl_decider is _PROMPT_EOF:
                 return _abort_eof()
 
-        # Target directory — submitter / tester / reviewer all need this
-        # to find the actual source tree. Without a real target_dir,
-        # `.gerrit` detection, `runner.sh --target-dir`, etc. silently
-        # mis-fire. Auto-detect and let the user override.
-        detected_target = _detect_default_target_dir(ctx.workspace)
+        # Target directory — this is the task working directory. It may
+        # be a fresh sandbox under <workspace>/target/ or any absolute
+        # path supplied by the user.
+        detected_target = _detect_default_target_dir(
+            ctx.workspace, title=title, summary=task_input)
         target_dir_in = _prompt(
-            "Target directory (relative to workspace; runner / submitter "
-            "use this)", default=detected_target)
+            "Target directory (task working directory; relative or "
+            "absolute)", default=detected_target)
         if target_dir_in is _PROMPT_EOF:
             return _abort_eof()
         target_dir_in = (target_dir_in or detected_target).strip()

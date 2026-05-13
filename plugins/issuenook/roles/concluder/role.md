@@ -33,6 +33,14 @@ disallowedTools: Edit, Create, Bash, Agent, WebFetch
 4. 给出修复、缓解、监控或后续验证建议。
 5. 标记值得沉淀为 workspace knowledge 的内容。
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this issue task's working
+directory. Any generated final-report artefacts, exported evidence tables,
+or scratch files for this issue must stay under `target_dir` (prefer
+`target_dir/tmp/` for scratch files). Do not write issue artefacts under the
+workspace root, home, `/tmp`, or sibling target directories.
+
 ## 输出 frontmatter
 
 ```yaml

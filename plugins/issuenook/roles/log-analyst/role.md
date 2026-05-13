@@ -32,6 +32,15 @@ disallowedTools: Edit, Create, Agent
 - 引用日志路径、时间戳、行号或可定位片段。
 - 明确异常、正常基线、时间顺序、共现关系和未知项。
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this issue task's working
+directory. Any copied logs, extracted archives, grep outputs, generated
+timelines, temporary scripts, or other log-analysis artefacts must stay
+under `target_dir` (prefer `target_dir/tmp/` for scratch files). Do not
+write issue artefacts under the workspace root, home, `/tmp`, or sibling
+target directories.
+
 ## 输出 frontmatter
 
 ```yaml

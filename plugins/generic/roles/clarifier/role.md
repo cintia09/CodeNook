@@ -32,6 +32,14 @@ referenced from there.
 3. List explicit non-goals so downstream phases do not over-reach.
 4. Surface every ambiguity as a numbered question; only block on HITL when answers gate execution.
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this task's working
+directory. Any notes, scratch files, scripts, generated outputs, or other
+task artefacts must stay under `target_dir` (prefer `target_dir/tmp/` for
+scratch files). Do not write task artefacts under the workspace root, home,
+`/tmp`, or sibling target directories.
+
 ## Output contract
 
 Write the report to `.codenook/tasks/<task>/outputs/phase-1-clarifier.md`.

@@ -25,6 +25,15 @@ disallowedTools: Edit, Create, Agent
 3. 标注假设、不可回答问题和排除项。
 4. 为后续 source_plan / data_assess / analysis 指定输入需求。
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this research task's working
+directory. Any collected source snapshots, downloaded pages, notes, datasets,
+scratch files, generated tables, or report artefacts must stay under
+`target_dir` (prefer `target_dir/tmp/` for scratch files). Do not write
+research artefacts under the workspace root, home, `/tmp`, or sibling target
+directories.
+
 ## 输出 frontmatter
 
 ```yaml

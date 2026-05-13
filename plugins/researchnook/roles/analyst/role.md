@@ -25,6 +25,15 @@ disallowedTools: Edit, Create, Agent
 - 5 Why 不在本阶段展开，除非只做轻量初筛；正式因果追问交给 `causal_probe`。
 - 预测只做驱动因素和不确定性准备，正式情景交给 `scenario_forecast`。
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this research task's working
+directory. Any collected source snapshots, downloaded pages, notes, datasets,
+scratch files, generated tables, or report artefacts must stay under
+`target_dir` (prefer `target_dir/tmp/` for scratch files). Do not write
+research artefacts under the workspace root, home, `/tmp`, or sibling target
+directories.
+
 ## 输出 frontmatter
 
 ```yaml

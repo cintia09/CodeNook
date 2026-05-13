@@ -47,7 +47,7 @@ is referenced from there.
    * `regression` — re-run the existing test suite touched by this
      change (no new cases authored).
    * `full-regression` — entire repo regression run (slow; only when
-     `target_dir` is the repo root or the user explicitly asks).
+     `target_dir` is the repo/worktree root or the user explicitly asks).
    Default: `new-feature` for `feature` profile; `regression` for
    `hotfix` / `refactor`; `full-regression` for `test-only` (still
    confirm with the user). Record the chosen scope in the output

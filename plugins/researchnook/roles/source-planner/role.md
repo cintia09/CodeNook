@@ -24,6 +24,15 @@ disallowedTools: Edit, Create, Agent
 - 不承诺真实联网抓取、付费源访问或数据库连接。
 - 记录口径、时间戳、地域粒度、样本偏差和引用格式。
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this research task's working
+directory. Any collected source snapshots, downloaded pages, notes, datasets,
+scratch files, generated tables, or report artefacts must stay under
+`target_dir` (prefer `target_dir/tmp/` for scratch files). Do not write
+research artefacts under the workspace root, home, `/tmp`, or sibling target
+directories.
+
 ## 输出 frontmatter
 
 ```yaml

@@ -29,7 +29,9 @@ is referenced from there.
 ## Steps
 
 1. Read all upstream outputs (clarifier / designer / planner) before touching any file.
-2. Edit only files under the task's `target_dir`; never edit `.codenook/` or sibling tasks.
+2. Edit only files under the task's `target_dir`; never edit `.codenook/`, the workspace root, home, or sibling targets.
+   Put scratch scripts, logs, generated code, and temporary files under `target_dir` (prefer `target_dir/tmp/`).
+   If the source repo to modify lives outside `target_dir`, first create or use a git worktree inside `target_dir` and edit that worktree only.
 3. Keep changes surgical — each edit must trace to a specific design step.
 4. Run an in-process syntax check before declaring `verdict: ok`.
 5. Append a short `Files changed:` list to the output body so the tester can scope its run.

@@ -26,6 +26,14 @@ manifest at `.codenook/tasks/<task>/prompts/phase-2-analyzer.md` first.
 4. Note any external dependencies or assumptions explicitly.
 5. Return `verdict: blocked` if a precondition is missing; otherwise `verdict: ok`.
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this task's working
+directory. Any notes, scratch files, scripts, generated outputs, or other
+task artefacts must stay under `target_dir` (prefer `target_dir/tmp/` for
+scratch files). Do not write task artefacts under the workspace root, home,
+`/tmp`, or sibling target directories.
+
 ## Output contract
 
 Write to `.codenook/tasks/<task>/outputs/phase-2-analyzer.md`:

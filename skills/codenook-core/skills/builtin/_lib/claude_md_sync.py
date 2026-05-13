@@ -170,16 +170,25 @@ user's request is substantial; the user always confirms before
   prompt tool (when available) to ask the user what their next
   step is. A plain-text question is not sufficient when such a
   tool exists. This applies whether or not a task is active.
-- **MUST** write all temporary files and ad-hoc scripts under
-  `<workspace>/tmp/` (not `/tmp`, `$TMPDIR`, repo root, or home).
-  Create it and add `tmp/` to `.gitignore` when missing. Real
-  deliverables still go to their proper source/doc paths.
-- **MUST** route per-target throwaway artefacts through a
-  `<workspace>/target/<target-basename>/tmp/` when operating on
-  an external target repo; add `target/` to `.gitignore` when
-  missing. Never put scratch files in the external target tree.
-  If target basenames collide, ask once before choosing a
-  disambiguated sandbox.
+- **MUST** treat each task's `target_dir` as the current task
+  working directory. All temporary files, ad-hoc scripts, logs,
+  generated code, and code edits created for that task MUST stay
+  under that `target_dir` (prefer `<target_dir>/tmp/` for scratch
+  artefacts). Do not place task artefacts under `/tmp`,
+  `$TMPDIR`, the workspace root, home, sibling target dirs, or
+  `.codenook/` unless they are kernel-managed task metadata.
+- **MUST** create or reuse an explicit target directory for every
+  new task. Prefer a fresh directory under `<workspace>/target/`,
+  but accept any user-supplied absolute or relative target path.
+  When reusing an existing target directory, scan it first and
+  tell the user that this directory is the current task working
+  directory.
+- **MUST** use a git worktree inside the task `target_dir` when a
+  development task needs to modify an existing repository outside
+  that directory. The worktree is the place where phase agents edit,
+  build, test, log, and create scratch files; after completion,
+  synchronize the worktree changes back through normal git
+  commit/merge/push flow.
 - **MUST** generate **Python 3** (not bash / shell) for any
   executable artefact emitted into CodeNook memory / plugin
   knowledge / skills / validators. Use `.py` helpers plus
@@ -392,20 +401,20 @@ Before creating the task, ask 2–4 short clarifying questions via
 your `ask_user` tool. Look at the chosen plugin's first phase
 (usually `clarify`, `outline`, or `intake`) and ask what its role
 would otherwise need: scope, audience, style, existing inputs.
-**One of those questions MUST be the target directory** — submitter
-detects `.gerrit` / GitHub remote inside it, and tester / reviewer
-both walk it as the source root. The kernel auto-detects a
-plausible default (`src/`, `lib/`, `app/`, `pkg/`, `internal/`,
-`cmd/` — first existing wins, else `src/`), surface that as the
-default in the `ask_user` so the user can confirm or override in
-one keystroke. Concatenate the answers (one Q+A per line) into a
-single multi-line string — that becomes `--input`. Pass the
-target directory choice as `--target-dir <path>` to `task new`.
+**One of those questions MUST be the target directory** — it is
+the task working directory. Prefer a fresh directory under
+`<workspace>/target/`, but allow the user to provide any existing
+or new absolute / relative path. If an existing target directory
+is chosen, scan it first and tell the user that this directory is
+the current task working directory. For development tasks against
+an existing repo outside `target_dir`, create a git worktree inside
+`target_dir` and do all edits/builds/tests there. Concatenate the
+answers (one Q+A per line) into a single multi-line string — that
+becomes `--input`. Pass the target directory choice as
+`--target-dir <path>` to `task new`.
 Skip ONLY when the user explicitly says "just go" / "你看着办" /
-supplies a brief; in that case still pass `--target-dir` based on
-the kernel's auto-detection (do not silently fall through to the
-hard-coded `src/` default when the workspace clearly has a
-different layout).
+supplies a brief; in that case still pass `--target-dir` using a
+fresh default under `<workspace>/target/`.
 
 #### Duplicate / parent check (MANDATORY)
 
@@ -537,9 +546,9 @@ default whenever `--model` is absent.
   via shell quoting or `--input-file <path>`).
 - `--accept-defaults` fills `dual_mode`, `priority`, `target_dir`
   with sane values so no entry-question gate fires. `target_dir`
-  is auto-detected from common source-root markers (`src/`, `lib/`,
-  `app/`, `pkg/`, `internal/`, `cmd/`) — first existing one wins;
-  fallback is `src/`.
+  defaults to a created per-task working directory under
+  `<workspace>/target/<task-id>`, unless the caller passes an
+  explicit absolute or relative target path.
 
 Returns the new `T-NNN-<slug>` on stdout. Two other entry points
 exist when useful: `--interactive` (wizard prompts plugin /

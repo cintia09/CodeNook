@@ -79,7 +79,7 @@ to `codenook-core/_lib/cli/__main__.py`. Subcommands:
 
 | Command | What it does |
 |---------|--------------|
-| `codenook task new --title …` | Allocate a new `T-NNN`, write the initial `state.json`. |
+| `codenook task new --title …` | Allocate a new `T-NNN`, create/scan its `target_dir` working directory, write the initial `state.json`. |
 | `codenook task set --task T --field F --value V` | Mutate one whitelisted field on `state.json` (atomic, schema-validated). |
 | `codenook tick --task T [--json]` | **Advance the state machine one step.** See §2.3. |
 | `codenook decide --task T --phase <p|gate> --decision <verb>` | Resolve a HITL gate. `--phase` accepts both phase id and gate id. |
@@ -92,6 +92,15 @@ to `codenook-core/_lib/cli/__main__.py`. Subcommands:
 
 Returns `0` on success, `1` on runtime failure, `2` on usage / missing
 entry-question, `3` on already-attached / not-modified states.
+
+`target_dir` is a task working directory, not just a source-root hint.
+When omitted, `task new` creates `<workspace>/target/<task-id>` and stores
+that relative path in `state.json`. Callers may pass any relative or
+absolute `--target-dir`; existing directories are scanned before the task
+is created and the CLI warns that this directory is the task work area.
+Development tasks that modify an existing repository outside the chosen
+target should create a git worktree inside `target_dir` and perform edits,
+builds, tests, logs, and scratch-file work there.
 
 ### 2.2 Builtin skills (`skills/builtin/`)
 

@@ -102,6 +102,8 @@ def test_task_new_accept_defaults(installed_workspace: Path, tmp_path) -> None:
     assert s["title"] == "smoke"
     assert s["dual_mode"] == "serial"
     assert s["status"] == "in_progress"
+    assert s["target_dir"] == f"target/{tid}"
+    assert (installed_workspace / s["target_dir"]).is_dir()
 
 
 def test_task_new_entry_question_without_dual_mode(installed_workspace: Path) -> None:

@@ -32,8 +32,8 @@ is referenced from there.
 
 1. Read the implementer + reviewer outputs to summarise the change for
    the PR/CL description (≤10 bullet points).
-2. Detect the submission target inside `<target_dir>` (and the workspace
-   root, in that order):
+2. Detect the submission target inside `<target_dir>` (the task working
+   directory):
    * `.gerrit` config or `Change-Id:` trailer → Gerrit (`git push HEAD:refs/for/<branch>`).
    * GitHub remote → `gh pr create`.
    * **Neither found** → DO NOT silently skip. Emit
@@ -78,7 +78,7 @@ is referenced from there.
       A workspace knowledge entry under
       `.codenook/memory/knowledge/remote-watch-config-*/` contains a
       shell snippet defining `PROBE_CMD` + `STATUS_REGEX_*`. Extract
-      it to a temp file (e.g. `<workspace>/tmp/remote-probe-<id>.sh`)
+      it to a temp file (e.g. `<target_dir>/tmp/remote-probe-<id>.sh`)
       and re-invoke `watch.py --config <path>`.
    3. **Ask the user** — when memory is silent: ask via the
       `submit_signoff` HITL gate to either paste the current status

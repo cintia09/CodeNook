@@ -38,14 +38,14 @@ is referenced from there.
    ```yaml
    build:
      command: "npm run build && npm test"
-     cwd: "."
+     cwd: "<target_dir>"
    lint:
      command: "npm run lint"
-     cwd: "."
+     cwd: "<target_dir>"
    ```
 
    Then re-read the file and proceed.
-3. Run the build command from `cwd` (defaults to workspace root).
+3. Run the build command from `cwd` (defaults to `target_dir`, the task working directory).
 4. If a `lint.command` is configured, run it after build succeeds.
 5. Classify the validation boundary explicitly:
    - `local build/test` — compile, unit tests, lint, local smoke, script

@@ -26,6 +26,14 @@ manifest at `.codenook/tasks/<task>/prompts/phase-3-executor.md` first.
 4. Cite any external source you used (URL or file path) so the deliverer can audit later.
 5. Return `verdict: needs_revision` if you found the plan inadequate mid-execution.
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this task's working
+directory. Any notes, scratch files, scripts, generated outputs, or other
+task artefacts must stay under `target_dir` (prefer `target_dir/tmp/` for
+scratch files). Do not write task artefacts under the workspace root, home,
+`/tmp`, or sibling target directories.
+
 ## Output contract
 
 Write to `.codenook/tasks/<task>/outputs/phase-3-executor.md`:

@@ -18,7 +18,7 @@ codenook — workspace CLI
 Subcommands:
   task new --title "…" [--summary …] [--plugin <id>] [--profile <name>]
                         [--input <text>] [--input-file <path>] [--interactive]
-                        [--target-dir <p>] [--dual-mode serial|parallel]
+                        [--target-dir <task-workdir>] [--dual-mode serial|parallel]
                         [--max-iterations N] [--parent T-X]
                         [--priority P0|P1|P2|P3] [--accept-defaults]
                         [--model <name>] [--exec sub-agent|inline]

@@ -32,6 +32,17 @@ disallowedTools: Edit, Create, Agent
 - 引用文件路径、函数/类名、行号或搜索命令。
 - 标记需要后续假设验证阶段确认的内容。
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this issue task's working
+directory. Any checked-out source snapshots, git worktrees, generated
+call-chain notes, search outputs, temporary scripts, or other code-analysis
+artefacts must stay under `target_dir` (prefer `target_dir/tmp/` for
+scratch files). If code must be fetched from another repository, create or
+use a git worktree inside `target_dir` and analyse that worktree rather
+than writing into the workspace root, home, `/tmp`, or sibling target
+directories.
+
 ## 输出 frontmatter
 
 ```yaml

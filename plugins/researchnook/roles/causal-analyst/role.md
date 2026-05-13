@@ -25,6 +25,15 @@ disallowedTools: Edit, Create, Agent
 - 可用 driver tree 替代线性 5 Why。
 - 输出应服务于后续 synthesis，不直接发布最终判断。
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this research task's working
+directory. Any collected source snapshots, downloaded pages, notes, datasets,
+scratch files, generated tables, or report artefacts must stay under
+`target_dir` (prefer `target_dir/tmp/` for scratch files). Do not write
+research artefacts under the workspace root, home, `/tmp`, or sibling target
+directories.
+
 ## 输出 frontmatter
 
 ```yaml

@@ -27,6 +27,14 @@ Read the manifest at
 4. Rate severity per item: `critical | major | minor`.
 5. Set `verdict: ok` if the reviser has actionable items to work on; `verdict: blocked` only if the draft is so off-target that the drafter must rerun.
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this writing task's working
+directory. Any draft fragments, notes, scratch files, generated outputs, or
+publishing artefacts must stay under `target_dir` (prefer `target_dir/tmp/`
+for scratch files). Do not write task artefacts under the workspace root,
+home, `/tmp`, or sibling target directories.
+
 ## Output contract
 
 Write to `.codenook/tasks/<task>/outputs/phase-3-reviewer.md`:

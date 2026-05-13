@@ -83,6 +83,48 @@ def test_profile_flag_persists(installed_ws: Path) -> None:
     assert s.get("profile") == "hotfix"
 
 
+def test_task_new_creates_default_target_workdir(installed_ws: Path) -> None:
+    tid = _new_task(installed_ws,
+                    "--title", "p-target-default",
+                    "--accept-defaults")
+    s = _state(installed_ws, tid)
+    assert s.get("target_dir") == f"target/{tid}"
+    assert (installed_ws / s["target_dir"]).is_dir()
+
+
+def test_task_new_accepts_absolute_target_workdir(
+    installed_ws: Path,
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "external-target"
+    tid = _new_task(installed_ws,
+                    "--title", "p-target-absolute",
+                    "--target-dir", str(target),
+                    "--accept-defaults")
+    s = _state(installed_ws, tid)
+    assert s.get("target_dir") == str(target)
+    assert target.is_dir()
+
+
+def test_task_new_scans_existing_target_workdir(
+    installed_ws: Path,
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "existing-target"
+    target.mkdir()
+    (target / "pyproject.toml").write_text("[project]\nname='x'\n",
+                                           encoding="utf-8")
+    cp = _run(_bin_cmd(installed_ws) + [
+        "task", "new", "--title", "p-target-existing",
+        "--target-dir", str(target), "--accept-defaults",
+    ])
+    tid = cp.stdout.strip().splitlines()[-1]
+    s = _state(installed_ws, tid)
+    assert s.get("target_dir") == str(target)
+    assert "existing target directory scanned" in cp.stderr
+    assert "task working directory" in cp.stderr
+
+
 # 2. invalid profile -> non-zero + helpful list.
 def test_invalid_profile_rejected(installed_ws: Path) -> None:
     cp = _run(_bin_cmd(installed_ws) + [

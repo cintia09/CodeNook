@@ -18,6 +18,15 @@ disallowedTools: Edit, Create, Agent
 
 检查 review 输出和 draft report。对于 review-only profile，可基于用户提供报告和审查意见做修订建议或最终版。缺关键内容时输出 `blocked`。
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this research task's working
+directory. Any collected source snapshots, downloaded pages, notes, datasets,
+scratch files, generated tables, or report artefacts must stay under
+`target_dir` (prefer `target_dir/tmp/` for scratch files). Do not write
+research artefacts under the workspace root, home, `/tmp`, or sibling target
+directories.
+
 ## 输出 frontmatter
 
 ```yaml

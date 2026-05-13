@@ -198,7 +198,7 @@ def _augment_envelope(ctx: CodenookContext, task: str, tick_out: str) -> str:
         subs = {
             "task_id": task,
             "iteration": str(state.get("iteration", 0)),
-            "target_dir": state.get("target_dir", "src/"),
+            "target_dir": state.get("target_dir", "target/"),
             "prior_summary_path": "",
             "criteria_path": "",
         }

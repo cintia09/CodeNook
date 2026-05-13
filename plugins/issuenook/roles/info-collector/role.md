@@ -33,6 +33,15 @@ disallowedTools: Edit, Create, Agent
 4. 列出后续阶段需要的日志、代码、memory/knowledge 线索。
 5. 明确缺失信息及其对置信度的影响。
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this issue task's working
+directory. Any copied logs, downloaded source snapshots, generated notes,
+temporary scripts, or analysis artefacts for this issue must stay under
+`target_dir` (prefer `target_dir/tmp/` for scratch files). Do not create
+issue artefacts under the workspace root, home, `/tmp`, or sibling target
+directories.
+
 ## 输出 frontmatter
 
 ```yaml

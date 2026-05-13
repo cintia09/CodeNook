@@ -1,3 +1,31 @@
+## v0.29.25 — Target directory as task working directory
+
+### Changed
+
+- `task new` now treats `target_dir` as the task working directory.
+  When omitted, the CLI creates `<workspace>/target/<task-id>` and
+  stores that relative path in `state.json`.
+- `--target-dir` now accepts both relative workspace paths and absolute
+  paths. Existing target directories are scanned before use and the CLI
+  warns that the directory is the current task work area.
+- `task set --field target_dir` applies the same validation,
+  create-or-scan behaviour, and working-directory notice as `task new`.
+- Bootloader MUST rules now require every task artefact, temporary file,
+  ad-hoc script, log, generated output, and code edit to stay under the
+  task `target_dir` (prefer `target_dir/tmp/` for scratch artefacts).
+- Development tasks that modify a repository outside `target_dir` must
+  create/use a git worktree inside `target_dir`.
+- Development, issuenook, generic, researchnook, and writing role
+  prompts now carry explicit target-directory discipline so phase agents
+  do not scatter artefacts under the workspace root or system temp.
+
+### Tests
+
+- Added coverage for default target workdir creation, absolute
+  `--target-dir`, and existing target directory scanning.
+
+---
+
 ## v0.29.24 — Release metadata alignment + bootloader size cleanup
 
 ### Changed
@@ -6062,5 +6090,4 @@ Split the 364-line `agent-post-tool-use.sh` monolith into a clean 79-line main h
 - Violation response template: shows role, blocked action, and switch suggestion
 - agent-init Step 7a: CLAUDE.md template includes enforcement rules
 - Works in both Claude Code (hook-enforced) and Copilot CLI (self-check enforced)
-
 

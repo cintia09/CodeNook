@@ -29,6 +29,14 @@ at `.codenook/tasks/<task>/prompts/phase-5-publisher.md` first.
 5. Emit a release record in your output body: file path, byte size, word count, target channel (if known).
 6. Return `verdict: blocked` if the file already exists at the target path; otherwise `verdict: ok`.
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this writing task's working
+directory. Any draft fragments, notes, scratch files, generated outputs, or
+publishing artefacts must stay under `target_dir` (prefer `target_dir/tmp/`
+for scratch files). Do not write task artefacts under the workspace root,
+home, `/tmp`, or sibling target directories.
+
 ## Output contract
 
 Write to `.codenook/tasks/<task>/outputs/phase-5-publisher.md`:

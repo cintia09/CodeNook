@@ -34,6 +34,15 @@ NOTES: <可选补充>
 4. 做反证检查：说明哪些证据不支持该假设，哪些替代解释仍可能成立。
 5. 输出每个假设的 verdict：`HOLDS` / `PARTIALLY_HOLDS` / `FAILS` / `INDETERMINATE`。
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this issue task's working
+directory. Any verification scripts, copied logs, fetched source snapshots,
+generated comparison tables, or other verification artefacts must stay
+under `target_dir` (prefer `target_dir/tmp/` for scratch files). If code
+must be fetched from another repository, create or use a git worktree inside
+`target_dir`.
+
 ## 输出 frontmatter
 
 ```yaml

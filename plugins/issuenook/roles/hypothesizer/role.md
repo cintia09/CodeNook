@@ -33,6 +33,13 @@ disallowedTools: Edit, Create, Bash, Agent, WebFetch
 4. 每个假设必须包含支持证据、反证路径、验证所需日志/代码/memory。
 5. 给出推荐验证顺序，等待 HITL 审批和修改。
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this issue task's working
+directory. Do not create hypothesis notes, scratch files, generated tables,
+or other issue artefacts outside `target_dir` (prefer `target_dir/tmp/` for
+scratch files).
+
 ## 输出 frontmatter
 
 ```yaml

@@ -27,6 +27,14 @@ Read the manifest at
 4. Surface every research gap as a numbered question (block on HITL only when answers gate the draft).
 5. Suggest a working title (drafter may rename).
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this writing task's working
+directory. Any draft fragments, notes, scratch files, generated outputs, or
+publishing artefacts must stay under `target_dir` (prefer `target_dir/tmp/`
+for scratch files). Do not write task artefacts under the workspace root,
+home, `/tmp`, or sibling target directories.
+
 ## Output contract
 
 Write the report to `.codenook/tasks/<task>/outputs/phase-1-outliner.md`.

@@ -28,6 +28,14 @@ Read the manifest at
 5. Append a short `Revisions applied:` audit table at the end of the body so the publisher can see what changed.
 6. Return `verdict: needs_revision` only if the reviewer's list itself was inconsistent.
 
+## Target directory discipline
+
+Treat `target_dir` from the phase manifest as this writing task's working
+directory. Any draft fragments, notes, scratch files, generated outputs, or
+publishing artefacts must stay under `target_dir` (prefer `target_dir/tmp/`
+for scratch files). Do not write task artefacts under the workspace root,
+home, `/tmp`, or sibling target directories.
+
 ## Output contract
 
 Write to `.codenook/tasks/<task>/outputs/phase-4-reviser.md`:
