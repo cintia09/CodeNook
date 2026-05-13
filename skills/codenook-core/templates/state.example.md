@@ -20,6 +20,7 @@
   "plugin": "development",
   "plugin_version": "0.1.0",
   "target_dir": "src",
+  "target_backend": "local",
   "phase": null,
   "iteration": 0,
   "max_iterations": 3,
@@ -47,7 +48,9 @@
 | Field | Type | Use |
 |---|---|---|
 | `title` / `summary` | string | Human display, used by parent_suggester. |
-| `target_dir` | string | Directory where implementer should write files. |
+| `target_dir` | string | Directory or target URI where implementer should write files. |
+| `target_backend` | string | Target backend (`local` by default; `ssh` for `ssh://...` targets). |
+| `target_uri` | string\|null | Canonical URI for non-local targets. |
 | `dual_mode` | `"serial"` \| `"parallel"` | Required by `clarify` and `implement` phases. |
 | `parent_id` | string\|null | M10 task-chain link to a parent task. |
 | `chain_root` | string\|null | M10 cached terminal ancestor (set by `codenook chain link`). |

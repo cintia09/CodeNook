@@ -179,10 +179,13 @@ user's request is substantial; the user always confirms before
   `.codenook/` unless they are kernel-managed task metadata.
 - **MUST** create or reuse an explicit target directory for every
   new task. Prefer a fresh directory under `<workspace>/target/`,
-  but accept any user-supplied absolute or relative target path.
-  When reusing an existing target directory, scan it first and
-  tell the user that this directory is the current task working
-  directory.
+  but accept any user-supplied relative/absolute local target path
+  or supported target URI (for example `ssh://user@host:22/path`).
+  When reusing an existing target directory, scan it first when the
+  backend supports scanning and tell the user that this directory
+  is the current task working directory. If `target_backend` is not
+  `local`, use the backend details from the tick envelope / task
+  state for every script, log, download, and scratch artefact.
 - **MUST** use a git worktree inside the task `target_dir` when a
   development task needs to modify an existing repository outside
   that directory. The worktree is the place where phase agents edit,

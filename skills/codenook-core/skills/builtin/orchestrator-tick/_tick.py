@@ -558,7 +558,23 @@ def _render_phase_prompt(workspace: Path, state: dict, phase: dict) -> str | Non
             task_context = _ml.build_task_context(workspace, task_id)
         except Exception:
             pass
+        target_backend = str(state.get("target_backend") or "local")
+        target_dir = str(state.get("target_dir") or "target/")
+        target_uri = str(state.get("target_uri") or "")
+        if target_backend == "ssh":
+            target_instructions = (
+                f"Target backend is ssh. Store task artifacts under `{target_dir}` "
+                "using the remote connection details in task state."
+            )
+        else:
+            target_instructions = (
+                f"Target backend is local. Store task artifacts under `{target_dir}`."
+            )
         rendered = template.replace("{{TASK_CONTEXT}}", task_context)
+        rendered = rendered.replace("{target_dir}", target_dir)
+        rendered = rendered.replace("{target_backend}", target_backend)
+        rendered = rendered.replace("{target_uri}", target_uri)
+        rendered = rendered.replace("{target_instructions}", target_instructions)
         # v0.22.0 — auto-inject {{KNOWLEDGE_HITS}} via find_relevant. The
         # CLI cmd_tick re-renders into the same prompts/<basename>.md
         # path after we return, so this is mostly a parity write — keep

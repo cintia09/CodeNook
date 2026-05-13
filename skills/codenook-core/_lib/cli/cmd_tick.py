@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Sequence
 
 from . import _subproc
+from . import target_backend as _target_backend
 from .config import CodenookContext, is_safe_task_component, resolve_task_id
 from .. import models
 from .. import exec_mode as _exec_mode
@@ -195,10 +196,15 @@ def _augment_envelope(ctx: CodenookContext, task: str, tick_out: str) -> str:
 
     if template is not None:
         body = template.read_text(encoding="utf-8")
+        target_fields = _target_backend.envelope_fields_from_state(state)
         subs = {
             "task_id": task,
             "iteration": str(state.get("iteration", 0)),
-            "target_dir": state.get("target_dir", "target/"),
+            "target_dir": str(target_fields.get("target_dir", "target/")),
+            "target_backend": str(target_fields.get("target_backend", "local")),
+            "target_uri": str(target_fields.get("target_uri", "")),
+            "target_instructions": str(
+                target_fields.get("target_instructions", "")),
             "prior_summary_path": "",
             "criteria_path": "",
         }
@@ -301,6 +307,7 @@ def _augment_envelope(ctx: CodenookContext, task: str, tick_out: str) -> str:
         "prompt_path": prompt_rel,
         "reply_path": reply_rel,
     }
+    envelope.update(_target_backend.envelope_fields_from_state(state))
     if mode == "inline":
         # Inline-mode envelopes carry an explicit role_path / output_path
         # pair so the conductor has every path it needs to do the work

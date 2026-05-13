@@ -95,12 +95,16 @@ entry-question, `3` on already-attached / not-modified states.
 
 `target_dir` is a task working directory, not just a source-root hint.
 When omitted, `task new` creates `<workspace>/target/<task-id>` and stores
-that relative path in `state.json`. Callers may pass any relative or
-absolute `--target-dir`; existing directories are scanned before the task
-is created and the CLI warns that this directory is the task work area.
-Development tasks that modify an existing repository outside the chosen
-target should create a git worktree inside `target_dir` and perform edits,
-builds, tests, logs, and scratch-file work there.
+that relative path in `state.json`. Callers may pass a relative local path,
+an absolute local path, or a supported target URI such as
+`ssh://user@host:22/abs/path`. The kernel records `target_backend`
+(`local` by default) plus backend-specific non-secret `target_details` and
+surfaces them in tick envelopes. Existing local and SSH directories are
+prepared/scanned before the task is created and the CLI warns that this
+directory is the task work area. Development tasks that modify an existing
+repository outside the chosen target should create a git worktree inside
+`target_dir` and perform edits, builds, tests, logs, and scratch-file work
+there.
 
 ### 2.2 Builtin skills (`skills/builtin/`)
 

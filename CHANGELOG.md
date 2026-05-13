@@ -1,3 +1,33 @@
+## v0.29.26 — Target backend URIs
+
+### Added
+
+- `task new --target-dir` and `task set --field target_dir` now accept
+  target backend URIs in addition to local relative/absolute paths.
+  The first non-local backend is SSH, e.g.
+  `ssh://user@host:22/abs/path` or `user@host:/abs/path`.
+- Task state now records `target_backend`, `target_uri`, and
+  non-secret `target_details` so conductors and phase agents can keep
+  scripts, logs, downloads, and scratch artifacts under the right
+  target location.
+- Tick envelopes surface `target_backend`, `target_uri`,
+  `target_details`, and `target_instructions`.
+
+### Changed
+
+- Local target behavior remains backward-compatible, including relative
+  target directories under the workspace and absolute local paths.
+- SSH targets are prepared through OpenSSH with `mkdir -p` and existing
+  remote directories are scanned before use when the remote shell
+  supports standard POSIX tools.
+
+### Tests
+
+- Added coverage for SSH target creation, state persistence, and tick
+  envelope propagation using a fake `ssh` executable.
+
+---
+
 ## v0.29.25 — Target directory as task working directory
 
 ### Changed

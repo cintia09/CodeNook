@@ -13,6 +13,19 @@
     "plugin": {"type": "string"},
     "plugin_version": {"type": "string"},
     "target_dir": {"type": "string"},
+    "target_backend": {
+      "type": "string",
+      "description": "v0.29.26 — target directory backend. Missing/null in legacy states means local. Current built-ins support local and ssh."
+    },
+    "target_uri": {
+      "type": ["string", "null"],
+      "description": "v0.29.26 — canonical target URI for non-local targets, e.g. ssh://user@host:22/abs/path."
+    },
+    "target_details": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "v0.29.26 — backend-specific connection/display metadata surfaced to tick envelopes. Must not contain secrets."
+    },
     "phase": {"type": ["string", "null"]},
     "phase_started_at": {"type": ["string", "null"]},
     "iteration": {"type": "integer", "minimum": 0},

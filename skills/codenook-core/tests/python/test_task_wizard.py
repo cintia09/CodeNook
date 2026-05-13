@@ -73,6 +73,21 @@ def _new_task(ws: Path, *extra: str) -> str:
     return cp.stdout.strip().splitlines()[-1]
 
 
+def _fake_ssh_env(tmp_path: Path) -> dict:
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    if sys.platform == "win32":
+        ssh = fake_bin / "ssh.cmd"
+        ssh.write_text("@echo off\r\necho STATUS=CREATED\r\nexit /b 0\r\n",
+                       encoding="utf-8")
+    else:
+        ssh = fake_bin / "ssh"
+        ssh.write_text("#!/bin/sh\necho STATUS=CREATED\n",
+                       encoding="utf-8")
+        ssh.chmod(0o755)
+    return {"PATH": str(fake_bin) + os.pathsep + os.environ.get("PATH", "")}
+
+
 # 1. --profile <name> persists.
 def test_profile_flag_persists(installed_ws: Path) -> None:
     tid = _new_task(installed_ws,
@@ -104,6 +119,41 @@ def test_task_new_accepts_absolute_target_workdir(
     s = _state(installed_ws, tid)
     assert s.get("target_dir") == str(target)
     assert target.is_dir()
+
+
+def test_task_new_accepts_ssh_target_backend(
+    installed_ws: Path,
+    tmp_path: Path,
+) -> None:
+    target = (
+        "ssh://mingdw@10.64.64.185:2222"
+        "/home/mingdw/codenook/target/PR05448763"
+    )
+    cp = _run(_bin_cmd(installed_ws) + [
+        "task", "new", "--title", "p-target-ssh",
+        "--target-dir", target, "--accept-defaults",
+    ], env=_fake_ssh_env(tmp_path))
+    tid = cp.stdout.strip().splitlines()[-1]
+    s = _state(installed_ws, tid)
+    assert s.get("target_dir") == target
+    assert s.get("target_backend") == "ssh"
+    assert s.get("target_uri") == target
+    assert s.get("target_details", {}).get("host") == "10.64.64.185"
+    assert s.get("target_details", {}).get("port") == 2222
+    assert s.get("target_details", {}).get("path") == (
+        "/home/mingdw/codenook/target/PR05448763"
+    )
+    assert "target_backend=ssh" in cp.stderr
+
+    tick = _run(_bin_cmd(installed_ws) + [
+        "tick", "--task", tid, "--json",
+    ])
+    payload = json.loads(tick.stdout.strip().splitlines()[-1])
+    envelope = payload.get("envelope") or {}
+    if envelope:
+        assert envelope.get("target_backend") == "ssh"
+        assert envelope.get("target_uri") == target
+        assert "ssh" in envelope.get("target_instructions", "")
 
 
 def test_task_new_scans_existing_target_workdir(
