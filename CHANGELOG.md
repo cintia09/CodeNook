@@ -1,3 +1,21 @@
+## v0.29.27 — Windows task-new hardening
+
+### Changed
+
+- CodeNook task-creation guidance now uses `--input-file` for multi-line
+  interview answers so Windows `.cmd` shims do not corrupt following flags
+  such as `--plugin`, `--profile`, `--target-dir`, or `--accept-defaults`.
+- `task new` now filters plugin choices against plugin directories that
+  actually exist under `.codenook/plugins`, avoiding stale `state.json`
+  entries in interactive menus.
+- The Windows `codenook.cmd` template now documents the CR/LF argument
+  forwarding limitation and points users to `task new --input-file`.
+
+### Tests
+
+- Compiled the changed Python modules and verified `task new --input-file`
+  parsing no longer enters plugin/profile prompts when all flags are present.
+
 ## v0.29.26 — Target backend URIs
 
 ### Added

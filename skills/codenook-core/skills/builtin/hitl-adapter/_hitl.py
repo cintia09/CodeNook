@@ -59,6 +59,10 @@ def entry_path(ws: Path, eid: str) -> Path:
     return queue_dir(ws) / f"{eid}.json"
 
 
+def entry_lock_path(ws: Path, eid: str) -> Path:
+    return queue_dir(ws) / f".{eid}.lock"
+
+
 def load_entry(ws: Path, eid: str) -> dict | None:
     p = entry_path(ws, eid)
     if not p.is_file():
@@ -281,12 +285,14 @@ def cmd_decide(ws: Path, eid: str, decision: str, reviewer: str,
         return 1
 
     # v0.29.5: serialise the read-modify-write cycle under an
-    # exclusive flock on the entry file so two concurrent `decide`
-    # calls (e.g. CLI + HTTP serve UI) cannot both observe
-    # decision=None and both win. The flock is released
-    # automatically when the with-block exits or the process dies.
+    # exclusive per-entry flock so two concurrent `decide` calls
+    # (e.g. CLI + HTTP serve UI) cannot both observe decision=None
+    # and both win. Use a sidecar lock file instead of locking the
+    # JSON entry itself: Windows rejects os.replace() when the target
+    # file is still open, even by this same process.
     ep = entry_path(ws, eid)
-    lock_fd = os.open(str(ep), os.O_RDONLY)
+    lock_fd = os.open(str(entry_lock_path(ws, eid)),
+                      os.O_RDWR | os.O_CREAT, 0o600)
     try:
         fcntl.flock(lock_fd, fcntl.LOCK_EX)
         # Re-read under the lock; another decider may have committed

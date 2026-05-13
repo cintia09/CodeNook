@@ -516,7 +516,7 @@ defaults seem obvious.
 # When user picked a real model:
 <codenook> task new --title "<short label>" \
                     --summary "<verbatim user request>" \
-                    --input "<multi-line interview answers>" \
+                    --input-file "<path-to-interview-answers.txt>" \
                     --plugin <chosen-plugin-id> \
                     --profile <chosen-profile> \
                     --exec sub-agent \
@@ -527,7 +527,7 @@ defaults seem obvious.
 # When user picked "platform default" (or exec is inline) — OMIT --model entirely:
 <codenook> task new --title "<short label>" \
                     --summary "<verbatim user request>" \
-                    --input "<multi-line interview answers>" \
+                    --input-file "<path-to-interview-answers.txt>" \
                     --plugin <chosen-plugin-id> \
                     --profile <chosen-profile> \
                     --exec sub-agent \
@@ -545,8 +545,12 @@ default whenever `--model` is absent.
   → `--summary` (multi-line `--input` is skipped to avoid
   meaningless concatenated slugs; CJK preserved).
 - `--summary` carries the user's verbatim original request.
-- `--input` carries the gathered interview answers (multi-line
-  via shell quoting or `--input-file <path>`).
+- `--input-file` carries the gathered interview answers. On
+  Windows, ALWAYS use `--input-file` for multi-line answers; do
+  not pass literal CR/LF text through `codenook.cmd --input`,
+  because the batch shim cannot reliably preserve following flags
+  such as `--plugin`, `--profile`, `--target-dir`, or
+  `--accept-defaults`.
 - `--accept-defaults` fills `dual_mode`, `priority`, `target_dir`
   with sane values so no entry-question gate fires. `target_dir`
   defaults to a created per-task working directory under

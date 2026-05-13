@@ -24,10 +24,14 @@ _INSTALLER = _REPO / "install.py"
 
 def _bootstrap_workspace(plugin: str = "writing") -> Path:
     ws = Path(tempfile.mkdtemp(prefix="cn_decide_test_"))
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
     cp = subprocess.run(
         [sys.executable, str(_INSTALLER),
          "--target", str(ws), "--plugin", plugin, "--yes"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, env=env,
+        encoding="utf-8", errors="replace",
     )
     if cp.returncode != 0:
         raise RuntimeError(
@@ -57,9 +61,17 @@ def _write_pending_gate(ws: Path, *, eid: str, task_id: str,
 
 
 def _run(ws: Path, *args: str) -> subprocess.CompletedProcess:
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
+    bin_name = "codenook.cmd" if sys.platform == "win32" else "codenook"
+    bin_path = ws / ".codenook" / "bin" / bin_name
+    cmd = [str(bin_path), *args]
+    if sys.platform != "win32":
+        cmd = [sys.executable, str(bin_path), *args]
     return subprocess.run(
-        [str(ws / ".codenook" / "bin" / "codenook"), *args],
-        cwd=str(ws), capture_output=True, text=True,
+        cmd, cwd=str(ws), capture_output=True, text=True, env=env,
+        encoding="utf-8", errors="replace",
     )
 
 

@@ -38,5 +38,7 @@ set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 set "CODENOOK_WORKSPACE=%WS_ROOT%"
 
+REM Windows batch cannot reliably forward literal CR/LF inside one
+REM argument. Use `task new --input-file <path>` for multi-line input.
 %PY_EXE% "%ENTRY%" %*
 exit /b %ERRORLEVEL%

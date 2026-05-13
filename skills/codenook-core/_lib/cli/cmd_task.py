@@ -170,7 +170,9 @@ Options:
                           back to the first declared profile).
   --input <text>          v0.20 — seed the initial task description
                           (used by phase agents / inline conductor as
-                          additional context).
+                          additional context). For multi-line input,
+                          prefer --input-file; Windows .cmd shims cannot
+                          reliably forward literal CR/LF arguments.
   --input-file <path>     v0.20 — read --input contents from a file.
                           Mutually exclusive with --input.
   --interactive           v0.20 — wizard mode: prompt for plugin /
@@ -512,6 +514,41 @@ def _load_plugin_profiles(ctx: CodenookContext, plugin: str) -> list[str]:
     return [str(k) for k in profiles.keys()]
 
 
+def _installed_plugin_ids(ctx: CodenookContext) -> list[str]:
+    """Return installed plugin ids that are actually present on disk.
+
+    ``state.json`` can retain stale entries after a plugin directory is
+    removed or an install is interrupted.  ``task new`` should not offer
+    or accept those ghosts; use the plugin directory as the availability
+    check while preserving state order for real plugins.
+    """
+    pdir = ctx.workspace / ".codenook" / "plugins"
+    state_ids: list[str] = []
+    for item in ctx.state.get("installed_plugins") or []:
+        if not isinstance(item, dict):
+            continue
+        pid = item.get("id")
+        if isinstance(pid, str) and pid not in state_ids:
+            state_ids.append(pid)
+
+    present: set[str] = set()
+    if pdir.is_dir():
+        for child in sorted(pdir.iterdir()):
+            if child.is_dir() and (child / "plugin.yaml").is_file():
+                present.add(child.name)
+    if not present:
+        return state_ids
+
+    ordered: list[str] = []
+    for pid in state_ids:
+        if pid in present and pid not in ordered:
+            ordered.append(pid)
+    for pid in sorted(present):
+        if pid not in ordered:
+            ordered.append(pid)
+    return ordered
+
+
 def _load_plugin_phase_catalogue(
     ctx: CodenookContext, plugin: str,
 ) -> list[str]:
@@ -752,13 +789,11 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
 
     prompted_any = False
     if not plugin:
-        installed = [
-            p.get("id") for p in (ctx.state.get("installed_plugins") or [])
-            if isinstance(p, dict) and p.get("id")
-        ]
+        installed = _installed_plugin_ids(ctx)
         if not installed:
             sys.stderr.write(
-                "codenook task new: no installed plugin found in state.json\n")
+                "codenook task new: no installed plugin found under "
+                ".codenook/plugins\n")
             return 1
         if len(installed) == 1 or accept_defaults:
             plugin = installed[0]
@@ -777,10 +812,7 @@ def _task_new(ctx: CodenookContext, args: list[str]) -> int:
             prompted_any = True
     else:
         # Explicit --plugin: validate it's actually installed.
-        installed_ids = [
-            p.get("id") for p in (ctx.state.get("installed_plugins") or [])
-            if isinstance(p, dict) and p.get("id")
-        ]
+        installed_ids = _installed_plugin_ids(ctx)
         if installed_ids and plugin not in installed_ids:
             sys.stderr.write(
                 f"codenook task new: plugin '{plugin}' is not installed "
@@ -1622,13 +1654,11 @@ def _task_new_interactive(ctx: CodenookContext, args: list[str]) -> int:
     # alongside it (e.g. --id) are forwarded to _task_new verbatim.
     forwarded: list[str] = [a for a in args if a != "--interactive"]
 
-    installed = [
-        p.get("id") for p in (ctx.state.get("installed_plugins") or [])
-        if isinstance(p, dict) and p.get("id")
-    ]
+    installed = _installed_plugin_ids(ctx)
     if not installed:
         sys.stderr.write(
-            "codenook task new: no installed plugin found in state.json\n")
+            "codenook task new: no installed plugin found under "
+            ".codenook/plugins\n")
         return 1
 
     def _abort_eof() -> int:
