@@ -1,9 +1,9 @@
 """sh_run — Windows-friendly subprocess.run wrapper.
 
-On Windows, the kernel's many .sh shell scripts cannot be exec'd directly
+On Windows, the kernel's many .sh/.py scripts cannot be exec'd directly
 (no shebang handling). This helper detects .sh in cmd[0] and prepends the
-bash interpreter resolved via :func:`find_bash`, keeping POSIX behavior
-on Linux/macOS untouched.
+bash interpreter resolved via :func:`find_bash`; it detects .py in cmd[0]
+and prepends the current Python interpreter. POSIX behavior is unchanged.
 
 ``find_bash()`` is also exposed so other modules (e.g. orchestrator-tick's
 extractor-batch hop) can avoid hardcoding the literal ``"bash"`` string,
@@ -16,6 +16,7 @@ import glob
 import os
 import shutil
 import subprocess
+import sys
 from typing import Optional
 
 # Well-known Windows install locations searched, in order, when neither
@@ -100,10 +101,15 @@ def _reset_cache_for_tests() -> None:
 
 
 def sh_run(cmd, **kwargs):
-    """Drop-in replacement for subprocess.run that wraps .sh on Windows."""
-    if (os.name == "nt" and isinstance(cmd, list) and cmd
-            and isinstance(cmd[0], str)
-            and cmd[0].lower().endswith(".sh")):
+    """Drop-in replacement for subprocess.run that wraps scripts on Windows."""
+    if not (os.name == "nt" and isinstance(cmd, list) and cmd
+            and isinstance(cmd[0], str)):
+        return subprocess.run(cmd, **kwargs)
+
+    script = cmd[0].lower()
+    if script.endswith(".py"):
+        cmd = [sys.executable, *cmd]
+    elif script.endswith(".sh"):
         bash = find_bash()
         if bash is None:
             tried = [

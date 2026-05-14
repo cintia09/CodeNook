@@ -112,6 +112,23 @@ def test_sh_run_passthrough_on_posix(monkeypatch):
     assert captured["cmd"] == ["foo.sh", "--bar"]
 
 
+def test_sh_run_wraps_python_script_on_windows(monkeypatch):
+    monkeypatch.setattr(sh_run.os, "name", "nt")
+    captured = {}
+
+    def _fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["kwargs"] = kwargs
+
+        class _R:
+            returncode = 0
+        return _R()
+
+    monkeypatch.setattr(sh_run.subprocess, "run", _fake_run)
+    sh_run.sh_run(["validator.py", "T-001"], check=False)
+    assert captured["cmd"] == [sys.executable, "validator.py", "T-001"]
+
+
 def test_sh_run_raises_clear_error_when_bash_missing(monkeypatch):
     monkeypatch.setattr(sh_run.os, "name", "nt")
     monkeypatch.delenv("CN_BASH", raising=False)
