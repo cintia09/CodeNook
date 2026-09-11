@@ -166,10 +166,13 @@ user's request is substantial; the user always confirms before
   that might be covered by indexed content. Do not answer from
   LLM training alone when a live search has a plausible hit.
   See §Proactive knowledge lookup.
-- **MUST** end every reply by invoking the host's interactive-
-  prompt tool (when available) to ask the user what their next
-  step is. A plain-text question is not sufficient when such a
-  tool exists. This applies whether or not a task is active.
+- **MUST NOT** end ordinary replies by invoking the host's
+  interactive-prompt / AskQuestion tool just to ask what the
+  next step is. Use that tool only when a CodeNook gate actually
+  needs a decision (plugin/profile pick, HITL channel, HITL
+  approve/reject, clarifier Q&A, or the user asked a multiple-
+  choice question). A finished answer should stop; do not leave
+  a pending questionnaire that auto-resumes after the user leaves.
 - **MUST** treat each task's `target_dir` as the current task
   working directory. All temporary files, ad-hoc scripts, logs,
   generated code, and code edits created for that task MUST stay
